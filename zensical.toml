@@ -3,7 +3,7 @@
 site_name = "potto documentation"
 site_description = "Documentation for potto."
 site_author = "potto dev team"
-site_url = "https://ricardogsilva.github.io/potto"
+site_url = "https://geobeyond.github.io/potto"
 
 copyright = """
 Copyright &copy; 2026 potto dev team
