@@ -30,7 +30,12 @@ class SpatialExtentField(BaseField):
         max_lon = form_data.get(f"{self.id}-max-lon")
         min_lat = form_data.get(f"{self.id}-min-lat")
         max_lat = form_data.get(f"{self.id}-max-lat")
-        if not all((min_lon, max_lon, min_lat, max_lat)):
+        if not (
+            isinstance(min_lon, str)
+            and isinstance(min_lat, str)
+            and isinstance(max_lon, str)
+            and isinstance(max_lat, str)
+        ):
             return None
         min_lon = float(min_lon)
         max_lon = float(max_lon)
@@ -44,7 +49,7 @@ class SpatialExtentField(BaseField):
 
     async def serialize_value(
         self, request: Request, value: shapely.Polygon | None, action: RequestAction
-    ) -> str | None:
+    ) -> dict[str, float] | None:
         if value is None:
             return None
         min_x, min_y, max_x, max_y = value.bounds

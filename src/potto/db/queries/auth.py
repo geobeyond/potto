@@ -11,7 +11,7 @@ async def collect_all_users(
 ) -> list[User]:
     statement = select(User).order_by(User.username)
     if admin_filter:
-        statement = statement.where(User.scopes.contains([PottoScope.ADMIN.value]))
+        statement = statement.where(User.scopes.contains([PottoScope.ADMIN.value]))  # ty: ignore[unresolved-attribute]
     return list((await session.exec(statement)).all())
 
 
@@ -26,12 +26,12 @@ async def paginated_list_users(
     statement = select(User).order_by(User.username)
     offset = page_size * (page - 1)
     if admin_filter:
-        statement = statement.where(User.scopes.contains([PottoScope.ADMIN.value]))
+        statement = statement.where(User.scopes.contains([PottoScope.ADMIN.value]))  # ty: ignore[unresolved-attribute]
     items = (await session.exec(statement.offset(offset).limit(page_size))).all()
     num_total = (
         await _get_total_num_records(session, statement) if include_total else None
     )
-    return items, num_total
+    return list(items), num_total
 
 
 async def get_user(

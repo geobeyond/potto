@@ -23,7 +23,10 @@ async def create_collection(
     session.add(instance)
     await session.commit()
     await session.refresh(instance)
-    return await get_collection(session, instance.id)
+    assert instance.id is not None
+    if (created := await get_collection(session, instance.id)) is None:
+        raise PottoException("error creating collection")
+    return created
 
 
 async def update_collection(
@@ -39,9 +42,9 @@ async def update_collection(
         setattr(db_collection, key, value)
     if to_update.additional_extents is not None:
         db_collection.additional_extents = {}
-        for additional_extent in db_collection.additional_extents or []:
+        for additional_extent in to_update.additional_extents or []:
             db_collection.additional_extents[additional_extent.name] = (
-                additional_extent.model_dump(exclude={"name"})
+                additional_extent.model_dump(exclude={"name"}, exclude_none=True)
             )
     session.add(db_collection)
     await session.commit()

@@ -4,14 +4,17 @@ from typing import Literal
 import pydantic
 import shapely
 
-from ..db.models import Collection
-
 
 class LocalizableConfigString(pydantic.RootModel):
     root: dict[str, str]
 
     def get_value(self, language: str | None = None) -> str:
-        return self.root.get(language) or list(self.root.values())[0]
+        default_value = list(self.root.values())[0]
+        return (
+            self.root.get(language, default_value)
+            if language is not None
+            else default_value
+        )
 
     @classmethod
     def from_potto_db(cls, value: str | dict[str, str]) -> "LocalizableConfigString":
@@ -28,7 +31,12 @@ class LocalizableConfigStringList(pydantic.RootModel):
     root: dict[str, list[str]]
 
     def get_value(self, language: str | None = None) -> list[str]:
-        return self.root.get(language) or list(self.root.values())[0]
+        default_value = list(self.root.values())[0]
+        return (
+            self.root.get(language, default_value)
+            if language is not None
+            else default_value
+        )
 
     @classmethod
     def from_potto_db(
@@ -344,36 +352,4 @@ class ItemCollectionConfig(pydantic.BaseModel):
             limits=LimitsConfig.from_pygeoapi_config(raw_limits)
             if (raw_limits := collection_config.get("limits"))
             else None,
-        )
-
-    @classmethod
-    def from_potto_db(cls, collection_config: Collection) -> "ItemCollectionConfig":
-        return cls(
-            identifier=collection_config.resource_identifier,
-            type_="collection",
-            title=LocalizableConfigString.from_potto_db(collection_config.title),
-            description=LocalizableConfigString.from_potto_db(
-                collection_config.description or ""
-            ),
-            keywords=LocalizableConfigStringList.from_potto_db(
-                collection_config.keywords or {}
-            ),
-            extents=ExtentConfig.from_potto_db(
-                collection_config.spatial_extent,
-                (
-                    collection_config.temporal_extent_begin,
-                    collection_config.temporal_extent_end,
-                ),
-            ),
-            providers=[
-                ProviderConfig.from_potto_db(provider)
-                for provider in collection_config.providers
-            ],
-            visibility="default",
-            linked_data=None,
-            links=[
-                LinkConfig.from_potto_db(link)
-                for link in collection_config.additional_links
-            ],
-            limits=None,
         )

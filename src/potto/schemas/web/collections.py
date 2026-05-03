@@ -183,7 +183,7 @@ class JsonCollection(pydantic.BaseModel):
                     )
                 ),
             ),
-            *[base.Link(**li) for li in additional_links or []],
+            *[base.Link.model_validate(li) for li in additional_links or []],
         ]
 
 

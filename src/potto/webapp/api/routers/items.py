@@ -45,7 +45,9 @@ async def list_collection_items(
         collection_id,
         user=user,
         locale=locale,
-        filter_=FeatureFilter(**filter_.model_dump()),
+        filter_=FeatureFilter.model_validate(
+            filter_.model_dump(by_alias=True, exclude_none=True)
+        ),
     )
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
     return JSONResponse(

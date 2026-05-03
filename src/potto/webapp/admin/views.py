@@ -341,9 +341,16 @@ class CollectionView(_PottoAdminModelView):
         return total or 0
 
     async def serialize(
-        self, obj: Any, request: Request, action: RequestAction, **kwargs: Any
-    ) -> Any:
-        result = await super().serialize(obj, request, action, **kwargs)
+        self,
+        obj: Any,
+        request: Request,
+        action: RequestAction,
+        include_relationships: bool = True,
+        include_select2: bool = False,
+    ) -> dict[str, Any]:
+        result = await super().serialize(
+            obj, request, action, include_relationships, include_select2
+        )
         if action == RequestAction.LIST:
             user = cast(PottoUser, request.user)
             settings = cast(PottoSettings, request.app.state.SETTINGS)
@@ -355,12 +362,13 @@ class CollectionView(_PottoAdminModelView):
 
     async def serialize_field_value(
         self,
-        value: list[dict],
+        value: Any,
         field: BaseField,
         action: RequestAction,
         request: Request,
     ) -> Any:
         if field.name == "providers":
+            value: dict[str, dict[str, Any]]
             result = []
             for type_, prov in value.items():
                 result.append(
@@ -473,7 +481,7 @@ class CollectionView(_PottoAdminModelView):
                     session,
                     user,
                     auth_backend,
-                    to_create=CollectionCreate(**data),
+                    to_create=CollectionCreate.model_validate(data),
                 )
             except (pydantic.ValidationError, PottoException) as err:
                 return self.handle_exception(err)
@@ -616,7 +624,7 @@ class ServerMetadataModelView(_PottoAdminModelView):
                         )
                         if dp_data.get("name")
                         else None,
-                        point_of_contact=PointOfContact(**poc_values)
+                        point_of_contact=PointOfContact.model_validate(poc_values)
                         if any(poc_values.values())
                         else None,
                     ),

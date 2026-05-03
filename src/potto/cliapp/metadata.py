@@ -65,14 +65,14 @@ async def get_metadata_detail(
 @metadata_app.command(name="update")
 async def update_metadata(
     to_update: Annotated[
-        ServerMetadataFlattenedUpdate, cyclopts.Parameter(name="*")
+        ServerMetadataFlattenedUpdate | None, cyclopts.Parameter(name="*")
     ] = None,
     format: Literal["json", "table"] = "table",
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ):
     """Update metadata"""
-    if not to_update:
+    if to_update is None:
         metadata_app.console.print("Nothing to update")
         sys.exit(0)
     async with settings.get_db_session_maker()() as session:

@@ -21,7 +21,6 @@ from ..wrapper import Potto
 from .routes import (
     auth as auth_routes,
     landing as landing_routes,
-    ogcapi_common as ogc_api_common_routes,
     ogcapi_features as ogc_api_features_routes,
 )
 from .state import AppState
@@ -78,30 +77,10 @@ def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
     routes += [
         Route("/", landing_routes.get_landing_page, name="landing-page"),
         Route("/set-language/{lang}", landing_routes.set_language, name="set_language"),
-        Route(
-            "/conformance",
-            ogc_api_common_routes.get_conformance_details,
-            name="conformance-document",
-        ),
-        Route(
-            "/openapi",
-            ogc_api_common_routes.get_openapi_document,
-            name="openapi-document",
-        ),
     ]
     if True:  # whether to enable ogc api features routes: let's make this controllable via server metadata
         routes.extend(
             [
-                Route(
-                    "/collections/{collection_id}/items/{item_id}",
-                    ogc_api_features_routes.get_item_details,
-                    name="collection-item-get",
-                ),
-                Route(
-                    "/collections/{collection_id}/items",
-                    ogc_api_features_routes.list_collection_items,
-                    name="collection-item-list",
-                ),
                 Route(
                     "/collections/{collection_id}",
                     ogc_api_features_routes.get_collection_details,

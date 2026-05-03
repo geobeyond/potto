@@ -104,6 +104,7 @@ async def get_collection_queryables(
     )
     if potto_collection is None:
         raise HTTPException(status_code=404, detail="Collection not found.")
+    assert potto_collection.queryables is not None
     queryables = copy.deepcopy(potto_collection.queryables)
     queryables["$id"] = str(
         request.url_for("api:collection-get", collection_id=collection_id)
@@ -146,6 +147,12 @@ async def get_collection_schema(
     potto_collection = await potto.api_get_collection(
         collection_id, user=user, locale=locale, include_schema=True
     )
+    if potto_collection is None:
+        raise HTTPException(
+            status_code=404, detail=f"Collection {collection_id} not found"
+        )
+
+    assert potto_collection.schema is not None
     schema = copy.deepcopy(potto_collection.schema)
     schema["$id"] = str(
         request.url_for("api:collection-get", collection_id=collection_id)
@@ -204,6 +211,8 @@ async def delete_collection(
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    if user is None:
+        raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
         await collection_operations.delete_collection(
             session, user, authorization_backend, int(collection_id)
@@ -224,6 +233,8 @@ async def grant_collection_access(
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    if user is None:
+        raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
         collection = await collection_operations.get_collection_by_resource_identifier(
             session, user, authorization_backend, collection_id
@@ -248,6 +259,8 @@ async def revoke_collection_access(
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    if user is None:
+        raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
         collection = await collection_operations.get_collection_by_resource_identifier(
             session, user, authorization_backend, collection_id

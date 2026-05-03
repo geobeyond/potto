@@ -14,8 +14,6 @@ from pygeoapi.api import (
     API as _API,
     describe_collections as _describe_collections,
     get_collection_schema as _get_collection_schema,
-    F_JSON,
-    FORMAT_TYPES as _FORMAT_TYPES,
 )
 from pygeoapi.api.itemtypes import (
     get_collection_items as _get_collection_items,
@@ -40,7 +38,7 @@ from .schemas import (
     auth,
     potto as potto_schemas,
 )
-from .schemas.web.items import FeatureFilter
+from .schemas.base import FeatureFilter
 from .webapp.requests import PottoRequest
 from .util import get_collection_pagination_limit
 
@@ -122,8 +120,10 @@ class Potto:
                 )
         return db_collection.to_potto()
 
-    async def get_localized_config(self, locale: babel.Locale) -> dict:
-        pygeoapi_api = await self._get_pygeoapi()
+    async def get_localized_config(
+        self, user: auth.PottoUser | None, locale: babel.Locale
+    ) -> dict:
+        pygeoapi_api = await self._get_pygeoapi(user)
         return translate_struct(pygeoapi_api.config, locale_=locale, is_config=True)
 
     async def api_get_landing_page(
@@ -145,8 +145,9 @@ class Potto:
                 include_total=True,
             )
             server_metadata = await metadata_ops.get_server_metadata(session)
+        assert total is not None
         return potto_schemas.LandingPage(
-            metadata=server_metadata,
+            metadata=server_metadata.to_potto(),
             collections=potto_schemas.CollectionList(
                 collections=[db_col.to_potto() for db_col in db_collections],
                 pagination=potto_schemas.Pagination(
@@ -166,18 +167,10 @@ class Potto:
             ]
         )
 
-    async def api_get_openapi_document(
-        self,
-    ) -> potto_schemas.PottoResponse:
-        pygeoapi_api = await self._get_pygeoapi()
-        return potto_schemas.PottoResponse(
-            content_type=_FORMAT_TYPES[F_JSON], content=pygeoapi_api.openapi
-        )
-
     async def api_list_collections(
         self,
         *,
-        user: auth.PottoUser,
+        user: auth.PottoUser | None,
         locale: babel.Locale,
         page: int = 1,
         page_size: int = 20,
@@ -212,7 +205,7 @@ class Potto:
         self,
         collection_id: str,
         *,
-        user: auth.PottoUser,
+        user: auth.PottoUser | None,
         locale: babel.Locale,
         include_queryables: bool = False,
         include_schema: bool = False,
@@ -327,7 +320,7 @@ class Potto:
         pygeoapi_response = await asyncio.to_thread(
             _get_collection_item,
             pygeoapi_api,
-            PottoRequest(
+            PottoRequest(  # ty: ignore[invalid-argument-type]
                 locale=locale,
                 output_format=output_format,
             ),

@@ -9,7 +9,9 @@ from typing import (
     Literal,
 )
 
+import cyclopts
 import pydantic
+from cyclopts.types import NonNegativeInt
 
 from ..config import (
     get_settings,
@@ -20,7 +22,6 @@ from ..operations import auth as auth_ops
 from ..schemas.auth import UserCreate
 from ..schemas import cli as cli_schemas
 
-import cyclopts
 
 user_app = cyclopts.App()
 logger = logging.getLogger(__name__)
@@ -50,8 +51,8 @@ def launcher(
 
 @user_app.command(name="list")
 async def list_users(
-    page: int = 1,
-    page_size: int = 20,
+    page: NonNegativeInt = 1,
+    page_size: NonNegativeInt = 20,
     format: Literal["json", "table"] = "table",
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
@@ -61,6 +62,7 @@ async def list_users(
         db_users, total = await auth_ops.paginated_list_users(
             session, page=page, page_size=page_size, include_total=True
         )
+    assert total is not None
     result = cli_schemas.ItemList[cli_schemas.UserListItem](
         items=[cli_schemas.UserListItem.from_db_item(i) for i in db_users],
         meta=cli_schemas.ItemListMeta(

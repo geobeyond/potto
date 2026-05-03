@@ -50,7 +50,7 @@ class PottoAdmin(Admin):
         identity = request.path_params.get("identity")
         model = self._find_model_from_identity(identity)
         if hasattr(model, "async_can_create"):
-            if not await model.async_can_create(request):
+            if not await model.async_can_create(request):  # ty: ignore[call-non-callable]
                 raise HTTPException(status_code=403)
         return await super()._render_create(request)
 
@@ -58,7 +58,7 @@ class PottoAdmin(Admin):
         identity = request.path_params.get("identity")
         model = self._find_model_from_identity(identity)
         if hasattr(model, "async_can_edit"):
-            if not await model.async_can_edit(request):
+            if not await model.async_can_edit(request):  # ty: ignore[call-non-callable]
                 raise HTTPException(status_code=403)
         return await super()._render_edit(request)
 
@@ -88,7 +88,7 @@ class PottoAdmin(Admin):
                     )
                 )
         if hasattr(model, "async_can_create"):
-            can_create = await model.async_can_create(request)
+            can_create = await model.async_can_create(request)  # ty: ignore[call-non-callable]
         else:
             can_create = model.can_create(request)
         return self.templates.TemplateResponse(

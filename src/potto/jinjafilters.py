@@ -51,14 +51,17 @@ def get_translatable_string(
     logger.debug(f"{request.state.language=}")
     if value is None:
         return None
-    try:
-        result = value.get(request.state.language, list(value.values())[0])
-        logger.debug(f"{result=}")
-        return result
-    except AttributeError:
-        return str(value) or None
-    except IndexError:
-        return None
+    if isinstance(value, dict):
+        try:
+            default_value = list(value.values())[0]
+        except IndexError:
+            return None
+        else:
+            result = value.get(request.state.language, default_value)
+            logger.debug(f"{result=}")
+            return result
+    else:
+        return str(value)
 
 
 def to_json(data_: dict, pretty: bool = False) -> str:
@@ -69,8 +72,8 @@ def format_datetime(value: str, format_: str = DATETIME_FORMAT) -> str:
     return _format_datetime(value, format_)
 
 
-def format_duration(start: str, end: str = None) -> str:
-    return _format_duration(start, end)
+def format_duration(start: str, end: str | None = None) -> str:
+    return _format_duration(start, end)  # ty: ignore
 
 
 def human_size(nbytes: int) -> str:

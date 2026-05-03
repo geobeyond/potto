@@ -5,6 +5,8 @@ import pygeoapi.api
 import pygeoapi.l10n
 import pygeoapi.util
 
+from ..constants import PYGEOAPI_F_JSON
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,7 +14,7 @@ class PottoRequest:
     def __init__(
         self,
         locale: babel.Locale,
-        output_format: str | None = None,
+        output_format: str = PYGEOAPI_F_JSON,
         data_: bytes | None = None,
         **query_param: str,
     ):

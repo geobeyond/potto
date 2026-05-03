@@ -58,3 +58,9 @@ addopts = "--strict-markers --verbose"
 markers = [
     "integration: marks tests as being integration tests",
 ]
+
+[tool.ty.src]
+exclude = [
+    "src/potto/db/migrations",
+    "tests"
+]

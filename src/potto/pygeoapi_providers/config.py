@@ -90,11 +90,13 @@ class PygeoapiConfigWktFeatureProvider:
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
         features = list(self._data.values())
-        return {
-            "type": "FeatureCollection",
-            "features": features,
-            "numberMatched": len(features),
-        }
+        return GeoJsonFeatureCollection(
+            {
+                "type": "FeatureCollection",
+                "features": features,
+                "numberMatched": len(features),
+            }
+        )
 
     def get(
         self,
@@ -103,7 +105,7 @@ class PygeoapiConfigWktFeatureProvider:
         **kwargs,
     ) -> GeoJsonFeature:
         try:
-            return self._data[str(identifier)].copy()
+            return GeoJsonFeature(self._data[str(identifier)].copy())
         except KeyError as err:
             raise ProviderItemNotFoundError(f"Item {identifier!r} not found") from err
 
@@ -169,11 +171,13 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
         features = list(self._data.values())
-        return {
-            "type": "FeatureCollection",
-            "features": features,
-            "numberMatched": len(features),
-        }
+        return GeoJsonFeatureCollection(
+            {
+                "type": "FeatureCollection",
+                "features": features,
+                "numberMatched": len(features),
+            }
+        )
 
     def get(
         self,
@@ -182,7 +186,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         **kwargs,
     ) -> GeoJsonFeature:
         try:
-            return self._data[str(identifier)].copy()
+            return GeoJsonFeature(self._data[str(identifier)].copy())
         except KeyError as err:
             raise ProviderItemNotFoundError(f"Item {identifier!r} not found") from err
 

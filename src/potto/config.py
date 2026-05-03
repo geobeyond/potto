@@ -71,7 +71,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     translations_dir: Path | None = None
     languages: list[str] = ["en"]
     reload_dirs: str | list[str] | None = None
-    session_secret_key: pydantic.SecretStr = "somesecretkey"
+    session_secret_key: pydantic.SecretStr = pydantic.SecretStr("somesecretkey")
     static_dir: Path | None = None
     uvicorn_num_workers: int = 8
     uvicorn_log_config_file: Path | None = None
@@ -176,7 +176,7 @@ def _get_jinja_env(settings: PottoSettings) -> jinja2.Environment:
             "filter_dict_by_key_value": jinjafilters.filter_dict_by_key_value,
         }
     )
-    jinja_env.globals.update(
+    jinja_env.globals.update(  # ty: ignore[no-matching-overload]
         {
             "settings": settings,
             "pygeoapi_version": pygeoapi_version,

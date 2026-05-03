@@ -48,7 +48,8 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         docs_url=None,
     )
     app.add_exception_handler(
-        potto_exceptions.PottoNotFoundException, _handle_potto_not_found_exception
+        potto_exceptions.PottoNotFoundException,
+        _handle_potto_not_found_exception,  # ty: ignore[invalid-argument-type]
     )
 
     app.mount(

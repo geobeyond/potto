@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 import httpx
 
@@ -15,7 +16,7 @@ class OPAAuthorizationBackend:
         self._base_url = opa_url.rstrip("/")
         self._policy_path = policy_path.strip("/")
 
-    async def _query(self, rule: str, input_data: dict) -> object:
+    async def _query(self, rule: str, input_data: dict) -> object | list | bool | None:
         url = f"{self._base_url}/v1/data/{self._policy_path}/{rule}"
         logger.debug(f"{url=}")
         async with httpx.AsyncClient() as client:
@@ -73,7 +74,8 @@ class OPAAuthorizationBackend:
         )
         if result is None:
             return None
-        return list(result)
+        result = cast(list[str], result)
+        return result
 
     async def can_set_user_scopes(
         self,

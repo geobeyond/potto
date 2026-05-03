@@ -60,7 +60,7 @@ class ServerMetadataUpdate(pydantic.BaseModel):
 
 class ServerMetadataFlattenedUpdate(pydantic.BaseModel):
     title: str | None = None
-    description: str = None
+    description: str | None = None
     keywords: MaybeKeywords = None
     keywords_type: str | None = None
     terms_of_service: MaybeDescription = None

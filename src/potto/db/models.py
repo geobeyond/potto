@@ -86,17 +86,17 @@ class Collection(SQLModel, table=True):
     owner_id: str = Field(foreign_key="user.id", ondelete="CASCADE")
     is_public: bool = Field(default=False)
     collection_type: CollectionType
-    title: Title = Field(sa_type=JSONB())
-    description: MaybeDescription = Field(default=None, sa_type=JSONB(), nullable=True)
-    keywords: MaybeKeywords = Field(default=None, sa_type=JSONB(), nullable=True)
+    title: Title = Field(sa_type=JSONB)
+    description: MaybeDescription = Field(default=None, sa_type=JSONB, nullable=True)
+    keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
     spatial_extent: MaybeShapelyGeometry = Field(
         default=None,
-        sa_type=ShapelyGeometryAdapter(),
+        sa_type=ShapelyGeometryAdapter,
         nullable=True,
     )
     spatial_extent_crs: str | None = None  # part 1 - CRS of the spatial extent
     crs: list[str] | None = Field(
-        sa_type=JSONB(), nullable=True
+        sa_type=JSONB, nullable=True
     )  # part 2 - list of supported CRS
     storage_crs: str | None = Field(
         default=None, nullable=True
@@ -109,15 +109,15 @@ class Collection(SQLModel, table=True):
     # this can be used for configuring additional extents, as mentioned in
     # OAPIF - Part 1
     additional_extents: dict[str, dict[str, str | int | float | None]] | None = Field(
-        default=None, sa_type=JSONB(), nullable=True
+        default=None, sa_type=JSONB, nullable=True
     )
     custom_page_size: int | None = Field(default=None, ge=1)
     custom_page_size_max: int | None = Field(default=None, ge=1)
     additional_links: list[dict[str, str | dict[str, str]]] | None = Field(
-        default=None, sa_type=JSONB(), nullable=True
+        default=None, sa_type=JSONB, nullable=True
     )
-    providers: dict[str, CollectionProvider] | None = Field(
-        default=None, sa_type=JSONB(), nullable=True
+    providers: dict[str, dict[str, Any]] | None = Field(
+        default=None, sa_type=JSONB, nullable=True
     )
     created_at: dt.datetime | None = Field(default_factory=now_)
     updated_at: dt.datetime | None = Field(
@@ -141,7 +141,10 @@ class Collection(SQLModel, table=True):
             temporal_extent_begin=self.temporal_extent_begin,
             temporal_extent_end=self.temporal_extent_end,
             additional_links=self.additional_links,
-            providers=self.providers,
+            providers={
+                name: CollectionProvider.model_validate(raw_provider)
+                for name, raw_provider in (self.providers or {}).items()
+            },
             custom_page_size=self.custom_page_size,
             custom_page_size_max=self.custom_page_size_max,
         )
@@ -166,7 +169,7 @@ class User(SQLModel, table=True):
     )
     hashed_password: str | None = Field(default=None, nullable=True)
     is_active: bool = Field(default=True)
-    scopes: list[str] = Field(default_factory=list, sa_type=JSONB())
+    scopes: list[str] = Field(default_factory=list, sa_type=JSONB)
 
     owned_collections: list[Collection] = Relationship(
         back_populates="owner",
@@ -192,21 +195,19 @@ class ServerMetadata(SQLModel, table=True):
         default=None,
         primary_key=True,
     )
-    title: Title = Field(sa_type=JSONB())
-    description: MaybeDescription = Field(default=None, sa_type=JSONB(), nullable=True)
-    keywords: MaybeKeywords = Field(default=None, sa_type=JSONB(), nullable=True)
+    title: Title = Field(sa_type=JSONB)
+    description: MaybeDescription = Field(default=None, sa_type=JSONB, nullable=True)
+    keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
     keywords_type: str | None = Field(
         default=None, min_length=3, max_length=50, nullable=True
     )
     terms_of_service: MaybeDescription = Field(
-        default=None, sa_type=JSONB(), nullable=True
+        default=None, sa_type=JSONB, nullable=True
     )
     url: str | None = Field(default=None, min_length=3, max_length=100, nullable=True)
-    license: dict[str, Any] = Field(default=None, sa_type=JSONB(), nullable=True)
-    data_provider: dict[str, Any] = Field(default=None, sa_type=JSONB(), nullable=True)
-    point_of_contact: dict[str, Any] = Field(
-        default=None, sa_type=JSONB(), nullable=True
-    )
+    license: dict[str, Any] = Field(default=None, sa_type=JSONB, nullable=True)
+    data_provider: dict[str, Any] = Field(default=None, sa_type=JSONB, nullable=True)
+    point_of_contact: dict[str, Any] = Field(default=None, sa_type=JSONB, nullable=True)
 
     def to_potto(self) -> potto_schemas.ServerMetadata:
         return potto_schemas.ServerMetadata(
@@ -216,13 +217,17 @@ class ServerMetadata(SQLModel, table=True):
             keywords_type=self.keywords_type,
             terms_of_service=self.terms_of_service,
             url=self.url,
-            license=metadata_schemas.LicenseInformation(
-                name=self.license.get("name"),
-                url=self.license.get("url"),
+            license=(
+                metadata_schemas.LicenseInformation.model_validate(self.license)
+                if self.license is not None
+                else None
             ),
-            data_provider=metadata_schemas.DataProviderInformation(
-                name=self.data_provider.get("name"),
-                url=self.data_provider.get("url"),
+            data_provider=(
+                metadata_schemas.DataProviderInformation.model_validate(
+                    self.data_provider
+                )
+                if self.data_provider is not None
+                else None
             ),
             point_of_contact=metadata_schemas.PointOfContact(
                 name=self.point_of_contact.get("name"),

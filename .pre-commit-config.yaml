@@ -14,15 +14,15 @@ repos:
       - id: ruff-check
       - id: ruff-format
 
-#  - repo: local
-#    hooks:
-#
-#      - id: ty
-#        name: ty
-#        entry: uv run ty check
-#        language: system
-#        types: [python]
-#        pass_filenames: false
+  - repo: local
+    hooks:
+
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
 
 #      - id: export-openapi-document
 #        name: Export the webapp's openapi document for further checking

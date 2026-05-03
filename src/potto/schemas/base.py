@@ -5,6 +5,7 @@ import pydantic
 import shapely
 from geoalchemy2 import WKBElement
 from geoalchemy2.shape import to_shape
+from starlette.datastructures import QueryParams
 
 from .. import constants
 
@@ -122,8 +123,8 @@ class Extent(pydantic.BaseModel):
     @classmethod
     def from_config(cls, extent_config: "ExtentConfig") -> "Extent":
         if extent_config.temporal:
-            temporal_conf = {
-                "interval": [
+            temporal_conf = TemporalExtent(
+                interval=[
                     (
                         begin.strftime("%Y-%m-%DT%H:%M:%SZ")
                         if (begin := extent_config.temporal.begin)
@@ -133,16 +134,33 @@ class Extent(pydantic.BaseModel):
                         else None,
                     )
                 ],
-                "trs": extent_config.temporal.trs,
-            }
+                trs=extent_config.temporal.trs,
+            )
         else:
             temporal_conf = None
+        first_bbox = extent_config.spatial.bbox
+        if len(first_bbox) > 5:
+            spatial_conf = ThreeDimensionSpatialExtent(
+                bbox=[
+                    (
+                        first_bbox[0],
+                        first_bbox[1],
+                        first_bbox[2],
+                        first_bbox[3],
+                        first_bbox[4],
+                        first_bbox[5],
+                    )
+                ],
+                crs=extent_config.spatial.crs,
+            )
+        else:
+            spatial_conf = TwoDimensionalSpatialExtent(
+                bbox=[(first_bbox[0], first_bbox[1], first_bbox[2], first_bbox[3])],
+                crs=extent_config.spatial.crs,
+            )
 
         return cls(
-            spatial={
-                "bbox": [extent_config.spatial.bbox],
-                "crs": extent_config.spatial.crs,
-            },
+            spatial=spatial_conf,
             temporal=temporal_conf,
         )
 
@@ -176,7 +194,11 @@ class PaginationContext(pydantic.BaseModel):
         target_media_type: str = constants.MEDIA_TYPE_JSON,
         additional_query_params: dict[str, str] | None = None,
     ) -> list[Link]:
-        additional = "&".join(f"{k}={v}" for k, v in additional_query_params.items())
+        additional = (
+            "&".join(f"{k}={v}" for k, v in additional_query_params.items())
+            if additional_query_params
+            else None
+        )
         result = []
         if self.offset > 0:
             prev_offset = max(0, self.offset - self.limit)
@@ -232,7 +254,7 @@ class FeatureFilter(ItemFilter):
     @classmethod
     def from_query_parameters(
         cls,
-        params: typing.Mapping[str, str | typing.Sequence[str]],
+        params: QueryParams,
     ) -> "FeatureFilter":
         return cls(
             bbox=params.get("bbox"),
@@ -246,7 +268,7 @@ class FeatureFilter(ItemFilter):
             offset=int(params.get("offset", 0)),
             extra_properties=dict(params),
             query=params.get("q"),
-            result_type=params.get("resulttype", "results"),
+            result_type="hits" if params.get("resulttype") == "hits" else "results",
             sort_by=params.get("sortby"),
             skip_geometry=(
                 True

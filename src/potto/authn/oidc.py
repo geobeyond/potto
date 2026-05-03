@@ -1,6 +1,9 @@
 import logging
 import time
-from typing import Any
+from typing import (
+    Any,
+    cast,
+)
 from urllib.parse import urlencode
 
 import httpx
@@ -89,6 +92,7 @@ class OIDCProvider:
             "issuer": self._issuer,
             "options": {"require": ["exp", "iss", "sub"]},
         }
+        kwargs["options"] = cast(dict[str, Any], kwargs["options"])
         if audience is not None:
             kwargs["audience"] = audience
         else:

@@ -20,11 +20,13 @@ logger = logging.getLogger(__name__)
 async def create_metadata(
     session: AsyncSession, to_create: ServerMetadataCreate
 ) -> ServerMetadata:
-    instance = ServerMetadata(**to_create.model_dump())
+    instance = ServerMetadata.model_validate(to_create.model_dump(exclude_none=True))
     session.add(instance)
     await session.commit()
     await session.refresh(instance)
-    return await get_metadata(session)
+    if (created := await get_metadata(session)) is None:
+        raise PottoException("error creating metadata")
+    return created
 
 
 async def update_metadata(
@@ -107,7 +109,7 @@ async def update_metadata_flattened(
             ),
         )
     return await update_metadata(
-        session, db_metadata, ServerMetadataUpdate(**update_kwargs)
+        session, db_metadata, ServerMetadataUpdate.model_validate(update_kwargs)
     )
 
 

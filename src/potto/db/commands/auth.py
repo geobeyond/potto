@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def provision_oidc_user(
     session: AsyncSession, to_create: UserCreateFromOidc
 ) -> User:
-    instance = User(**to_create.model_dump())
+    instance = User.model_validate(to_create.model_dump())
     session.add(instance)
     await session.commit()
     await session.refresh(instance)

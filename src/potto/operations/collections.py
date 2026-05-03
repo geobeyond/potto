@@ -9,10 +9,7 @@ from .. import (
     util,
 )
 from ..authz.base import AuthorizationBackendProtocol
-from ..db.models import (
-    Collection,
-    User,
-)
+from ..db.models import Collection
 from ..db.commands import (
     auth as auth_commands,
     collections as collection_commands,
@@ -260,7 +257,7 @@ def _get_crs_info(
 
 async def import_pygeoapi_collection(
     session: AsyncSession,
-    user: User,
+    user: PottoUser,
     authorization_backend: AuthorizationBackendProtocol,
     identifier: str,
     pygeoapi_collection: dict,

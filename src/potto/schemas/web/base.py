@@ -79,38 +79,20 @@ class JsonLanding(pydantic.BaseModel):
             ),
         ]
         return cls(
-            title=potto_response.metadata.title,
-            description=potto_response.metadata.description,
+            title=(
+                potto_response.metadata.title.get("en")
+                if isinstance(potto_response.metadata.title, dict)
+                else potto_response.metadata.title
+            ),
+            description=(
+                potto_response.metadata.description.get("en")
+                if isinstance(potto_response.metadata.description, dict)
+                else potto_response.metadata.description
+            ),
             attribution=potto_response.attribution,
             links=links,
         )
 
 
-class HtmlLanding(JsonLanding):
-    @classmethod
-    def from_potto(
-        cls, potto_response: LandingPage, url_resolver: UrlResolver
-    ) -> "HtmlLanding":
-        return cls(
-            title=potto_response.title,
-            description=potto_response.description,
-            attribution=potto_response.attribution,
-            links=[
-                Link(
-                    type=constants.MEDIA_TYPE_HTML,
-                    rel=constants.REL_SELF,
-                    href=str(url_resolver("landing-page")),
-                    title="This resource",
-                ),
-                Link(
-                    type=constants.MEDIA_TYPE_JSON,
-                    rel=constants.REL_ALTERNATE,
-                    href=str(url_resolver("api:landing-page")),
-                    title="JSON landing page",
-                ),
-            ],
-        )
-
-
 class JsonConformance(pydantic.BaseModel):
-    conforms_to: Annotated[list[str], pydantic.Field(alias="conformsTo")]
+    conforms_to: Annotated[list[str], pydantic.Field(serialization_alias="conformsTo")]

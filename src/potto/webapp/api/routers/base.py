@@ -43,4 +43,4 @@ async def landing_page(
 @router.get("/conformance", name="conformance-page")
 async def conformance_page(potto: PottoDependency) -> base.JsonConformance:
     result = await potto.api_get_conformance_details()
-    return base.JsonConformance(conformsTo=result.conforms_to)
+    return base.JsonConformance(conforms_to=result.conforms_to)

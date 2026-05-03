@@ -50,8 +50,8 @@ jobs:
       - name: "Run ruff linter"
         run: uv run ruff check
 
-#      - name: "Run ty"
-#        run: uv run ty check
+      - name: "Run ty"
+        run: uv run ty check
 
 #      - name: "Export OpenAPI schema document"
 #        run: uv run potto export-openapi potto_openapi_ci.json

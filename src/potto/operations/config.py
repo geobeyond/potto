@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from ..config import PottoSettings
 from ..db.models import Collection
 from ..schemas.auth import PottoUser
+from ..schemas.base import CollectionProvider
 from . import metadata as metadata_ops
 from . import collections as collection_ops
 
@@ -120,8 +121,9 @@ def _convert_collection_to_pygeoapi_resource(db_collection: Collection) -> dict:
         type_ = link_.pop("media_type", "")
         links.append({"type": type_, **link_})
     converted_providers = []
-    for type_, provider in (db_collection.providers or {}).items():
-        raw_data_value = (provider.get("config", {}) or {}).pop("data", "")
+    for type_, raw_provider in (db_collection.providers or {}).items():
+        provider = CollectionProvider.model_validate(raw_provider)
+        raw_data_value = provider.config.data if provider.config else ""
         if isinstance(raw_data_value, str):
             interpolated_data_value = re.sub(
                 r"\${?(\w+)}?",
@@ -134,8 +136,8 @@ def _convert_collection_to_pygeoapi_resource(db_collection: Collection) -> dict:
             {
                 "type": type_,
                 "data": interpolated_data_value,
-                "name": provider.get("python_callable"),
-                **(provider.get("config", {}) or {}).get("options", {}),
+                "name": provider.python_callable,
+                **(provider.config.options if provider.config else {}),
             }
         )
 
@@ -189,5 +191,5 @@ def _convert_collection_to_pygeoapi_resource(db_collection: Collection) -> dict:
         if v is not None
     }
     if limits:
-        pygeoapi_collection["limits"] = limits
+        pygeoapi_collection["limits"] = limits  # ty: ignore[invalid-assignment]
     return pygeoapi_collection
