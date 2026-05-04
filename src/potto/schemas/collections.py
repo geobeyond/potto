@@ -39,8 +39,37 @@ class CollectionCreate(pydantic.BaseModel):
     additional_extents: list[AdditionalExtent] | None = None
     custom_page_size: Annotated[int | None, pydantic.Field(ge=1)] = None
     custom_page_size_max: Annotated[int | None, pydantic.Field(ge=1)] = None
-    additional_links: list[dict[str, str | dict[str, str]]] | None = None
-    providers: dict[str, CollectionProvider] | None = None
+    additional_links: Annotated[
+        list[dict[str, str | dict[str, str]]] | None,
+        pydantic.WithJsonSchema(
+            {
+                "anyOf": [
+                    {"type": "array", "items": {"type": "object", "maxProperties": 10}},
+                    {"type": "null"},
+                ]
+            }
+        ),
+    ] = None
+    providers: Annotated[
+        dict[str, CollectionProvider] | None,
+        pydantic.WithJsonSchema(
+            {
+                "anyOf": [
+                    {
+                        "allOf": [
+                            {"type": "object", "maxProperties": 10},
+                            {
+                                "additionalProperties": {
+                                    "$ref": "#/components/schemas/CollectionProvider"
+                                }
+                            },
+                        ]
+                    },
+                    {"type": "null"},
+                ]
+            }
+        ),
+    ] = None
 
 
 class CollectionAccessGrant(pydantic.BaseModel):

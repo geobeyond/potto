@@ -10,6 +10,7 @@ from fastapi import (
 )
 from fastapi.security import OAuth2PasswordRequestForm
 
+from .. import responses
 from ....authn.jwt import create_access_token
 from ....db.queries.auth import get_user_by_username
 from ....schemas.auth import PottoUser
@@ -24,7 +25,14 @@ class LoginResponse(pydantic.BaseModel):
     token_type: str = "bearer"
 
 
-@router.post("/login", name="login")
+# security: [{}] marks this as intentionally public; security: [] is treated the same
+# as "undefined" by the OWASP spectral rule (check-security.js line 68).
+@router.post(
+    "/login",
+    name="login",
+    openapi_extra={"security": [{}]},
+    responses=responses.ERROR_RESPONSES,
+)
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     settings: SettingsDependency,

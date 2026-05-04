@@ -19,13 +19,19 @@ from ....schemas.web.collections import (
     JsonCollectionList,
     JsonCollection,
 )
+from .. import (
+    responses,
+    tags,
+)
 from ..dependencies import (
     AuthorizationBackendDependency,
+    CollectionIdPath,
     LocaleDependency,
     PaginationLimitDependency,
     PottoDependency,
     SettingsDependency,
     UserDependency,
+    UserIdPath,
 )
 
 
@@ -38,7 +44,8 @@ router = APIRouter()
     name="collection-list",
     response_model_exclude_none=True,
     response_model=JsonCollectionList,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def list_collections(
     request: Request,
@@ -47,6 +54,15 @@ async def list_collections(
     locale: LocaleDependency,
     limit: PaginationLimitDependency,
 ) -> JSONResponse:
+    """List collections available on this server.
+
+    Collection visibility is subject to the requesting user's access levels:
+
+    - Public collections are visible to all users and do not require
+      authentication;
+    - Private collections are visible to their owner and to any users that
+      have the 'collection-{collection_identifier}:{editor|viewer}' scope
+    """
     potto_collections = await potto.api_list_collections(
         user=user, locale=locale, page_size=limit
     )
@@ -63,15 +79,25 @@ async def list_collections(
     "/collections/{collection_id}",
     name="collection-get",
     response_model=JsonCollection,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_details(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
 ):
+    """Get details about a collection.
+
+    Access to the collection is subject to the requesting user's access level:
+
+    - Public collections are visible to all users and do not require
+      authentication
+    - Private collections are visible to their owner and to any users that
+      have the 'collection-{collection_identifier}:{editor|viewer}' scope
+    """
     if (
         potto_collection := await potto.api_get_collection(
             collection_id, user=user, locale=locale
@@ -90,15 +116,19 @@ async def get_collection_details(
 @router.get(
     "/collections/{collection_id}/queryables",
     name="collection-get-queryables",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_queryables(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
+    """
+    Get a list of properties that can be used to query a collection's contents.
+    """
     potto_collection = await potto.api_get_collection(
         collection_id, user=user, locale=locale, include_queryables=True
     )
@@ -135,15 +165,17 @@ async def get_collection_queryables(
 @router.get(
     "/collections/{collection_id}/schema",
     name="collection-get-schema",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_schema(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
+    """Get the schema of a collection."""
     potto_collection = await potto.api_get_collection(
         collection_id, user=user, locale=locale, include_schema=True
     )
@@ -184,7 +216,8 @@ async def get_collection_schema(
     "/collections",
     name="create-collection",
     response_model=JsonCollection,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def create_collection(
     request: Request,
@@ -193,6 +226,7 @@ async def create_collection(
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
 ):
+    """Create a new collection."""
     async with settings.get_db_session_maker()() as session:
         db_collection = await collection_operations.create_collection(
             session, user, authorization_backend, to_create
@@ -203,14 +237,16 @@ async def create_collection(
 @router.delete(
     "/collections/{collection_id}",
     name="delete-collection",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def delete_collection(
-    collection_id: str,
+    collection_id: CollectionIdPath,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    """Delete collection."""
     if user is None:
         raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
@@ -223,16 +259,23 @@ async def delete_collection(
     "/collections/{collection_id}/access/{user_id}",
     name="grant-collection-access",
     status_code=204,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def grant_collection_access(
-    collection_id: str,
-    user_id: str,
+    collection_id: CollectionIdPath,
+    user_id: UserIdPath,
     body: collections_schemas.CollectionAccessGrant,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    """Grant access to a private collection.
+
+    Grant either `viewer` or `editor` roles on a private collection to the
+    input `user_id`. This operation can only be called by the collection
+    owner.
+    """
     if user is None:
         raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
@@ -250,15 +293,21 @@ async def grant_collection_access(
     "/collections/{collection_id}/access/{user_id}",
     name="revoke-collection-access",
     status_code=204,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def revoke_collection_access(
-    collection_id: str,
-    user_id: str,
+    collection_id: CollectionIdPath,
+    user_id: UserIdPath,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
 ):
+    """Revoke access to a collection.
+
+    Revoke access to a private collection by the user with the input `user_id`.
+    This operation can only be called by the collection owner.
+    """
     if user is None:
         raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:

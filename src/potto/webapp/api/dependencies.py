@@ -6,6 +6,7 @@ from typing import (
 import babel
 from fastapi import (
     Depends,
+    Path,
     Query,
     Request,
 )
@@ -51,7 +52,10 @@ def get_authorization_backend(
 
 def get_pagination_limit(
     settings: Annotated[config.PottoSettings, Depends(get_settings)],
-    limit: Annotated[int | None, Query(gte=1)] = None,
+    limit: Annotated[
+        int | None,
+        Query(gte=1, description="Maximum number of items to return per page."),
+    ] = None,
 ) -> int:
     return min(limit or settings.page_size, settings.page_size_max)
 
@@ -64,3 +68,8 @@ AuthorizationBackendDependency = Annotated[
     AuthorizationBackendProtocol, Depends(get_authorization_backend)
 ]
 PaginationLimitDependency = Annotated[int, Depends(get_pagination_limit)]
+CollectionIdPath = Annotated[
+    str, Path(description="Unique identifier of the collection.")
+]
+ItemIdPath = Annotated[str, Path(description="Unique identifier of the item.")]
+UserIdPath = Annotated[str, Path(description="Unique identifier of the user.")]

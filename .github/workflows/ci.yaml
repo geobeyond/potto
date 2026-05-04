@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: "python-package"
+      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
     steps:
 
       - name: "Grab code"
@@ -53,18 +54,24 @@ jobs:
       - name: "Run ty"
         run: uv run ty check
 
-#      - name: "Export OpenAPI schema document"
-#        run: uv run potto export-openapi potto_openapi_ci.json
-#
-#      - name: "Lint OpenAPI schema with spectral"
-#        uses: stoplight/spectral-action@6416fd018ae38e60136775066eb3e98172143141
-#        with:
-#          file_glob: potto_openapi_ci.json
-#          spectral_ruleset: spectral/spectral.yaml
-
       - name: "Stand up compose stack for testing"
         run: |
-          docker compose --file docker/compose.ci.yaml up --detach
+          docker compose --file docker/compose.ci.yaml up --detach --wait
+
+      - name: "Initialize potto database"
+        run: |
+          uv run potto db upgrade
+
+      - name: "Export OpenAPI schema document"
+        run: uv run potto export-openapi --output potto_openapi_ci.json
+
+      - name: "Lint OpenAPI schema with spectral"
+        run: |
+          npm install --global @stoplight/spectral-cli@6.15.0
+          spectral lint potto_openapi_ci.json \
+          --ruleset spectral/spectral.yaml \
+          --fail-severity info \
+          --format github-actions
 
       - name: "Run integration tests"
         env:

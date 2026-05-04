@@ -50,6 +50,9 @@ MaybeShapelyGeometry = typing.Annotated[
     pydantic.PlainSerializer(
         lambda geom: shapely.to_geojson(geom) if geom else None, return_type=str
     ),
+    pydantic.WithJsonSchema(
+        {"anyOf": [{"type": "string", "title": "WKT Geometry"}, {"type": "null"}]}
+    ),
 ]
 
 
@@ -69,15 +72,41 @@ class PygeoapiProviderType(str, enum.Enum):
     TILE = "tile"
 
 
+# Localizable fields store either a plain string or a locale-keyed dict (e.g. {"en": "…",
+# "it": "…"}). WithJsonSchema overrides the generated schema to avoid the unconstrained
+# additionalProperties that Pydantic would otherwise emit for dict[str, …].
 Title = typing.Annotated[
-    dict[str, str] | str, pydantic.PlainSerializer(_serialize_localizable_field)
+    dict[str, str] | str,
+    pydantic.PlainSerializer(_serialize_localizable_field),
+    pydantic.WithJsonSchema(
+        {"anyOf": [{"type": "object", "maxProperties": 200}, {"type": "string"}]}
+    ),
 ]
 MaybeDescription = typing.Annotated[
-    dict[str, str] | str | None, pydantic.PlainSerializer(_serialize_localizable_field)
+    dict[str, str] | str | None,
+    pydantic.PlainSerializer(_serialize_localizable_field),
+    pydantic.WithJsonSchema(
+        {
+            "anyOf": [
+                {"type": "object", "maxProperties": 200},
+                {"type": "string"},
+                {"type": "null"},
+            ]
+        }
+    ),
 ]
 MaybeKeywords = typing.Annotated[
     dict[str, list[str]] | list[str] | None,
     pydantic.PlainSerializer(_serialize_localizable_list_field),
+    pydantic.WithJsonSchema(
+        {
+            "anyOf": [
+                {"type": "object", "maxProperties": 200},
+                {"items": {"type": "string"}, "type": "array"},
+                {"type": "null"},
+            ]
+        }
+    ),
 ]
 
 
@@ -173,11 +202,21 @@ class AdditionalExtent(pydantic.BaseModel):
 
 
 class CollectionProviderConfiguration(pydantic.BaseModel):
-    data: str | dict
-    options: dict[str, typing.Any]
+    model_config = pydantic.ConfigDict(extra="forbid")
+    data: (
+        str
+        | typing.Annotated[
+            dict, pydantic.WithJsonSchema({"type": "object", "maxProperties": 10})
+        ]
+    )
+    options: typing.Annotated[
+        dict[str, typing.Any],
+        pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
+    ]
 
 
 class CollectionProvider(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
     python_callable: str
     config: CollectionProviderConfiguration | None = None
 
@@ -226,26 +265,90 @@ class PaginationContext(pydantic.BaseModel):
 class ItemFilter(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="allow")
 
-    bbox: str | None = None
-    bbox_crs: typing.Annotated[str | None, pydantic.Field(alias="bbox-crs")] = None
-    cql_text: str | None = None
-    datetime_: typing.Annotated[str | None, pydantic.Field(alias="datetime")] = None
-    extra_properties: dict[str, str] | None = None
-    filter_: typing.Annotated[str | None, pydantic.Field(alias="filter")] = None
-    filter_lang: str | None = None
-    filter_crs_uri: str | None = None
-    limit: int = 20
-    locale: typing.Annotated[str | None, pydantic.Field(alias="language")] = None
-    offset: int = 0
-    query: str | None = None
-    result_type: typing.Literal["hits", "results"] = "results"
+    bbox: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            description="Bounding box filter as 'minLon,minLat,maxLon,maxLat'."
+        ),
+    ] = None
+    bbox_crs: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+        ),
+    ] = None
+    cql_text: typing.Annotated[
+        str | None, pydantic.Field(description="CQL2 text filter expression.")
+    ] = None
+    datetime_: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            alias="datetime",
+            description="Temporal filter as RFC 3339 instant or interval ('/' separated).",
+        ),
+    ] = None
+    extra_properties: typing.Annotated[
+        dict[str, str] | None,
+        pydantic.Field(description="Additional query properties to pass through."),
+        pydantic.WithJsonSchema(
+            {"anyOf": [{"type": "object", "maxProperties": 10}, {"type": "null"}]}
+        ),
+    ] = None
+    filter_: typing.Annotated[
+        str | None, pydantic.Field(alias="filter", description="Filter expression.")
+    ] = None
+    filter_lang: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json')."
+        ),
+    ] = None
+    filter_crs_uri: typing.Annotated[
+        str | None,
+        pydantic.Field(description="CRS URI for filter geometry coordinates."),
+    ] = None
+    limit: typing.Annotated[
+        int, pydantic.Field(description="Maximum number of items to return.")
+    ] = 20
+    locale: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            alias="language", description="Preferred response language as a BCP 47 tag."
+        ),
+    ] = None
+    offset: typing.Annotated[
+        int,
+        pydantic.Field(description="Number of items to skip before returning results."),
+    ] = 0
+    query: typing.Annotated[
+        str | None, pydantic.Field(description="Full-text search query string.")
+    ] = None
+    result_type: typing.Annotated[
+        typing.Literal["hits", "results"],
+        pydantic.Field(
+            description="Response type: 'results' returns items, 'hits' returns only the count."
+        ),
+    ] = "results"
     select_properties: typing.Annotated[
-        list[str] | None, pydantic.Field(alias="properties")
+        list[str] | None,
+        pydantic.Field(
+            alias="properties",
+            description="List of item properties to include in the response.",
+        ),
     ] = None
     skip_geometry: typing.Annotated[
-        bool | None, pydantic.Field(alias="skipGeometry")
+        bool | None,
+        pydantic.Field(
+            alias="skipGeometry",
+            description="If true, geometry is omitted from the response.",
+        ),
     ] = None
-    sort_by: typing.Annotated[str | None, pydantic.Field(alias="sortby")] = None
+    sort_by: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            alias="sortby", description="Sort expression, e.g. '+name,-date'."
+        ),
+    ] = None
 
 
 class FeatureFilter(ItemFilter):

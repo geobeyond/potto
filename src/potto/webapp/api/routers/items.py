@@ -18,7 +18,13 @@ from ....schemas.web.items import (
     GeoJsonItem,
     GeoJsonItemCollection,
 )
+from .. import (
+    responses,
+    tags,
+)
 from ..dependencies import (
+    CollectionIdPath,
+    ItemIdPath,
     LocaleDependency,
     PottoDependency,
     UserDependency,
@@ -31,16 +37,18 @@ router = APIRouter()
 @router.get(
     "/collections/{collection_id}/items",
     name="collection-item-list",
-    tags=["items"],
+    tags=[tags.ITEMS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def list_collection_items(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     filter_: Annotated[ItemFilter, Query()],
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
 ):
+    """List collection items."""
     collection_items = await potto.api_list_collection_items(
         collection_id,
         user=user,
@@ -62,15 +70,17 @@ async def list_collection_items(
 @router.get(
     "/collections/{collection_id}/items/{item_id}",
     name="collection-item-get",
-    tags=["items"],
+    tags=[tags.ITEMS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_item_details(
     request: Request,
     potto: PottoDependency,
     user: UserDependency,
-    collection_id: str,
-    item_id: str,
+    collection_id: CollectionIdPath,
+    item_id: ItemIdPath,
 ):
+    """Get details about a collection item."""
     current_locale = babel.Locale.parse(request.state.language)
     collection_item = await potto.api_get_collection_item(
         user,
