@@ -229,19 +229,25 @@ class ServerMetadata(SQLModel, table=True):
                 if self.data_provider is not None
                 else None
             ),
-            point_of_contact=metadata_schemas.PointOfContact(
-                name=self.point_of_contact.get("name"),
-                position=self.point_of_contact.get("position"),
-                address=self.point_of_contact.get("address"),
-                city=self.point_of_contact.get("city"),
-                state_or_province=self.point_of_contact.get("state_or_province"),
-                postal_code=self.point_of_contact.get("postal_code"),
-                country=self.point_of_contact.get("country"),
-                phone=self.point_of_contact.get("phone"),
-                fax=self.point_of_contact.get("fax"),
-                email=self.point_of_contact.get("email"),
-                url=self.point_of_contact.get("url"),
-                contact_hours=self.point_of_contact.get("contact_hours"),
-                contact_instructions=self.point_of_contact.get("contact_instructions"),
+            point_of_contact=(
+                metadata_schemas.PointOfContact(
+                    name=self.point_of_contact.get("name"),
+                    position=self.point_of_contact.get("position"),
+                    address=self.point_of_contact.get("address"),
+                    city=self.point_of_contact.get("city"),
+                    state_or_province=self.point_of_contact.get("state_or_province"),
+                    postal_code=self.point_of_contact.get("postal_code"),
+                    country=self.point_of_contact.get("country"),
+                    phone=self.point_of_contact.get("phone"),
+                    fax=self.point_of_contact.get("fax"),
+                    email=self.point_of_contact.get("email"),
+                    url=self.point_of_contact.get("url"),
+                    contact_hours=self.point_of_contact.get("contact_hours"),
+                    contact_instructions=self.point_of_contact.get(
+                        "contact_instructions"
+                    ),
+                )
+                if self.point_of_contact is not None
+                else None
             ),
         )
