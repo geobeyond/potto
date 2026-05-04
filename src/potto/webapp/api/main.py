@@ -6,9 +6,12 @@ mounted by our main starlette-based app. Therefore, lifespan is configured
 in the starlette app.
 """
 
+import asyncio
+import concurrent.futures
 from typing import (
     Annotated,
     Any,
+    cast,
 )
 
 from fastapi import (
@@ -24,14 +27,31 @@ from ... import (
     config,
     exceptions as potto_exceptions,
 )
+from ...operations.metadata import get_server_metadata
 from ...schemas.auth import PottoUser
-from . import dependencies
+from ...schemas.potto import ServerMetadata
+from . import (
+    dependencies,
+    tags,
+)
 from .routers import (
     auth,
     base,
     collections,
     items,
 )
+
+
+async def _fetch_api_metadata(settings: config.PottoSettings) -> ServerMetadata:
+    """
+    Small helper to allow retrieving server metadata from a sync context.
+
+    This function only exists so that we can retrieve the metadata and use it when
+    creating the OpenAPI document below, when the FastAPI app is created.
+    """
+    async with settings.get_db_session_maker()() as session:
+        db_server_metadata = await get_server_metadata(session)
+    return db_server_metadata.to_potto()
 
 
 def _handle_potto_not_found_exception(
@@ -49,8 +69,46 @@ def create_api_app() -> FastAPI:
 
 
 def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
+    # asyncio.run() fails if called from a running event loop (e.g. uvicorn calls
+    # the app factory from within its own loop). Running in a new thread guarantees
+    # a fresh event loop regardless of the caller's async context.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        api_metadata: ServerMetadata = cast(
+            ServerMetadata,
+            pool.submit(asyncio.run, _fetch_api_metadata(settings)).result(),
+        )
+    raw_title = api_metadata.title
+    app_title = (
+        raw_title.get("en") or next(iter(raw_title.values()))
+        if isinstance(raw_title, dict)
+        else raw_title
+    )
+    raw_description = api_metadata.description
+    app_description = (
+        raw_description.get("en") or next(iter(raw_description.values()))
+        if isinstance(raw_description, dict)
+        else raw_description
+    )
+    poc = api_metadata.point_of_contact
+    contact = {
+        k: v
+        for k, v in {
+            **({"name": poc.name, "email": poc.email} if poc is not None else {}),
+            "url": (poc.url if poc is not None else None) or str(settings.public_url),
+        }.items()
+        if v is not None
+    }
+    lic = api_metadata.license
+    license_info = {
+        "name": lic.name if lic is not None else "unknown",
+        "url": lic.url if lic is not None and lic.url else str(settings.public_url),
+    }
     app = FastAPI(
-        title="Potto",
+        title=app_title or "potto",
+        description=app_description or "",
+        contact=contact,
+        license_info=license_info,
+        openapi_tags=tags.OPENAPI_TAGS,
         summary="OGC API server",
         docs_url=None,
         servers=[{"url": f"{settings.public_url}/api"}],

@@ -188,7 +188,7 @@ it yourself in one of two ways:
 
     ```shell
     uv run potto export-openapi --output potto_openapi_dev.json
-    spectral lint -r spectral/spectral.yaml potto_openapi_dev.json
+    spectral lint -F info -r spectral/spectral.yaml potto_openapi_dev.json
     ```
 
 -   by using the dynamically generated openapi whenever the potto server is running. As an example, assuming it is

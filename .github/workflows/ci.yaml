@@ -61,7 +61,8 @@ jobs:
           npm install --global @stoplight/spectral-cli@6.15.0
           spectral lint potto_openapi_ci.json \
           --ruleset spectral/spectral.yaml \
-          --fail-severity info
+          --fail-severity info \
+          --format github-actions
 
       - name: "Stand up compose stack for testing"
         run: |

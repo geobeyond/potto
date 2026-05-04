@@ -14,3 +14,16 @@ rules:
   # use either "items" or "prefixItems" to describe their contents. The default spectral:oas array-items rule
   # only mentioned "items" so this reimplemented rule adds the missing support for "prefixItems"
   array-items: off
+
+overrides:
+  # /login is intentionally public — it is the authentication endpoint itself.
+  - files:
+      - "**#/paths/~1login/post"
+    rules:
+      owasp:api2:2019-protection-global-unsafe-strict: off
+
+  # /conformance is a read-only, public OGC API endpoint with no sensitive data.
+  - files:
+      - "**#/paths/~1conformance/get"
+    rules:
+      owasp:api2:2019-protection-global-safe: off

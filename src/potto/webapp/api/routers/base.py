@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from ....schemas.web import base
 
+from .. import responses
 from ..dependencies import (
     PottoDependency,
     SettingsDependency,
@@ -28,7 +29,12 @@ async def swagger_ui_html(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/", name="landing-page", response_model_exclude_none=True)
+@router.get(
+    "/",
+    name="landing-page",
+    response_model_exclude_none=True,
+    responses=responses.ERROR_RESPONSES,
+)
 async def landing_page(
     request: Request,
     potto: PottoDependency,
@@ -42,7 +48,9 @@ async def landing_page(
     )
 
 
-@router.get("/conformance", name="conformance-page")
+@router.get(
+    "/conformance", name="conformance-page", responses=responses.ERROR_RESPONSES
+)
 async def conformance_page(potto: PottoDependency) -> base.JsonConformance:
     """OGC API conformance information."""
     result = await potto.api_get_conformance_details()

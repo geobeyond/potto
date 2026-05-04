@@ -19,13 +19,19 @@ from ....schemas.web.collections import (
     JsonCollectionList,
     JsonCollection,
 )
+from .. import (
+    responses,
+    tags,
+)
 from ..dependencies import (
     AuthorizationBackendDependency,
+    CollectionIdPath,
     LocaleDependency,
     PaginationLimitDependency,
     PottoDependency,
     SettingsDependency,
     UserDependency,
+    UserIdPath,
 )
 
 
@@ -38,7 +44,8 @@ router = APIRouter()
     name="collection-list",
     response_model_exclude_none=True,
     response_model=JsonCollectionList,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def list_collections(
     request: Request,
@@ -72,11 +79,12 @@ async def list_collections(
     "/collections/{collection_id}",
     name="collection-get",
     response_model=JsonCollection,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_details(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
@@ -108,11 +116,12 @@ async def get_collection_details(
 @router.get(
     "/collections/{collection_id}/queryables",
     name="collection-get-queryables",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_queryables(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
@@ -156,11 +165,12 @@ async def get_collection_queryables(
 @router.get(
     "/collections/{collection_id}/schema",
     name="collection-get-schema",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def get_collection_schema(
     request: Request,
-    collection_id: str,
+    collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
@@ -206,7 +216,8 @@ async def get_collection_schema(
     "/collections",
     name="create-collection",
     response_model=JsonCollection,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def create_collection(
     request: Request,
@@ -226,10 +237,11 @@ async def create_collection(
 @router.delete(
     "/collections/{collection_id}",
     name="delete-collection",
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def delete_collection(
-    collection_id: str,
+    collection_id: CollectionIdPath,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
@@ -247,11 +259,12 @@ async def delete_collection(
     "/collections/{collection_id}/access/{user_id}",
     name="grant-collection-access",
     status_code=204,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def grant_collection_access(
-    collection_id: str,
-    user_id: str,
+    collection_id: CollectionIdPath,
+    user_id: UserIdPath,
     body: collections_schemas.CollectionAccessGrant,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
@@ -280,11 +293,12 @@ async def grant_collection_access(
     "/collections/{collection_id}/access/{user_id}",
     name="revoke-collection-access",
     status_code=204,
-    tags=["collections"],
+    tags=[tags.COLLECTIONS],
+    responses=responses.ERROR_RESPONSES,
 )
 async def revoke_collection_access(
-    collection_id: str,
-    user_id: str,
+    collection_id: CollectionIdPath,
+    user_id: UserIdPath,
     user: UserDependency,
     authorization_backend: AuthorizationBackendDependency,
     settings: SettingsDependency,
