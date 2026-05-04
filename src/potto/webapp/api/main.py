@@ -91,12 +91,9 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     )
     poc = api_metadata.point_of_contact
     contact = {
-        k: v
-        for k, v in {
-            **({"name": poc.name, "email": poc.email} if poc is not None else {}),
-            "url": (poc.url if poc is not None else None) or str(settings.public_url),
-        }.items()
-        if v is not None
+        "name": (poc.name if poc is not None else None) or "unknown",
+        "email": (poc.email if poc is not None else None) or "unknown",
+        "url": (poc.url if poc is not None else None) or str(settings.public_url),
     }
     lic = api_metadata.license
     license_info = {
@@ -105,7 +102,7 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     }
     app = FastAPI(
         title=app_title or "potto",
-        description=app_description or "",
+        description=app_description or "unknown",
         contact=contact,
         license_info=license_info,
         openapi_tags=tags.OPENAPI_TAGS,
