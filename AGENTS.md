@@ -35,6 +35,11 @@ src/potto/
     │   ├── fields.py   # Custom starlette-admin fields
     │   ├── main.py     # PottoAdmin class + view registration
     │   └── views.py    # ModelView subclasses
+    ├── api/
+    │   ├── dependencies.py  # FastAPI dependencies + shared path/query param type aliases
+    │   ├── responses.py     # Shared ERROR_RESPONSES dict used on every route decorator
+    │   ├── tags.py          # OpenAPI tag name constants + OPENAPI_TAGS list
+    │   └── routers/
     └── templates/admin/  # Overridden starlette-admin templates
 ```
 
@@ -166,6 +171,58 @@ and excluded from user-visible help.
 
 ---
 
+## FastAPI App (`webapp/api/main.py`)
+
+### OpenAPI metadata from the database
+
+`create_api_app_from_settings` fetches `ServerMetadata` from the DB at startup to populate the
+FastAPI `title`, `description`, `contact`, and `license_info` fields. This means **the app
+requires a reachable database to start**, including during `potto export-openapi`.
+
+In CI, set `POTTO__DATABASE_DSN` before running `export-openapi` or `db upgrade`.
+
+### Running async code from a sync factory
+
+`create_api_app_from_settings` is synchronous but needs to `await` a DB query. A plain
+`asyncio.run()` would fail when called from within uvicorn's running event loop. The workaround
+is to run it in a new thread (which has no event loop):
+
+```python
+with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    api_metadata = cast(ServerMetadata, pool.submit(asyncio.run, _fetch_api_metadata(settings)).result())
+```
+
+### Fallback values for missing metadata
+
+When `ServerMetadata` fields are unset (e.g. freshly initialized DB), placeholder fallbacks are:
+- `description` → `"unknown"`
+- `contact.name` → `"unknown"`
+- `contact.email` → `"unknown@example.com"` (must be a valid email; `.invalid` and bare domains are rejected by pydantic)
+- `contact.url`, `license.url` → `str(settings.public_url)`
+- `license.name` → `"unknown"`
+
+### Adding a new API tag
+
+1. Add a constant to `webapp/api/tags.py`
+2. Add a `{"name": THE_CONSTANT, "description": "..."}` entry to `OPENAPI_TAGS` in the same file
+3. Use the constant in your router decorators: `tags=[tags.THE_CONSTANT]`
+
+`main.py` picks up `OPENAPI_TAGS` automatically — no changes needed there.
+
+### Suppressing a Spectral rule for a specific operation
+
+Use an `overrides` entry in `spectral/spectral.yaml` with a JSON Pointer fragment (`~1` encodes `/`):
+
+```yaml
+overrides:
+  - files:
+      - "**#/paths/~1some~1path/get"
+    rules:
+      rule-name: off
+```
+
+---
+
 ## Key Gotchas
 
 - `ServerMetadata` is a singleton — only one row should ever exist. `get_server_metadata()`
@@ -177,3 +234,10 @@ and excluded from user-visible help.
 - `CollectionField` nested data arrives in `edit()`/`create()` as a dict (or `None`/`{}`
   if all subfields were left empty). Always guard with `if data.get("field_name")` before
   constructing the nested Pydantic model.
+- `docker/compose.ci.yaml` only defines the `db` service — there is no `webapp` container.
+  `potto db upgrade` and `potto export-openapi` run on the CI host directly.
+- Use `docker compose up --detach --wait` in CI to block until the DB healthcheck passes
+  before running any commands against it.
+- `ServerMetadata.to_potto()` guards `license` and `data_provider` for `None`, but
+  `point_of_contact` must also be guarded — it is nullable and will be `None` on a freshly
+  created default metadata row.
