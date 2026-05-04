@@ -57,7 +57,7 @@ jobs:
         run: uv run potto export-openapi --output potto_openapi_ci.json
 
       - name: "Lint OpenAPI schema with spectral"
-        uses: stoplight/spectral-action@6416fd018ae38e60136775066eb3e98172143141
+        uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141
         with:
           file_glob: potto_openapi_ci.json
           spectral_ruleset: spectral/spectral.yaml
