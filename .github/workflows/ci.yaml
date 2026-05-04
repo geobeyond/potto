@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: "python-package"
+      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
     steps:
 
       - name: "Grab code"
@@ -53,6 +54,14 @@ jobs:
       - name: "Run ty"
         run: uv run ty check
 
+      - name: "Stand up compose stack for testing"
+        run: |
+          docker compose --file docker/compose.ci.yaml up --detach --wait
+
+      - name: "Initialize potto database"
+        run: |
+          uv run potto db upgrade
+
       - name: "Export OpenAPI schema document"
         run: uv run potto export-openapi --output potto_openapi_ci.json
 
@@ -63,10 +72,6 @@ jobs:
           --ruleset spectral/spectral.yaml \
           --fail-severity info \
           --format github-actions
-
-      - name: "Stand up compose stack for testing"
-        run: |
-          docker compose --file docker/compose.ci.yaml up --detach
 
       - name: "Run integration tests"
         env:
