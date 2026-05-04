@@ -92,7 +92,7 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     poc = api_metadata.point_of_contact
     contact = {
         "name": (poc.name if poc is not None else None) or "unknown",
-        "email": (poc.email if poc is not None else None) or "unknown@unknown.invalid",
+        "email": (poc.email if poc is not None else None) or "unknown@example.com",
         "url": (poc.url if poc is not None else None) or str(settings.public_url),
     }
     lic = api_metadata.license
