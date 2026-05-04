@@ -24,7 +24,9 @@ class LoginResponse(pydantic.BaseModel):
     token_type: str = "bearer"
 
 
-@router.post("/login", name="login")
+# security: [{}] marks this as intentionally public; security: [] is treated the same
+# as "undefined" by the OWASP spectral rule (check-security.js line 68).
+@router.post("/login", name="login", openapi_extra={"security": [{}]})
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     settings: SettingsDependency,

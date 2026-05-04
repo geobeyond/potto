@@ -41,6 +41,7 @@ async def list_collection_items(
     user: UserDependency,
     locale: LocaleDependency,
 ):
+    """List collection items."""
     collection_items = await potto.api_list_collection_items(
         collection_id,
         user=user,
@@ -71,6 +72,7 @@ async def get_item_details(
     collection_id: str,
     item_id: str,
 ):
+    """Get details about a collection item."""
     current_locale = babel.Locale.parse(request.state.language)
     collection_item = await potto.api_get_collection_item(
         user,

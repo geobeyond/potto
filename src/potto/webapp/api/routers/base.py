@@ -18,6 +18,7 @@ router = APIRouter()
 
 @router.get("/docs", include_in_schema=False, response_class=HTMLResponse)
 async def swagger_ui_html(request: Request) -> HTMLResponse:
+    """Returns interactive OpenAPI docs, using the swagger ui template."""
     return get_swagger_ui_html(
         openapi_url=request.scope.get("root_path", "") + request.app.openapi_url,
         title=f"{request.app.title} - Swagger UI",
@@ -34,6 +35,7 @@ async def landing_page(
     settings: SettingsDependency,
     user: UserDependency,
 ) -> base.JsonLanding:
+    """API landing page."""
     result = await potto.api_get_landing_page(user=user)
     return base.JsonLanding.from_potto(
         result, request.url_for, oidc_configured=settings.oidc is not None
@@ -42,5 +44,6 @@ async def landing_page(
 
 @router.get("/conformance", name="conformance-page")
 async def conformance_page(potto: PottoDependency) -> base.JsonConformance:
+    """OGC API conformance information."""
     result = await potto.api_get_conformance_details()
     return base.JsonConformance(conforms_to=result.conforms_to)

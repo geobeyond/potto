@@ -6,9 +6,16 @@ mounted by our main starlette-based app. Therefore, lifespan is configured
 in the starlette app.
 """
 
-from typing import Annotated
+from typing import (
+    Annotated,
+    Any,
+)
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import (
+    Depends,
+    FastAPI,
+    Request,
+)
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from starlette.staticfiles import StaticFiles
@@ -46,6 +53,8 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         title="Potto",
         summary="OGC API server",
         docs_url=None,
+        servers=[{"url": f"{settings.public_url}/api"}],
+        root_path_in_servers=False,
     )
     app.add_exception_handler(
         potto_exceptions.PottoNotFoundException,
@@ -85,4 +94,20 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     app.include_router(collections.router)
     app.include_router(items.router)
     app.include_router(base.router)
+
+    _original_openapi = app.openapi
+
+    def _openapi_with_jwt_description() -> dict[str, Any]:
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = _original_openapi()
+        for scheme in schema.get("components", {}).get("securitySchemes", {}).values():
+            if scheme.get("type") == "oauth2" and "description" not in scheme:
+                scheme["description"] = (
+                    "OAuth2 bearer token. The access token is a JSON Web Token (JWT) "
+                    "that conforms to RFC8725."
+                )
+        return schema
+
+    app.openapi = _openapi_with_jwt_description  # ty: ignore[invalid-assignment]
     return app

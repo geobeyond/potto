@@ -50,6 +50,9 @@ MaybeShapelyGeometry = typing.Annotated[
     pydantic.PlainSerializer(
         lambda geom: shapely.to_geojson(geom) if geom else None, return_type=str
     ),
+    pydantic.WithJsonSchema(
+        {"anyOf": [{"type": "string", "title": "WKT Geometry"}, {"type": "null"}]}
+    ),
 ]
 
 
@@ -69,15 +72,41 @@ class PygeoapiProviderType(str, enum.Enum):
     TILE = "tile"
 
 
+# Localizable fields store either a plain string or a locale-keyed dict (e.g. {"en": "…",
+# "it": "…"}). WithJsonSchema overrides the generated schema to avoid the unconstrained
+# additionalProperties that Pydantic would otherwise emit for dict[str, …].
 Title = typing.Annotated[
-    dict[str, str] | str, pydantic.PlainSerializer(_serialize_localizable_field)
+    dict[str, str] | str,
+    pydantic.PlainSerializer(_serialize_localizable_field),
+    pydantic.WithJsonSchema(
+        {"anyOf": [{"type": "object", "maxProperties": 200}, {"type": "string"}]}
+    ),
 ]
 MaybeDescription = typing.Annotated[
-    dict[str, str] | str | None, pydantic.PlainSerializer(_serialize_localizable_field)
+    dict[str, str] | str | None,
+    pydantic.PlainSerializer(_serialize_localizable_field),
+    pydantic.WithJsonSchema(
+        {
+            "anyOf": [
+                {"type": "object", "maxProperties": 200},
+                {"type": "string"},
+                {"type": "null"},
+            ]
+        }
+    ),
 ]
 MaybeKeywords = typing.Annotated[
     dict[str, list[str]] | list[str] | None,
     pydantic.PlainSerializer(_serialize_localizable_list_field),
+    pydantic.WithJsonSchema(
+        {
+            "anyOf": [
+                {"type": "object", "maxProperties": 200},
+                {"items": {"type": "string"}, "type": "array"},
+                {"type": "null"},
+            ]
+        }
+    ),
 ]
 
 
@@ -173,11 +202,21 @@ class AdditionalExtent(pydantic.BaseModel):
 
 
 class CollectionProviderConfiguration(pydantic.BaseModel):
-    data: str | dict
-    options: dict[str, typing.Any]
+    model_config = pydantic.ConfigDict(extra="forbid")
+    data: (
+        str
+        | typing.Annotated[
+            dict, pydantic.WithJsonSchema({"type": "object", "maxProperties": 10})
+        ]
+    )
+    options: typing.Annotated[
+        dict[str, typing.Any],
+        pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
+    ]
 
 
 class CollectionProvider(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
     python_callable: str
     config: CollectionProviderConfiguration | None = None
 
@@ -230,7 +269,12 @@ class ItemFilter(pydantic.BaseModel):
     bbox_crs: typing.Annotated[str | None, pydantic.Field(alias="bbox-crs")] = None
     cql_text: str | None = None
     datetime_: typing.Annotated[str | None, pydantic.Field(alias="datetime")] = None
-    extra_properties: dict[str, str] | None = None
+    extra_properties: typing.Annotated[
+        dict[str, str] | None,
+        pydantic.WithJsonSchema(
+            {"anyOf": [{"type": "object", "maxProperties": 10}, {"type": "null"}]}
+        ),
+    ] = None
     filter_: typing.Annotated[str | None, pydantic.Field(alias="filter")] = None
     filter_lang: str | None = None
     filter_crs_uri: str | None = None

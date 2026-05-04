@@ -132,7 +132,24 @@ You are now ready to start working on the code.
 
 5.  Use the `potto` CLI to start the potto web application server:
 
-    ```uv run potto run-server```
+    ```shell
+    uv run potto run-server
+    ```
+
+
+## Code formatting and static analysis
+
+The pre-commit hook uses [ruff] and [ty] to format the code and perform linting and static analysis. These tools also
+run in CI and you can run them yourself with:
+
+```shell
+uv run ruff format --check
+uv run ruff check
+uv run ty check
+```
+
+[ruff]: https://astral.sh/ruff
+[ty]: https://docs.astral.sh/ty/
 
 
 ## Running tests
@@ -157,6 +174,41 @@ potto uses [pytest] and running the tests requires the existence of an additiona
     ```
 
 [pytest]: https://docs.pytest.org/en/stable/
+
+
+### API linting
+
+
+potto uses [spectral] for enforcing API style and security-related rules. This tool runs in CI and you can also run
+it yourself in one of two ways:
+
+[spectral]: https://stoplight.io/open-source/spectral
+
+-   by exporting the OpenAPI document to a file and then running spectral on it:
+
+    ```shell
+    uv run potto export-openapi --output potto_openapi_dev.json
+    spectral lint -r spectral/spectral.yaml potto_openapi_dev.json
+    ```
+
+-   by using the dynamically generated openapi whenever the potto server is running. As an example, assuming it is
+    running on `localhost:3001`:
+
+    ```shell
+    spectral lint -r spectral/spectral.yaml http://localhost:3001/api/openapi.json
+    ```
+
+!!! note
+
+    Using spectral locally requires that you first install it with something like:
+
+    ```shell
+    npm install -g @stoplight/spectral-cli
+    ```
+
+    Check the [spectral installation docs](https://docs.stoplight.io/docs/spectral/b8391e051b7d8-installation) for more detail.
+
+
 
 
 ## Working on documentation
