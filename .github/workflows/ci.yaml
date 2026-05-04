@@ -57,10 +57,11 @@ jobs:
         run: uv run potto export-openapi --output potto_openapi_ci.json
 
       - name: "Lint OpenAPI schema with spectral"
-        uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141
-        with:
-          file_glob: potto_openapi_ci.json
-          spectral_ruleset: spectral/spectral.yaml
+        run: |
+          npm install --global @stoplight/spectral-cli@6.15.0
+          spectral lint potto_openapi_ci.json \
+          --ruleset spectral/spectral.yaml \
+          --fail-severity info
 
       - name: "Stand up compose stack for testing"
         run: |
