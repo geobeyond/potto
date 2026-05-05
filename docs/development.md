@@ -209,6 +209,57 @@ it yourself in one of two ways:
     Check the [spectral installation docs](https://docs.stoplight.io/docs/spectral/b8391e051b7d8-installation) for more detail.
 
 
+### Running official OGC test suites
+
+potto's CI workflow uses [ogc-cite-runner] to run OGC test suites. This provides feedback on whether it
+is keeping up with the OGC API standards. You can also run it locally like this:
+
+[ogc-cite-runner]: https://osgeo.github.io/ogc-cite-runner/
+
+-   Start TeamEngine locally by using its docker image
+-   Ensure the potto server is running and properly configured:
+
+    -   Set `POTTO__BIND_HOST=0.0.0.0` as an env variable before starting the server
+    -   Ensure there is at least one public collection of the type you are trying to test
+
+-   Launch ogc-cite-runner with the correct incantation for the test suite you wish to test
+
+For example:
+
+```shell
+
+# pull TeamEngine docker image
+docker pull ogccite/teamengine-production:1.0-SNAPSHOT
+
+# launch it
+docker run \
+    --rm \
+    --detach \
+    --name=teamengine \
+    --add-host=host.docker.internal:host-gateway \
+    --publish=9080:8080 \
+    ogccite/teamengine-production:1.0-SNAPSHOT
+
+# use ogc-cite-runner
+# in this example we are testing OGC API - Features
+uv run ogc-cite-runner execute-test-suite http://localhost:9080/teamengine \
+    ogcapi-features-1.0 \
+    --suite-input iut http://host.docker.internal:3001/api \
+    --with-failed
+```
+
+??? info "networking between the teamengine container and the host network"
+
+    In the example above we set the URL of the implementation under test (_i.e._ the `iut` suite input) to
+    be `http://host.docker.internal:3001/api`.
+
+    Together with the `--add-host=host.docker.internal:host-gateway` flag, which is used when starting the teamengine
+    docker container, this lets the running TeamEngine instance see services which are running on the docker host's
+    network.
+
+    Check the [docker engine docs](https://docs.docker.com/reference/cli/docker/container/run/#add-host) for more
+    detail on this.
+
 
 
 ## Working on documentation

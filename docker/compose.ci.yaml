@@ -22,3 +22,19 @@ services:
       interval: 30s
       retries: 5
       timeout: 5s
+
+  test-db:
+    image: *db-image
+    environment:
+      POSTGRES_DB: potto_test
+      POSTGRES_USER: potto
+      POSTGRES_PASSWORD: pottopass
+    healthcheck:
+      test: "pg_isready -d potto_test -U potto"
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    ports:
+      - target: 5432
+        published: 55433
