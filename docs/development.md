@@ -219,7 +219,12 @@ is keeping up with the OGC API standards. You can also run it locally like this:
 -   Start TeamEngine locally by using its docker image
 -   Ensure the potto server is running and properly configured:
 
-    -   Set `POTTO__BIND_HOST=0.0.0.0` as an env variable before starting the server
+    -   Set the following environment variables before starting the server:
+
+        ```shell
+        POTTO__BIND_HOST=0.0.0.0
+        POTTO__USE_OAS30_FIXES=true
+        ```
     -   Ensure there is at least one public collection of the type you are trying to test
 
 -   Launch ogc-cite-runner with the correct incantation for the test suite you wish to test
