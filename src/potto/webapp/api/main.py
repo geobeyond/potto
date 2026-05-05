@@ -88,7 +88,7 @@ def _fix_vendor_specific_parameters(schema: dict[str, Any]) -> None:
                     and param.get("in") == "query"
                 ):
                     param["name"] = "vendorSpecificParameters"
-                    param["schema"] = {"type": "object", "additionalProperties": True}
+                    param["schema"] = {"type": "object"}
                     param["style"] = "form"
 
 
