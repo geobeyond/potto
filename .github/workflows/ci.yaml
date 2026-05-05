@@ -103,7 +103,7 @@ jobs:
         with:
           test_suite_identifier: ogcapi-features-1.0
           test_session_arguments: >-
-            iut=http://host.docker.internal:${POTTO__BIND_PORT}
+            iut=http://host.docker.internal:${POTTO__BIND_PORT}/api/
             noofcollections=-1
 
       - name: "Shut down potto server for OGC CITE testing"
