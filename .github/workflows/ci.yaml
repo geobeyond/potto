@@ -89,6 +89,7 @@ jobs:
       - name: "Launch potto server for OGC CITE testing"
         env:
           POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
+          POTTO__USE_OAS30_FIXES: "true"
         run: |
           nohup uv run potto run-server > /dev/null 2>&1 &
           echo $! > potto-server.pid
