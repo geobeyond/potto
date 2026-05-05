@@ -19,6 +19,7 @@ from fastapi import (
     FastAPI,
     Request,
 )
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from starlette.staticfiles import StaticFiles
@@ -42,6 +43,85 @@ from .routers import (
 )
 
 
+def _fix_oas30_nullable(obj: Any) -> None:
+    """Convert Pydantic v2 / OAS 3.1 nullable schemas to OAS 3.0 nullable:true in-place.
+
+    Pydantic v2 represents Optional[X] as anyOf:[X, {type:null}], which is valid OAS 3.1
+    but not OAS 3.0. OGC API Features requires OAS 3.0, so we post-process the schema.
+    """
+    if isinstance(obj, dict):
+        if "anyOf" in obj:
+            non_null = [s for s in obj["anyOf"] if s != {"type": "null"}]
+            if len(non_null) < len(obj["anyOf"]):
+                del obj["anyOf"]
+                if len(non_null) == 1:
+                    sole = non_null[0]
+                    if "$ref" in sole:
+                        obj["allOf"] = [sole]
+                    else:
+                        obj.update(sole)
+                elif len(non_null) > 1:
+                    obj["anyOf"] = non_null
+                obj["nullable"] = True
+        for v in list(obj.values()):
+            _fix_oas30_nullable(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            _fix_oas30_nullable(item)
+
+
+def _fix_vendor_specific_parameters(schema: dict[str, Any]) -> None:
+    """Rename extra_properties to vendorSpecificParameters per OGC API spec.
+
+    The OGC API spec allows servers to declare a free-form catch-all parameter so that
+    unknown query params are explicitly supported rather than triggering a 400. The
+    generated name 'extra_properties' doesn't follow that convention; rename it and
+    ensure the schema has additionalProperties: true.
+    """
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get("parameters", []):
+                if (
+                    param.get("name") == "extra_properties"
+                    and param.get("in") == "query"
+                ):
+                    param["name"] = "vendorSpecificParameters"
+                    param["schema"] = {"type": "object", "additionalProperties": True}
+                    param["style"] = "form"
+
+
+def _fix_array_query_param_explode(schema: dict[str, Any]) -> None:
+    """Set explode:false on the bbox query parameter.
+
+    Without this, OAS clients default to explode:true (repeated keys like
+    bbox=-1.5&bbox=50) instead of the comma-separated form the server expects.
+    """
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get("parameters", []):
+                if param.get("in") == "query" and param.get("name") == "bbox":
+                    param["explode"] = False
+
+
+def _fix_oas30_query_param_style(schema: dict[str, Any]) -> None:
+    """Add style:form to query parameters that omit it.
+
+    OAS 3.0 defaults query params to style:form, but the OGC API Features CITE
+    test explicitly checks for the property's presence rather than relying on the default.
+    """
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get("parameters", []):
+                if param.get("in") == "query" and "style" not in param:
+                    param["style"] = "form"
+
+
 async def _fetch_api_metadata(settings: config.PottoSettings) -> ServerMetadata:
     """
     Small helper to allow retrieving server metadata from a sync context.
@@ -61,6 +141,13 @@ def _handle_potto_not_found_exception(
         status_code=404,
         content={"detail": str(err)},
     )
+
+
+def _handle_request_validation_error(
+    request: Request, err: RequestValidationError
+) -> JSONResponse:
+    # OGC API requires 400 for invalid/unknown query parameters; FastAPI defaults to 422
+    return JSONResponse(status_code=400, content={"detail": err.errors()})
 
 
 def create_api_app() -> FastAPI:
@@ -115,6 +202,10 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         potto_exceptions.PottoNotFoundException,
         _handle_potto_not_found_exception,  # ty: ignore[invalid-argument-type]
     )
+    app.add_exception_handler(
+        RequestValidationError,
+        _handle_request_validation_error,  # ty: ignore[invalid-argument-type]
+    )
 
     app.mount(
         "/static",
@@ -162,6 +253,12 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
                     "OAuth2 bearer token. The access token is a JSON Web Token (JWT) "
                     "that conforms to RFC8725."
                 )
+        _fix_vendor_specific_parameters(schema)
+        _fix_array_query_param_explode(schema)
+        if settings.use_oas30_fixes:
+            _fix_oas30_nullable(schema)
+            _fix_oas30_query_param_style(schema)
+            schema["openapi"] = "3.0.3"
         return schema
 
     app.openapi = _openapi_with_jwt_description  # ty: ignore[invalid-assignment]

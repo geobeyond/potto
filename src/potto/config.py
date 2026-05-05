@@ -79,6 +79,14 @@ class PottoSettings(pydantic_settings.BaseSettings):
     opa: OPASettings | None = None
     page_size: int = 20
     page_size_max: int = 100
+    use_oas30_fixes: bool = pydantic.Field(
+        default=False,
+        description=(
+            "Apply OAS 3.0 compatibility fixes to the generated OpenAPI schema "
+            "(converts Pydantic v2 anyOf+null to nullable:true). Required for OGC "
+            "CITE validation, which only supports OAS 3.0."
+        ),
+    )
 
     _jinja_env: jinja2.Environment | None = None
     _db_engine: AsyncEngine | None = None

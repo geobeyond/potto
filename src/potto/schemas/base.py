@@ -270,6 +270,14 @@ class ItemFilter(pydantic.BaseModel):
         pydantic.Field(
             description="Bounding box filter as 'minLon,minLat,maxLon,maxLat'."
         ),
+        pydantic.WithJsonSchema(
+            {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 4,
+                "maxItems": 6,
+            }
+        ),
     ] = None
     bbox_crs: typing.Annotated[
         str | None,

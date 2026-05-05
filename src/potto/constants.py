@@ -9,6 +9,7 @@ FEATURE_COLLECTION_ITEM_TYPE: typing.Final[str] = "feature"
 PYGEOAPI_F_JSON: typing.Final[str] = "json"
 MEDIA_TYPE_HTML: typing.Final[str] = "text/html"
 MEDIA_TYPE_JSON: typing.Final[str] = "application/json"
+MEDIA_TYPE_OAS30: typing.Final[str] = "application/vnd.oai.openapi+json;version=3.0"
 MEDIA_TYPE_GEO_JSON: typing.Final[str] = "application/geo+json"
 MEDIA_TYPE_JSON_SCHEMA: typing.Final[str] = "application/schema+json"
 
