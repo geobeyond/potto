@@ -26,7 +26,6 @@ jobs:
       ARTIFACT_NAME: "python-package"
       POTTO__BIND_HOST: "0.0.0.0"
       POTTO__BIND_PORT: "3001"
-      POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
       POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
     steps:
 
