@@ -88,6 +88,8 @@ jobs:
           uv run potto cite-testing bootstrap-ogc-api-features-1
 
       - name: "Launch potto server for OGC CITE testing"
+        env:
+          POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
         run: |
           nohup uv run potto run-server > /dev/null 2>&1 &
           echo $! > potto-server.pid
@@ -100,11 +102,13 @@ jobs:
           fi
 
       - name: "Run OGC CITE tests"
+        env:
+          PUBLIC_URL: "http://host.docker.internal:3001"
         uses: OSGEO/ogc-cite-runner@v0.3.1
         with:
           test_suite_identifier: ogcapi-features-1.0
           test_session_arguments: >-
-            iut=http://host.docker.internal:${POTTO__BIND_PORT}/api/
+            iut=${PUBLIC_URL}/api/
             noofcollections=-1
 
       - name: "Shut down potto server for OGC CITE testing"
