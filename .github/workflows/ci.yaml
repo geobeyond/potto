@@ -84,7 +84,7 @@ jobs:
       - name: "bootstrap potto database with data for OGC CITE testing"
         run: |
           echo "12345678" | uv run potto user create cite-admin --password-stdin --scope admin
-          uv run potto cite bootstrap-ogc-api-features-1
+          uv run potto cite-testing bootstrap-ogc-api-features-1
 
       - name: "Launch potto server for OGC CITE testing"
         run: |
