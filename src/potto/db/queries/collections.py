@@ -142,6 +142,7 @@ async def list_public_collections(
         Collection.created_at,
         Collection.resource_identifier.desc().nullslast(),  # ty: ignore[unresolved-attribute]
     )
+    logger.debug(f"{str(statement)=}")
     items = (await session.exec(statement.offset(offset).limit(limit))).all()
     num_total = (
         await _get_total_num_records(session, statement) if include_total else None
@@ -202,7 +203,7 @@ def _apply_common_filters(
         )
     if collection_type_filter:
         statement = statement.where(
-            Collection.collection_type in collection_type_filter
+            Collection.collection_type.in_(collection_type_filter)  # ty: ignore[unresolved-attribute]
         )
     if spatial_intersect is not None:
         statement = statement.where(

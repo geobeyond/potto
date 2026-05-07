@@ -92,6 +92,17 @@ def _fix_vendor_specific_parameters(schema: dict[str, Any]) -> None:
                     param["style"] = "form"
 
 
+def _fix_limit_parameter_maximum(schema: dict[str, Any], page_size_max: int) -> None:
+    """Set maximum on the limit query parameter from server settings."""
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get("parameters", []):
+                if param.get("name") == "limit" and param.get("in") == "query":
+                    param.setdefault("schema", {})["maximum"] = page_size_max
+
+
 def _fix_array_query_param_explode(schema: dict[str, Any]) -> None:
     """Set explode:false on the bbox query parameter.
 
@@ -254,6 +265,7 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
                     "that conforms to RFC8725."
                 )
         _fix_vendor_specific_parameters(schema)
+        _fix_limit_parameter_maximum(schema, settings.page_size_max)
         _fix_array_query_param_explode(schema)
         if settings.use_oas30_fixes:
             _fix_oas30_nullable(schema)

@@ -214,6 +214,14 @@ it yourself in one of two ways:
 potto's CI workflow uses [ogc-cite-runner] to run OGC test suites. This provides feedback on whether it
 is keeping up with the OGC API standards. You can also run it locally like this:
 
+!!! tip "TeamEngine docker image"
+
+    potto uses the `ogccite/teamengine-beta` docker image as opposed to `ogccite/teamengine-production` because it
+    contains newer versions of the OGC test suites.
+
+    This also means that the TeamEngine URL used when running ogc-cite-action ends with `/te2`
+    instead of `/teamengine`.
+
 [ogc-cite-runner]: https://osgeo.github.io/ogc-cite-runner/
 
 -   Start TeamEngine locally by using its docker image
@@ -223,6 +231,7 @@ is keeping up with the OGC API standards. You can also run it locally like this:
 
         ```shell
         POTTO__BIND_HOST=0.0.0.0
+        POTTO__PUBLIC_URL=http://host.docker.internal:3001
         POTTO__USE_OAS30_FIXES=true
         ```
     -   Ensure there is at least one public collection of the type you are trying to test
@@ -234,7 +243,7 @@ For example:
 ```shell
 
 # pull TeamEngine docker image
-docker pull ogccite/teamengine-production:1.0-SNAPSHOT
+docker pull ogccite/teamengine-beta:1.0-SNAPSHOT
 
 # launch it
 docker run \
@@ -243,11 +252,22 @@ docker run \
     --name=teamengine \
     --add-host=host.docker.internal:host-gateway \
     --publish=9080:8080 \
-    ogccite/teamengine-production:1.0-SNAPSHOT
+    ogccite/teamengine-beta:1.0-SNAPSHOT
+
+# have at least one public collection
+uv run potto cite-testing bootstrap-ogcapi-features-1
+
+# launch potto with a suitable configuration
+set -o allexport; source potto-dev.env; set +o allexport; \
+    POTTO__BIND_HOST=0.0.0.0 \
+    POTTO__PUBLIC_URL=http://host.docker.internal:3001 \
+    POTTO__USE_0AS30_FIXES=true \
+    uv run potto run-server
+
 
 # use ogc-cite-runner
 # in this example we are testing OGC API - Features
-uv run ogc-cite-runner execute-test-suite http://localhost:9080/teamengine \
+uv run ogc-cite-runner execute-test-suite http://localhost:9080/te2 \
     ogcapi-features-1.0 \
     --suite-input iut http://host.docker.internal:3001/api \
     --with-failed

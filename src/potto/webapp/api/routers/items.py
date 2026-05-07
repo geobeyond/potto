@@ -4,6 +4,7 @@ from typing import Annotated
 import babel
 from fastapi import (
     APIRouter,
+    HTTPException,
     Query,
     Request,
 )
@@ -49,6 +50,11 @@ async def list_collection_items(
     locale: LocaleDependency,
 ):
     """List collection items."""
+    if filter_.__pydantic_extra__:
+        unknown = ", ".join(sorted(filter_.__pydantic_extra__))
+        raise HTTPException(
+            status_code=400, detail=f"Unknown query parameters: {unknown}"
+        )
     collection_items = await potto.api_list_collection_items(
         collection_id,
         user=user,

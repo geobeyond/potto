@@ -6,6 +6,8 @@ if TYPE_CHECKING:
     from pygeoapi.crs import CrsTransformSpec
 
 import shapely
+import shapely.strtree
+import shapely.geometry
 from pygeoapi.provider.base import ProviderItemNotFoundError
 
 from .base import (
@@ -89,12 +91,18 @@ class PygeoapiConfigWktFeatureProvider:
         language: str | None = None,
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
+        logger.debug(f"{locals()=}")
         features = list(self._data.values())
+        if bbox:
+            bbox_geom = _bbox_to_geometry(bbox)
+            features = _perform_bbox_filtering(bbox_geom, features)
+        num_matched = len(features)
+        features = _perform_offset_limit_filtering(limit, offset, features)
         return GeoJsonFeatureCollection(
             {
                 "type": "FeatureCollection",
                 "features": features,
-                "numberMatched": len(features),
+                "numberMatched": num_matched,
             }
         )
 
@@ -171,11 +179,16 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
         features = list(self._data.values())
+        if bbox is not None:
+            bbox_geom = _bbox_to_geometry(bbox)
+            features = _perform_bbox_filtering(bbox_geom, features)
+        num_matched = len(features)
+        features = _perform_offset_limit_filtering(limit, offset, features)
         return GeoJsonFeatureCollection(
             {
                 "type": "FeatureCollection",
                 "features": features,
-                "numberMatched": len(features),
+                "numberMatched": num_matched,
             }
         )
 
@@ -189,6 +202,65 @@ class PygeoapiConfigGeoJsonFeatureProvider:
             return GeoJsonFeature(self._data[str(identifier)].copy())
         except KeyError as err:
             raise ProviderItemNotFoundError(f"Item {identifier!r} not found") from err
+
+
+def _bbox_to_geometry(bbox: RawBbox) -> shapely.Geometry:
+    """Convert a bbox to a shapely geometry, handling antimeridian crossing.
+
+    When minX > maxX the bbox spans the antimeridian (lon=±180), so we union
+    two boxes: one for each side of the antimeridian.
+    """
+    minx, miny, maxx, maxy = bbox[0], bbox[1], bbox[2], bbox[3]
+    if minx > maxx:
+        return shapely.unary_union(
+            [
+                shapely.box(minx, miny, 180.0, maxy),
+                shapely.box(-180.0, miny, maxx, maxy),
+            ]
+        )
+    return shapely.box(minx, miny, maxx, maxy)
+
+
+def _perform_offset_limit_filtering(
+    limit: int,
+    offset: int,
+    features: list[GeoJsonFeature],
+) -> list[GeoJsonFeature]:
+    if offset > len(features) or limit <= 0:
+        return []
+    return features[max(offset, 0) : limit]
+
+
+def _perform_bbox_filtering(
+    bbox: shapely.Polygon, features: list[GeoJsonFeature], strtree_threshold: int = 1000
+) -> list[GeoJsonFeature]:
+    """Filter input features by checking intersection with a bounding box.
+
+    The `strtree_threshold` parameter is used for deciding on the intersection
+    algorithm to use. The intent here is to use a faster technique if there is
+    a large number of input features.
+    """
+    no_geom_feats = [f for f in features if f.get("geometry") is None]
+    geom_feats = [f for f in features if f.get("geometry") is not None]
+    if len(geom_feats) < strtree_threshold:
+        shapely.prepare(bbox)
+        return [
+            *no_geom_feats,
+            *[
+                feat
+                for feat in geom_feats
+                if bbox.intersects(shapely.geometry.shape(feat["geometry"]))
+            ],
+        ]
+    else:
+        geoms = [shapely.geometry.shape(feat["geometry"]) for feat in geom_feats]
+        tree = shapely.strtree.STRtree(geoms)
+        intersecting_indexes = tree.query(bbox, predicate="intersects")
+        relevant_geom_feats = [geom_feats[i] for i in intersecting_indexes]
+        return [
+            *no_geom_feats,
+            *relevant_geom_feats,
+        ]
 
 
 def _get_fields(

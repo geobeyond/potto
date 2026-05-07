@@ -43,3 +43,6 @@ CONFORMANCE_CLASS_OGCAPI_FEATURES_HTML = (
 CONFORMANCE_CLASS_OGCAPI_FEATURES_OPENAPI3 = (
     "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30"
 )
+CONFORMANCE_CLASS_OGCAPI_FEATURES_PART2_CRS = (
+    "http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs"
+)

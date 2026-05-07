@@ -63,6 +63,8 @@ async def bootstrap_for_cite_ogcapi_features(
             session,
             collection_type_filter=[base_schemas.CollectionType.FEATURE_COLLECTION],
         )
+        logger.debug(f"{len(paginated_collections)=}")
+        logger.debug(f"{paginated_collections=}")
         if len(paginated_collections) > 0:
             cite_app.console.print(
                 "DB already has public collections, no need to create more"
@@ -94,7 +96,7 @@ async def bootstrap_for_cite_ogcapi_features(
             is_public=True,
             collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
             title="Testing obs feature collection",
-            spatial_extent="POLYGON ((-122 43, -122 49, -75 49, -75 43, -122 43))",
+            spatial_extent="POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))",
             spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
             providers={
                 "feature": base_schemas.CollectionProvider(
@@ -146,6 +148,56 @@ async def bootstrap_for_cite_ogcapi_features(
                                         "stn_id": 604,
                                         "datetime": "2000-10-30T18:24:39Z",
                                         "value": 99.9,
+                                    },
+                                },
+                                # Feature near prime meridian (CITE bbox: -1.5,50,1.5,53)
+                                {
+                                    "id": 1001,
+                                    "geometry": "POINT (0 51.5)",
+                                    "properties": {
+                                        "stn_id": 1001,
+                                        "datetime": "2010-06-15T12:00:00Z",
+                                        "value": 42.1,
+                                    },
+                                },
+                                # Feature near equator (CITE bbox: -80,-5,-70,5)
+                                {
+                                    "id": 1002,
+                                    "geometry": "POINT (-75 0)",
+                                    "properties": {
+                                        "stn_id": 1002,
+                                        "datetime": "2010-06-15T12:00:00Z",
+                                        "value": 38.7,
+                                    },
+                                },
+                                # Feature near antimeridian (CITE bbox: 177,65,-177,70)
+                                {
+                                    "id": 1003,
+                                    "geometry": "POINT (178.5 67.5)",
+                                    "properties": {
+                                        "stn_id": 1003,
+                                        "datetime": "2010-06-15T12:00:00Z",
+                                        "value": 55.2,
+                                    },
+                                },
+                                # Feature in north polar region (CITE bbox: -180,85,180,90)
+                                {
+                                    "id": 1004,
+                                    "geometry": "POINT (0 87.5)",
+                                    "properties": {
+                                        "stn_id": 1004,
+                                        "datetime": "2010-06-15T12:00:00Z",
+                                        "value": 31.4,
+                                    },
+                                },
+                                # Feature in south polar region (CITE bbox: -180,-90,180,-85)
+                                {
+                                    "id": 1005,
+                                    "geometry": "POINT (0 -87.5)",
+                                    "properties": {
+                                        "stn_id": 1005,
+                                        "datetime": "2010-06-15T12:00:00Z",
+                                        "value": 28.9,
                                     },
                                 },
                             ]

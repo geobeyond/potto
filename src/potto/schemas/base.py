@@ -316,7 +316,7 @@ class ItemFilter(pydantic.BaseModel):
         pydantic.Field(description="CRS URI for filter geometry coordinates."),
     ] = None
     limit: typing.Annotated[
-        int, pydantic.Field(description="Maximum number of items to return.")
+        int, pydantic.Field(description="Maximum number of items to return.", ge=1)
     ] = 20
     locale: typing.Annotated[
         str | None,
