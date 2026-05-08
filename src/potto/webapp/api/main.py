@@ -145,6 +145,15 @@ async def _fetch_api_metadata(settings: config.PottoSettings) -> ServerMetadata:
     return db_server_metadata.to_potto()
 
 
+def _handle_potto_bad_request_exception(
+    request: Request, err: potto_exceptions.PottoBadRequestException
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(err)},
+    )
+
+
 def _handle_potto_not_found_exception(
     request: Request, err: potto_exceptions.PottoNotFoundException
 ) -> JSONResponse:
@@ -208,6 +217,10 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         docs_url=None,
         servers=[{"url": f"{settings.public_url}/api"}],
         root_path_in_servers=False,
+    )
+    app.add_exception_handler(
+        potto_exceptions.PottoBadRequestException,
+        _handle_potto_bad_request_exception,  # ty: ignore[invalid-argument-type]
     )
     app.add_exception_handler(
         potto_exceptions.PottoNotFoundException,
