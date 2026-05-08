@@ -104,7 +104,7 @@ jobs:
       - name: "Run OGC CITE tests"
         env:
           PUBLIC_URL: "http://host.docker.internal:3001"
-        uses: OSGEO/ogc-cite-runner@v0.3.1
+        uses: OSGEO/ogc-cite-runner@v0.3.2
         with:
           test_suite_identifier: ogcapi-features-1.0
           test_session_arguments: >-
