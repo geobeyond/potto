@@ -18,6 +18,7 @@ from starlette_babel import LocaleMiddleware
 from .. import config
 from ..authn.backend import LocalAuthBackend, OIDCAuthBackend
 from ..wrapper import Potto
+from .middleware import PublicURLMiddleware
 from .routes import (
     auth as auth_routes,
     landing as landing_routes,
@@ -110,6 +111,7 @@ def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
         debug=settings.debug,
         routes=routes,
         middleware=[
+            Middleware(PublicURLMiddleware, public_url=str(settings.public_url)),
             Middleware(
                 LocaleMiddleware,
                 locales=settings.languages,

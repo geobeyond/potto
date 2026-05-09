@@ -2,6 +2,7 @@ import asyncio
 import getpass
 import inspect
 import logging
+import sys
 from math import ceil
 from rich.table import Table
 from typing import (
@@ -99,6 +100,7 @@ async def create_user(
     *,
     email: str | None = None,
     scope: list[str] | None = None,
+    password_stdin: bool = False,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Create a new user when using the local auth provider."""
@@ -107,10 +109,13 @@ async def create_user(
             "Error: user creation is not supported when using an OIDC auth "
             "provider. Users are provisioned automatically on first login."
         )
-    password = getpass.getpass("Password (at least 8 characters): ")
-    password_confirm = getpass.getpass("Confirm password: ")
-    if password != password_confirm:
-        raise SystemExit("Error: passwords do not match.")
+    if password_stdin:
+        password = sys.stdin.readline().strip()
+    else:
+        password = getpass.getpass("Password (at least 8 characters): ")
+        password_confirm = getpass.getpass("Confirm password: ")
+        if password != password_confirm:
+            raise SystemExit("Error: passwords do not match.")
     try:
         to_create = UserCreate(
             username=username,

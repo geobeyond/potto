@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: "python-package"
+      POTTO__BIND_HOST: "0.0.0.0"
+      POTTO__BIND_PORT: "3001"
       POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
     steps:
 
@@ -75,9 +77,48 @@ jobs:
 
       - name: "Run integration tests"
         env:
-          POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
+          POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55433/potto_test"
           POTTO__DEBUG: "true"
         run: uv run pytest -m integration
+
+      - name: "bootstrap potto database with data for OGC CITE testing"
+        run: |
+          echo "12345678" | uv run potto user create cite-admin --password-stdin --scope admin
+          uv run potto cite-testing bootstrap-ogc-api-features-1
+
+      - name: "Launch potto server for OGC CITE testing"
+        env:
+          POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
+          POTTO__USE_OAS30_FIXES: "true"
+        run: |
+          nohup uv run potto run-server > /dev/null 2>&1 &
+          echo $! > potto-server.pid
+          sleep 1
+          if ps --pid $(cat potto-server.pid) > /dev/null; then
+              echo "potto server is up and running with PID $(cat potto-server.pid)"
+          else
+              echo "potto server failed to start"
+              exit 1
+          fi
+
+      - name: "Run OGC CITE tests"
+        env:
+          PUBLIC_URL: "http://host.docker.internal:3001"
+        uses: OSGEO/ogc-cite-runner@v0.3.2
+        with:
+          test_suite_identifier: ogcapi-features-1.0
+          test_session_arguments: >-
+            iut=${{ env.PUBLIC_URL }}/api/
+            noofcollections=-1
+
+      - name: "Shut down potto server for OGC CITE testing"
+        if: always()
+        run: |
+          if [ -f potto-server.pid ]; then
+              echo "Shutting down potto server with PID $(cat potto-server.pid)..."
+              kill $(cat potto-server.pid)  || true
+              rm potto-server.pid
+          fi
 
       - name: "Stand down compose stack"
         run: |

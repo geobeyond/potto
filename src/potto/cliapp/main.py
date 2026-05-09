@@ -23,8 +23,9 @@ from ..config import (
 )
 from ..webapp.api.main import create_api_app_from_settings
 
-from .db import db_app
+from .cite import cite_app
 from .collections import collections_app
+from .db import db_app
 from .metadata import metadata_app
 from .users import user_app
 
@@ -35,6 +36,8 @@ potto_app = App(
     error_console=_error_console,
 )
 rich_install_traceback(console=_error_console)
+cite_app.console = _console
+cite_app.error_console = _error_console
 collections_app.console = _console
 collections_app.error_console = _error_console
 db_app.console = _console
@@ -47,6 +50,7 @@ potto_app.command(collections_app.meta, name="collection")
 potto_app.command(db_app.meta, name="db")
 potto_app.command(metadata_app.meta, name="metadata")
 potto_app.command(user_app.meta, name="user")
+potto_app.command(cite_app.meta, name="cite-testing")
 
 
 @potto_app.meta.default

@@ -164,6 +164,7 @@ class Potto:
                 constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_CORE,
                 constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_GEOJSON,
                 constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_OPENAPI3,
+                constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_PART2_CRS,
             ]
         )
 
@@ -277,6 +278,12 @@ class Potto:
             dataset=collection_id,
         )
         pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
+        status_value = cast(HTTPStatus, pygeoapi_status_code).value
+        if status_value != 200:
+            detail = json.loads(pygeoapi_content).get("description", pygeoapi_content)
+            if status_value == 400:
+                raise potto_exceptions.PottoBadRequestException(detail)
+            raise potto_exceptions.PottoException(str(pygeoapi_response))
         parsed_pygeoapi_content = json.loads(pygeoapi_content)
         logger.debug(f"{parsed_pygeoapi_content=}")
         features = [
@@ -311,24 +318,33 @@ class Potto:
         item_id: str,
         collection_id: str,
         locale: babel.Locale,
+        crs: str | None = None,
         output_format: Literal["json", "jsonld"] = "json",
     ) -> potto_schemas.FeatureResponse:
         collection = await self._get_collection(collection_id, user)
         pygeoapi_api = await self._get_pygeoapi(
             user, collection_identifier=collection_id
         )
+        extra_params = {"crs": crs} if crs is not None else {}
         pygeoapi_response = await asyncio.to_thread(
             _get_collection_item,
             pygeoapi_api,
             PottoRequest(  # ty: ignore[invalid-argument-type]
                 locale=locale,
                 output_format=output_format,
+                **extra_params,  # ty: ignore[invalid-argument-type]
             ),
             dataset=collection_id,
             identifier=item_id,
         )
         pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
-        if cast(HTTPStatus, pygeoapi_status_code).value != 200:
+        status_value = cast(HTTPStatus, pygeoapi_status_code).value
+        if status_value != 200:
+            if status_value == 400:
+                detail = json.loads(pygeoapi_content).get(
+                    "description", pygeoapi_content
+                )
+                raise potto_exceptions.PottoBadRequestException(detail)
             raise potto_exceptions.PottoCollectionItemNotFoundException(
                 f"Item {item_id} not found"
             )

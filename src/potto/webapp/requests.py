@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import babel
 import pygeoapi.api
@@ -16,7 +17,7 @@ class PottoRequest:
         locale: babel.Locale,
         output_format: str = PYGEOAPI_F_JSON,
         data_: bytes | None = None,
-        **query_param: str,
+        **query_param: Any,
     ):
         self.format = output_format
         self.locale = locale

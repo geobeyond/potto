@@ -270,6 +270,14 @@ class ItemFilter(pydantic.BaseModel):
         pydantic.Field(
             description="Bounding box filter as 'minLon,minLat,maxLon,maxLat'."
         ),
+        pydantic.WithJsonSchema(
+            {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 4,
+                "maxItems": 6,
+            }
+        ),
     ] = None
     bbox_crs: typing.Annotated[
         str | None,
@@ -287,9 +295,12 @@ class ItemFilter(pydantic.BaseModel):
             description="Temporal filter as RFC 3339 instant or interval ('/' separated).",
         ),
     ] = None
-    extra_properties: typing.Annotated[
+    vendor_specific_parameters: typing.Annotated[
         dict[str, str] | None,
-        pydantic.Field(description="Additional query properties to pass through."),
+        pydantic.Field(
+            alias="vendorSpecificParameters",
+            description="Additional query properties to pass through.",
+        ),
         pydantic.WithJsonSchema(
             {"anyOf": [{"type": "object", "maxProperties": 10}, {"type": "null"}]}
         ),
@@ -308,7 +319,7 @@ class ItemFilter(pydantic.BaseModel):
         pydantic.Field(description="CRS URI for filter geometry coordinates."),
     ] = None
     limit: typing.Annotated[
-        int, pydantic.Field(description="Maximum number of items to return.")
+        int, pydantic.Field(description="Maximum number of items to return.", ge=1)
     ] = 20
     locale: typing.Annotated[
         str | None,
@@ -352,7 +363,9 @@ class ItemFilter(pydantic.BaseModel):
 
 
 class FeatureFilter(ItemFilter):
-    crs: str | None = None
+    crs: typing.Annotated[
+        str | None, pydantic.Field(description="CRS URI for geometry coordinates.")
+    ] = None
 
     @classmethod
     def from_query_parameters(
@@ -369,7 +382,7 @@ class FeatureFilter(ItemFilter):
             filter_lang=params.get("filter-lang"),
             limit=int(params.get("limit", 20)),
             offset=int(params.get("offset", 0)),
-            extra_properties=dict(params),
+            vendor_specific_parameters=dict(params),
             query=params.get("q"),
             result_type="hits" if params.get("resulttype") == "hits" else "results",
             sort_by=params.get("sortby"),

@@ -38,7 +38,7 @@ class JsonLanding(pydantic.BaseModel):
                 title="HTML landing page",
             ),
             Link(
-                type=constants.MEDIA_TYPE_JSON,
+                type=constants.MEDIA_TYPE_OAS30,
                 rel=constants.REL_SERVICE_DESC,
                 href=str(url_resolver("api:openapi")),
                 title="OpenAPI document",

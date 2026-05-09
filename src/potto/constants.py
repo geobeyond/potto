@@ -9,6 +9,7 @@ FEATURE_COLLECTION_ITEM_TYPE: typing.Final[str] = "feature"
 PYGEOAPI_F_JSON: typing.Final[str] = "json"
 MEDIA_TYPE_HTML: typing.Final[str] = "text/html"
 MEDIA_TYPE_JSON: typing.Final[str] = "application/json"
+MEDIA_TYPE_OAS30: typing.Final[str] = "application/vnd.oai.openapi+json;version=3.0"
 MEDIA_TYPE_GEO_JSON: typing.Final[str] = "application/geo+json"
 MEDIA_TYPE_JSON_SCHEMA: typing.Final[str] = "application/schema+json"
 
@@ -41,4 +42,7 @@ CONFORMANCE_CLASS_OGCAPI_FEATURES_HTML = (
 )
 CONFORMANCE_CLASS_OGCAPI_FEATURES_OPENAPI3 = (
     "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30"
+)
+CONFORMANCE_CLASS_OGCAPI_FEATURES_PART2_CRS = (
+    "http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs"
 )
