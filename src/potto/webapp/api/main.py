@@ -71,12 +71,10 @@ def _fix_oas30_nullable(obj: Any) -> None:
 
 
 def _fix_vendor_specific_parameters(schema: dict[str, Any]) -> None:
-    """Rename extra_properties to vendorSpecificParameters per OGC API spec.
+    """Fix schema and style for the vendorSpecificParameters query parameter.
 
     The OGC API spec allows servers to declare a free-form catch-all parameter so that
-    unknown query params are explicitly supported rather than triggering a 400. The
-    generated name 'extra_properties' doesn't follow that convention; rename it and
-    ensure the schema has additionalProperties: true.
+    unknown query params are explicitly supported rather than triggering a 400.
     """
     for path_item in schema.get("paths", {}).values():
         for operation in path_item.values():
@@ -84,10 +82,9 @@ def _fix_vendor_specific_parameters(schema: dict[str, Any]) -> None:
                 continue
             for param in operation.get("parameters", []):
                 if (
-                    param.get("name") == "extra_properties"
+                    param.get("name") == "vendorSpecificParameters"
                     and param.get("in") == "query"
                 ):
-                    param["name"] = "vendorSpecificParameters"
                     param["schema"] = {"type": "object"}
                     param["style"] = "form"
 
