@@ -25,6 +25,7 @@ from ..dependencies import (
     ItemIdPath,
     LocaleDependency,
     PottoDependency,
+    SettingsDependency,
     UserDependency,
 )
 
@@ -45,6 +46,7 @@ async def list_collection_items(
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
+    settings: SettingsDependency,
 ):
     """List collection items."""
     if filter_.__pydantic_extra__:
@@ -52,12 +54,10 @@ async def list_collection_items(
         raise HTTPException(
             status_code=400, detail=f"Unknown query parameters: {unknown}"
         )
-    collection_items = await potto.api_list_collection_items(
-        collection_id,
-        user=user,
-        locale=locale,
-        filter_=filter_,
-    )
+    async with settings.get_db_session_maker()() as session:
+        collection_items = await potto.api_list_collection_items(
+            collection_id, user=user, locale=locale, filter_=filter_, db_session=session
+        )
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
     response_headers: dict[str, str] = {
         "Content-Type": constants.MEDIA_TYPE_GEO_JSON,

@@ -1,6 +1,4 @@
 import logging
-import os
-import re
 
 import shapely
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,6 +7,7 @@ from ..config import PottoSettings
 from ..db.models import Collection
 from ..schemas.auth import PottoUser
 from ..schemas.base import CollectionProvider
+from ..util import interpolate_configuration_value
 from . import metadata as metadata_ops
 from . import collections as collection_ops
 
@@ -108,13 +107,15 @@ async def get_pygeoapi_config(
 
     for db_collection in collections:
         pygeoapi_config["resources"][db_collection.resource_identifier] = (
-            _convert_collection_to_pygeoapi_resource(db_collection)
+            _convert_collection_to_pygeoapi_resource(db_collection, settings)
         )
     # TODO: validate the config
     return pygeoapi_config
 
 
-def _convert_collection_to_pygeoapi_resource(db_collection: Collection) -> dict:
+def _convert_collection_to_pygeoapi_resource(
+    db_collection: Collection, settings: PottoSettings
+) -> dict:
     links = []
     for collection_link in db_collection.additional_links or []:
         link_ = dict(collection_link)
@@ -125,10 +126,8 @@ def _convert_collection_to_pygeoapi_resource(db_collection: Collection) -> dict:
         provider = CollectionProvider.model_validate(raw_provider)
         raw_data_value = provider.config.data if provider.config else ""
         if isinstance(raw_data_value, str):
-            interpolated_data_value = re.sub(
-                r"\${?(\w+)}?",
-                lambda re_match: os.getenv(re_match.group(1), "ENV_VAR_NOT_FOUND"),
-                raw_data_value,
+            interpolated_data_value = interpolate_configuration_value(
+                raw_data_value, settings.env_whitelist
             )
         else:
             interpolated_data_value = raw_data_value

@@ -25,10 +25,13 @@ from ..exceptions import (
     PottoCannotEditCollectionException,
     PottoException,
 )
-from ..schemas.auth import PottoScope, PottoUser
+from ..schemas.auth import (
+    PottoScope,
+    PottoUser,
+)
 from ..schemas.base import (
-    CollectionProvider,
-    CollectionProviderConfiguration,
+    PygeoapiProvider,
+    PygeoapiProviderDetails,
     CollectionType,
 )
 from ..schemas.auth import UserUpdate
@@ -298,10 +301,11 @@ async def import_pygeoapi_collection(
         modifiable_prov = copy.deepcopy(prov)
         if (type_ := modifiable_prov.pop("type")) in providers.keys():
             continue
-        providers[type_] = CollectionProvider(
-            python_callable=modifiable_prov.pop("name"),
-            config=CollectionProviderConfiguration(
-                data=modifiable_prov.pop("data"), options=modifiable_prov
+        providers[type_] = PygeoapiProvider(
+            details=PygeoapiProviderDetails(
+                python_callable=modifiable_prov.pop("name"),
+                data=modifiable_prov.pop("data"),
+                options=modifiable_prov,
             ),
         )
 

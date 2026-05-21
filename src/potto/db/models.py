@@ -31,6 +31,7 @@ from ..schemas.base import (
     MaybeDescription,
     MaybeKeywords,
     MaybeShapelyGeometry,
+    ProvidedDataType,
 )
 
 logger = logging.getLogger(__name__)
@@ -142,7 +143,11 @@ class Collection(SQLModel, table=True):
             temporal_extent_end=self.temporal_extent_end,
             additional_links=self.additional_links,
             providers={
-                name: CollectionProvider.model_validate(raw_provider)
+                ProvidedDataType(name): (
+                    pydantic.TypeAdapter(CollectionProvider).validate_python(
+                        raw_provider
+                    )
+                )
                 for name, raw_provider in (self.providers or {}).items()
             },
             custom_page_size=self.custom_page_size,

@@ -66,6 +66,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     debug: bool = False
     public_url: str = "http://localhost:3001"
     pygeoapi_config_file: Path = Path.home() / "pygeoapi-config.yml"
+    env_whitelist: list[str] = pydantic.Field(default_factory=list)
     templates_dir: Path | None = None
     admin_templates_dir: Path | None = None
     translations_dir: Path | None = None
@@ -75,6 +76,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     static_dir: Path | None = None
     uvicorn_num_workers: int = 8
     uvicorn_log_config_file: Path | None = None
+    local_data_root: Path = Path.home() / "potto_data"
     oidc: OIDCSettings | None = None
     opa: OPASettings | None = None
     page_size: int = 20

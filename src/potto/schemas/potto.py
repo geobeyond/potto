@@ -80,12 +80,13 @@ class Collection:
         parsed_providers = {}
         for raw_provider in pygeoapi_collection_conf.get("providers", []):
             modifiable_provider = dict(raw_provider)
-            provider_type = base.PygeoapiProviderType(modifiable_provider.pop("type"))
-            parsed_providers[provider_type] = base.CollectionProvider(
-                python_callable=modifiable_provider.pop("name"),
-                config=base.CollectionProviderConfiguration(
-                    data=modifiable_provider.pop("data"), options=modifiable_provider
-                ),
+            provider_type = base.ProvidedDataType(modifiable_provider.pop("type"))
+            parsed_providers[provider_type] = base.PygeoapiProvider(
+                details=base.PygeoapiProviderDetails(
+                    python_callable=modifiable_provider.pop("name"),
+                    data=modifiable_provider.pop("data"),
+                    options=modifiable_provider,
+                )
             )
         additional_links = pygeoapi_collection_conf.get("links")
         queryables = None
@@ -133,7 +134,7 @@ class Collection:
 @dataclasses.dataclass(frozen=True)
 class Feature:
     id_: str
-    properties: dict[str, str | int | float | bool]
+    properties: dict[str, str | int | float | bool | None]
     geometry: shapely.Geometry
 
     @classmethod
@@ -191,7 +192,7 @@ class FeatureListResponse:
     collection: Collection
     features: list[Feature]
     pagination: base.PaginationContext
-    filter_: base.FeatureFilter | None = None
+    filter_: base.FeatureFilter | base.PottoFeatureFilter | None = None
     metadata: dict[str, str] | None = None
 
 

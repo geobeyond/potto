@@ -22,6 +22,7 @@ from pygeoapi.api.itemtypes import (
 )
 from pygeoapi.openapi import get_oas_30
 from pygeoapi.l10n import translate_struct
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import (
     constants,
@@ -33,12 +34,12 @@ from .operations import (
     collections as collection_ops,
     metadata as metadata_ops,
 )
+from .providers.features import get_feature_provider
 from .schemas import (
     base,
     auth,
     potto as potto_schemas,
 )
-from .schemas.base import FeatureFilter
 from .webapp.requests import PottoRequest
 from .util import get_collection_pagination_limit
 
@@ -251,17 +252,17 @@ class Potto:
             pygeoapi_collection_schema=collection_schema,
         )
 
-    async def api_list_collection_items(
+    async def _list_collection_items_through_pygeoapi(
         self,
-        collection_id: str,
+        collection: potto_schemas.Collection,
         *,
         locale: babel.Locale,
         user: auth.PottoUser | None = None,
-        filter_: FeatureFilter | None = None,
+        filter_: base.FeatureFilter | None = None,
+        pagination_limit: int,
     ) -> potto_schemas.FeatureListResponse:
-        collection = await self._get_collection(collection_id, user)
         pygeoapi_api = await self._get_pygeoapi(
-            user, collection_identifier=collection_id, collection_page_size=1
+            user, collection_identifier=collection.identifier, collection_page_size=1
         )
         pygeoapi_response = await asyncio.to_thread(
             _get_collection_items,
@@ -275,7 +276,7 @@ class Potto:
                     else {}
                 ),
             ),
-            dataset=collection_id,
+            dataset=collection.identifier,
         )
         pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
         status_value = cast(HTTPStatus, pygeoapi_status_code).value
@@ -290,14 +291,11 @@ class Potto:
             potto_schemas.Feature.from_pygeoapi_feature(feat)
             for feat in parsed_pygeoapi_content["features"]
         ]
-        effective_pagination_limit = get_collection_pagination_limit(
-            filter_.limit if filter_ else None, collection, self._settings
-        )
         return potto_schemas.FeatureListResponse(
             collection=collection,
             features=features,
             pagination=base.PaginationContext(
-                limit=effective_pagination_limit,
+                limit=pagination_limit,
                 number_matched=parsed_pygeoapi_content.get("numberMatched", 0),
                 number_returned=parsed_pygeoapi_content.get(
                     "numberReturned", len(features)
@@ -310,6 +308,102 @@ class Potto:
                 "timestamp": parsed_pygeoapi_content.get("timeStamp"),
             },
         )
+
+    async def _list_collection_items(
+        self,
+        collection: potto_schemas.Collection,
+        *,
+        db_session: AsyncSession,
+        filter_: base.PottoFeatureFilter,
+        pagination_limit: int,
+    ) -> potto_schemas.FeatureListResponse:
+        data_provider = await get_feature_provider(
+            collection, db_session, self._settings
+        )
+        if data_provider is None:
+            return potto_schemas.FeatureListResponse(
+                collection=collection,
+                features=[],
+                pagination=base.PaginationContext(
+                    limit=pagination_limit,
+                    offset=filter_.offset,
+                    number_returned=0,
+                    number_matched=0,
+                ),
+                filter_=filter_,
+                metadata={},
+            )
+        features = await data_provider.list_features(filter_)
+        feature_count = await data_provider.count_items(filter_)
+        return potto_schemas.FeatureListResponse(
+            collection=collection,
+            features=features,
+            pagination=base.PaginationContext(
+                limit=pagination_limit,
+                offset=filter_.offset,
+                number_returned=len(features),
+                number_matched=feature_count.matched,
+            ),
+            filter_=filter_,
+            metadata={},
+        )
+
+    async def api_list_collection_items(
+        self,
+        collection_id: str,
+        *,
+        locale: babel.Locale,
+        user: auth.PottoUser | None = None,
+        filter_: base.FeatureFilter | None = None,
+        db_session: AsyncSession,
+    ) -> potto_schemas.FeatureListResponse:
+        if (collection := await self._get_collection(collection_id, user)) is None:
+            raise potto_exceptions.PottoCollectionNotFoundException(collection_id)
+        effective_pagination_limit = get_collection_pagination_limit(
+            filter_.limit if filter_ else None, collection, self._settings
+        )
+        if (
+            feat_provider := (collection.providers or {}).get(
+                base.ProvidedDataType.FEATURE
+            )
+        ) is None:
+            return potto_schemas.FeatureListResponse(
+                collection=collection,
+                features=[],
+                pagination=base.PaginationContext(
+                    number_matched=0,
+                    number_returned=0,
+                    limit=effective_pagination_limit,
+                    offset=0,
+                ),
+                filter_=filter_,
+                metadata={},
+            )
+        match feat_provider:
+            case base.PottoProvider():
+                feature_filter = (
+                    base.PottoFeatureFilter.from_feature_filter(filter_)
+                    if filter_
+                    else base.PottoFeatureFilter()
+                )
+                logger.debug(f"Has a native potto provider: {feat_provider=}")
+                return await self._list_collection_items(
+                    collection,
+                    filter_=feature_filter,
+                    pagination_limit=effective_pagination_limit,
+                    db_session=db_session,
+                )
+            case base.PygeoapiProvider():
+                logger.debug(f"Has a pygeoapi provider: {feat_provider=}")
+                return await self._list_collection_items_through_pygeoapi(
+                    collection,
+                    locale=locale,
+                    user=user,
+                    filter_=filter_,
+                    pagination_limit=effective_pagination_limit,
+                )
+            case _:
+                raise potto_exceptions.PottoException("Unsupported feature_provider")
 
     async def api_get_collection_item(
         self,

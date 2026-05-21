@@ -49,7 +49,10 @@ from ...db.queries import (
     auth as auth_queries,
     collections as collection_queries,
 )
-from ...schemas.base import PygeoapiProviderType
+from ...schemas.base import (
+    ProviderType,
+    ProvidedDataType,
+)
 from ...schemas.collections import (
     CollectionCreate,
     CollectionUpdate,
@@ -213,11 +216,14 @@ class CollectionView(_PottoAdminModelView):
                 name="providers",
                 fields=(
                     EnumField(
-                        name="type",
-                        enum=PygeoapiProviderType,
+                        name="provider_type",
+                        enum=ProviderType,
                     ),
-                    StringField(name="python_callable"),
-                    JSONField(name="config"),
+                    EnumField(
+                        name="data_type",
+                        enum=ProvidedDataType,
+                    ),
+                    JSONField(name="details"),
                 ),
             )
         ),
@@ -256,6 +262,7 @@ class CollectionView(_PottoAdminModelView):
         "created_at",
         "updated_at",
         "editors",
+        "owner",
         "viewers",
     )
     exclude_fields_from_edit = (
@@ -368,14 +375,16 @@ class CollectionView(_PottoAdminModelView):
         request: Request,
     ) -> Any:
         if field.name == "providers":
+            logger.debug(f"{value=}")
             value: dict[str, dict[str, Any]]
             result = []
             for type_, prov in value.items():
+                provider_type = ProviderType(prov.pop("provider_type"))
                 result.append(
                     {
-                        "type": PygeoapiProviderType(type_),
-                        "python_callable": prov["python_callable"],
-                        "config": prov["config"],
+                        "data_type": ProvidedDataType(type_),
+                        "provider_type": provider_type,
+                        "details": prov["details"],
                     }
                 )
             return result
@@ -475,13 +484,19 @@ class CollectionView(_PottoAdminModelView):
         )
         settings = cast(PottoSettings, request.app.state.SETTINGS)
         auth_backend = settings.get_authorization_backend()
+        logger.debug(f"{data=}")
         async with settings.get_db_session_maker()() as session:
             try:
                 return await collection_operations.create_collection(
                     session,
                     user,
                     auth_backend,
-                    to_create=CollectionCreate.model_validate(data),
+                    to_create=CollectionCreate.model_validate(
+                        {
+                            **data,
+                            "owner_id": user.id,
+                        }
+                    ),
                 )
             except (pydantic.ValidationError, PottoException) as err:
                 return self.handle_exception(err)
@@ -489,9 +504,14 @@ class CollectionView(_PottoAdminModelView):
     def _adapt_request_providers_to_internal_model(
         self, request_providers: list[dict]
     ) -> dict[str, dict]:
+        """Admin form gets providers as a list but we then store as a dict.
+
+        This also means that it is not possible to store more than one
+        provider of each data type.
+        """
         new_providers = {}
         for sent_provider in request_providers:
-            new_providers[sent_provider.pop("type")] = sent_provider
+            new_providers[sent_provider.pop("data_type")] = sent_provider
         return new_providers
 
 

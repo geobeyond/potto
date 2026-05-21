@@ -3,7 +3,10 @@ import logging
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ...exceptions import PottoException
-from ...schemas.collections import CollectionCreate, CollectionUpdate
+from ...schemas.collections import (
+    CollectionCreate,
+    CollectionUpdate,
+)
 from ..models import Collection
 from ..queries import get_collection
 

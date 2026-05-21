@@ -1,6 +1,7 @@
+import dataclasses
 import enum
-import typing
 import pydantic
+import typing
 
 import shapely
 from geoalchemy2 import WKBElement
@@ -62,7 +63,12 @@ class CollectionType(str, enum.Enum):
     RECORD_COLLECTION = "record"
 
 
-class PygeoapiProviderType(str, enum.Enum):
+class ProviderType(str, enum.Enum):
+    POTTO = "potto"
+    PYGEOAPI = "pygeoapi"
+
+
+class ProvidedDataType(str, enum.Enum):
     COVERAGE = "coverage"
     EDR = "edr"
     FEATURE = "feature"
@@ -108,6 +114,12 @@ MaybeKeywords = typing.Annotated[
         }
     ),
 ]
+
+
+@dataclasses.dataclass
+class CountedItems:
+    matched: int
+    total: int
 
 
 class Link(pydantic.BaseModel):
@@ -201,8 +213,8 @@ class AdditionalExtent(pydantic.BaseModel):
     unit_name: str | None = None
 
 
-class CollectionProviderConfiguration(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
+class PygeoapiProviderDetails(pydantic.BaseModel):
+    python_callable: str
     data: (
         str
         | typing.Annotated[
@@ -215,10 +227,29 @@ class CollectionProviderConfiguration(pydantic.BaseModel):
     ]
 
 
-class CollectionProvider(pydantic.BaseModel):
+class PygeoapiProvider(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
-    python_callable: str
-    config: CollectionProviderConfiguration | None = None
+    provider_type: typing.Literal["pygeoapi"] = "pygeoapi"
+    details: PygeoapiProviderDetails
+
+
+class PottoProviderDetails(pydantic.BaseModel):
+    provider_name: str
+    config: typing.Annotated[
+        dict[str, typing.Any],
+        pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
+    ]
+
+
+class PottoProvider(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
+    provider_type: typing.Literal["potto"] = "potto"
+    details: PottoProviderDetails
+
+
+CollectionProvider = typing.Annotated[
+    PottoProvider | PygeoapiProvider, pydantic.Field(discriminator="provider_type")
+]
 
 
 class PaginationContext(pydantic.BaseModel):
@@ -392,4 +423,47 @@ class FeatureFilter(ItemFilter):
                 in ("true", "yes", "on", "t", "1")
                 else False
             ),
+        )
+
+
+class PottoFeatureFilter(pydantic.BaseModel):
+    bbox: tuple[float, float, float, float] | None = None
+    bbox_crs: typing.Annotated[
+        str,
+        pydantic.Field(
+            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+        ),
+    ] = constants.CRS_84
+    crs: str = constants.CRS_84
+    limit: typing.Annotated[
+        int, pydantic.Field(description="Maximum number of items to return.", ge=1)
+    ] = 20
+    offset: typing.Annotated[
+        int,
+        pydantic.Field(
+            description="Number of items to skip before returning results.", ge=0
+        ),
+    ] = 0
+    properties: list[str] | None = None
+
+    @classmethod
+    def from_feature_filter(cls, feature_filter: FeatureFilter) -> "PottoFeatureFilter":
+        bbox = None
+        if raw_bbox := feature_filter.crs.split(",") if feature_filter.crs else None:
+            try:
+                bbox = (
+                    float(raw_bbox[0]),
+                    float(raw_bbox[1]),
+                    float(raw_bbox[2]),
+                    float(raw_bbox[3]),
+                )
+            except IndexError:
+                bbox = None
+        return cls(
+            bbox=bbox,
+            bbox_crs=feature_filter.bbox_crs or constants.CRS_84,
+            crs=feature_filter.crs or constants.CRS_84,
+            limit=feature_filter.limit,
+            offset=feature_filter.offset,
+            properties=feature_filter.select_properties,
         )
