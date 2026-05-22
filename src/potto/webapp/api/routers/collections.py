@@ -5,6 +5,7 @@ from fastapi import (
     APIRouter,
     HTTPException,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse
 
@@ -42,18 +43,20 @@ router = APIRouter()
 @router.get(
     "/collections",
     name="collection-list",
-    response_model_exclude_none=True,
-    response_model=JsonCollectionList,
     tags=[tags.COLLECTIONS],
     responses=responses.ERROR_RESPONSES,
+    response_model=JsonCollectionList,
+    response_model_exclude_none=True,
+    response_model_by_alias=True,
 )
 async def list_collections(
     request: Request,
+    response: Response,
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
     limit: PaginationLimitDependency,
-) -> JSONResponse:
+):
     """List collections available on this server.
 
     Collection visibility is subject to the requesting user's access levels:
@@ -67,23 +70,24 @@ async def list_collections(
         user=user, locale=locale, page_size=limit
     )
     result = JsonCollectionList.from_potto(potto_collections, request.url_for)
-    return JSONResponse(
-        result.model_dump(exclude_none=True, by_alias=True),
-        headers={
-            "Link": ",".join((li.serialize_as_http_header() for li in result.links))
-        },
+    response.headers.update(
+        {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
     )
+    return result
 
 
 @router.get(
     "/collections/{collection_id}",
     name="collection-get",
-    response_model=JsonCollection,
     tags=[tags.COLLECTIONS],
     responses=responses.ERROR_RESPONSES,
+    response_model=JsonCollection,
+    response_model_exclude_none=True,
+    response_model_by_alias=True,
 )
 async def get_collection_details(
     request: Request,
+    response: Response,
     collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
@@ -105,12 +109,10 @@ async def get_collection_details(
     ) is None:
         raise HTTPException(status_code=404, detail="Collection not found.")
     result = JsonCollection.from_potto(potto_collection, request.url_for)
-    return JSONResponse(
-        result.model_dump(exclude_none=True, by_alias=True),
-        headers={
-            "Link": ",".join((li.serialize_as_http_header() for li in result.links))
-        },
+    response.headers.update(
+        {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
     )
+    return result
 
 
 @router.get(

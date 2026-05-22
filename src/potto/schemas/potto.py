@@ -134,7 +134,7 @@ class Collection:
 @dataclasses.dataclass(frozen=True)
 class Feature:
     id_: str
-    properties: dict[str, str | int | float | bool | None]
+    properties: dict[str, str | int | float | bool | dt.datetime | None]
     geometry: shapely.Geometry
 
     @classmethod

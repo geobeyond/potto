@@ -1,9 +1,12 @@
 import asyncio
+import datetime as dt
 import logging
 import math
 from typing import (
+    Annotated,
     Any,
     Literal,
+    Protocol,
 )
 
 import geopandas as gpd
@@ -52,6 +55,71 @@ _GEOMETRY_TYPE_TO_FORMAT: dict[str, str] = {
 }
 
 
+class SupportsReadDataframeKwargs(Protocol):
+    def as_read_dataframe_kwargs(self) -> dict[str, str]: ...
+
+
+class PyogrioCsvGdalOpenOption(pydantic.BaseModel):
+    driver_name: Literal["CSV"] = "CSV"
+    autodetect_type: bool = True
+    separator: Literal["AUTO", "COMMA", "SEMICOLON", "TAB", "SPACE", "PIPE"] = "AUTO"
+    keep_source_columns: bool = False
+    keep_geom_columns: bool = False
+    x_possible_names: list[str] | None = pydantic.Field(
+        default_factory=lambda: ["lon*"]
+    )
+    y_possible_names: list[str] | None = pydantic.Field(
+        default_factory=lambda: ["lat*"]
+    )
+    z_possible_names: list[str] | None = None
+    geom_possible_names: list[str] | None = pydantic.Field(
+        default_factory=lambda: ["wkt*"]
+    )
+
+    def as_read_dataframe_kwargs(self) -> dict[str, str]:
+        return {
+            k: v
+            for k, v in {
+                "AUTODETECT_TYPE": "YES" if self.autodetect_type else "NO",
+                "SEPARATOR": self.separator,
+                "KEEP_SOURCE_COLUMNS": "YES" if self.keep_source_columns else "NO",
+                "KEEP_GEOM_COLUMNS": "YES" if self.keep_geom_columns else "NO",
+                "X_POSSIBLE_NAMES": ",".join(self.x_possible_names)
+                if self.x_possible_names
+                else None,
+                "Y_POSSIBLE_NAMES": ",".join(self.y_possible_names)
+                if self.y_possible_names
+                else None,
+                "Z_POSSIBLE_NAMES": ",".join(self.z_possible_names)
+                if self.z_possible_names
+                else None,
+                "GEOM_POSSIBLE_NAMES": ",".join(self.geom_possible_names)
+                if self.geom_possible_names
+                else None,
+            }.items()
+            if v is not None
+        }
+
+
+class PyogrioGeoJsonGdalOpenOption(pydantic.BaseModel):
+    driver_name: Literal["GeoJSON"] = "GeoJSON"
+    flatten_nested_attributes: bool = True
+    nested_attribute_separator: str = "__"
+    foreign_members: Literal["AUTO", "ALL", "NONE", "STAC"] = "AUTO"
+
+    def as_read_dataframe_kwargs(self) -> dict[str, str]:
+        return {
+            "FLATTEN_NESTED_ATTRIBUTES": "YES"
+            if self.flatten_nested_attributes
+            else "NO",
+            "NESTED_ATTRIBUTE_SEPARATOR": self.nested_attribute_separator,
+            "FOREIGN_MEMBERS": self.foreign_members,
+        }
+
+
+GdalOpenOptions = PyogrioCsvGdalOpenOption | PyogrioGeoJsonGdalOpenOption
+
+
 def _dtype_to_json_schema(dtype: str) -> JsonSchemaValue:
     if dtype.startswith("datetime64"):
         return {"type": "string", "format": "date-time"}
@@ -70,12 +138,14 @@ def _geometry_type_to_json_schema(geometry_type: str | None) -> JsonSchemaValue:
     }
 
 
-def _coerce(value: Any) -> str | int | float | bool | None:
+def _coerce(value: Any) -> str | int | float | bool | dt.datetime | None:
     """Convert numpy scalars to native Python types and NaN to None."""
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
     if isinstance(value, np.generic):
         # np.int64 -> int, np.float64 -> float, np.bool_ -> bool, etc.
         native = value.item()
@@ -139,8 +209,9 @@ def _list_features(
     data_source_uri: str,
     item_filter: PottoFeatureFilter,
     id_column: str | None = None,
-    gdal_open_options: dict[str, str | int | bool] | None = None,
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> list[Feature]:
+    logger.debug(f"{gdal_open_options=}")
     feats_df = pyogrio.read_dataframe(
         data_source_uri,
         max_features=item_filter.limit,
@@ -148,7 +219,7 @@ def _list_features(
         fid_as_index=id_column is None,
         where=_build_where_clause(item_filter),
         bbox=item_filter.bbox,
-        **(gdal_open_options or {}),
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     return _geodataframe_to_features(feats_df, id_column=id_column)
 
@@ -156,6 +227,7 @@ def _list_features(
 def _count_features(
     data_source_uri: str,
     feature_filter: PottoFeatureFilter | None = None,
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> CountedItems:
     info = pyogrio.read_info(data_source_uri)
     total = info["features"]
@@ -165,9 +237,11 @@ def _count_features(
     df = pyogrio.read_dataframe(
         data_source_uri,
         read_geometry=False,
+        fid_as_index=True,
         columns=[],
         where=where_clause,
         bbox=feature_filter.bbox,
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     return CountedItems(matched=len(df), total=total)
 
@@ -175,8 +249,12 @@ def _count_features(
 def _get_schema(
     data_source_uri: str,
     id_column: str | None = None,
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> JsonSchemaValue:
-    info = pyogrio.read_info(data_source_uri)
+    info = pyogrio.read_info(
+        data_source_uri,
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
+    )
     geom_col = info["geometry_name"] or "geometry"
     skip = {f for f in (geom_col, id_column) if f}
     field_dtypes = dict(zip(info["fields"], info["dtypes"]))
@@ -207,19 +285,38 @@ def _get_feature(
     feature_id: str,
     id_column: str | None = None,
     crs: str = "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> Feature | None:
-    info = pyogrio.read_info(data_source_uri)
+    info = pyogrio.read_info(
+        data_source_uri,
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
+    )
     geom_col = info["geometry_name"] or "geometry"
     if id_column is None:  # id is the OGR FID
         try:
             fid = int(feature_id)
         except ValueError:
             return None
-        gdf = pyogrio.read_dataframe(data_source_uri, fids=[fid], fid_as_index=True)
+        gdf = pyogrio.read_dataframe(
+            data_source_uri,
+            fids=[fid],
+            fid_as_index=True,
+            **(
+                gdal_open_options.as_read_dataframe_kwargs()
+                if gdal_open_options
+                else {}
+            ),
+        )
     else:  # id is column value, select via OGR's SQL layer
         escaped = feature_id.replace("'", "''")
         gdf = pyogrio.read_dataframe(
-            data_source_uri, where=f"{id_column} = '{escaped}'"
+            data_source_uri,
+            where=f"{id_column} = '{escaped}'",
+            **(
+                gdal_open_options.as_read_dataframe_kwargs()
+                if gdal_open_options
+                else {}
+            ),
         )
     if gdf.empty:
         return None
@@ -233,21 +330,13 @@ def _get_feature(
     )
 
 
-class PyogrioCsvGdalOpenOption(pydantic.BaseModel):
-    driver_name: Literal["csv"]
-    separator: Literal["AUTO", "COMMA", "SEMICOLLON", "TAB", "SPACE", "PIPE"] = "AUTO"
-    keep_source_columns: bool = False
-    x_possible_names: list[str] | None = None
-    y_possible_names: list[str] | None = None
-    z_possible_names: list[str] | None = None
-    geom_possible_names: list[str] | None = None
-
-
 class PyogrioFeatureProviderConfiguration(pydantic.BaseModel):
     provider_name: Literal["pyogrio"] = "pyogrio"
     data_source_uri: str
     id_column: str | None = None
-    gdal_open_options: PyogrioCsvGdalOpenOption | None = None
+    gdal_open_options: Annotated[
+        GdalOpenOptions | None, pydantic.Field(discriminator="driver_name")
+    ] = None
 
 
 class PyogrioFeatureProvider:
@@ -272,14 +361,21 @@ class PyogrioFeatureProvider:
             limit=self.potto_config.page_size,
         )
         return await asyncio.to_thread(
-            _list_features, self.config.data_source_uri, filter_, self.config.id_column
+            _list_features,
+            self.config.data_source_uri,
+            filter_,
+            self.config.id_column,
+            gdal_open_options=self.config.gdal_open_options,
         )
 
     async def count_items(
         self, feature_filter: PottoFeatureFilter | None = None
     ) -> CountedItems:
         return await asyncio.to_thread(
-            _count_features, self.config.data_source_uri, feature_filter
+            _count_features,
+            self.config.data_source_uri,
+            feature_filter,
+            gdal_open_options=self.config.gdal_open_options,
         )
 
     async def get_feature(
@@ -293,6 +389,7 @@ class PyogrioFeatureProvider:
             feature_id,
             self.config.id_column,
             crs,
+            gdal_open_options=self.config.gdal_open_options,
         )
 
     async def get_schema(self) -> JsonSchemaValue:
@@ -300,6 +397,7 @@ class PyogrioFeatureProvider:
             _get_schema,
             self.config.data_source_uri,
             self.config.id_column,
+            gdal_open_options=self.config.gdal_open_options,
         )
 
 

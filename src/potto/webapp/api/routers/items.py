@@ -7,8 +7,8 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    Response,
 )
-from fastapi.responses import JSONResponse
 
 from .... import constants
 from ....schemas.base import FeatureFilter
@@ -38,9 +38,13 @@ router = APIRouter()
     name="collection-item-list",
     tags=[tags.ITEMS],
     responses=responses.ERROR_RESPONSES,
+    response_model=GeoJsonItemCollection,
+    response_model_by_alias=True,
+    response_model_exclude_none=True,
 )
 async def list_collection_items(
     request: Request,
+    response: Response,
     collection_id: CollectionIdPath,
     filter_: Annotated[FeatureFilter, Query()],
     potto: PottoDependency,
@@ -58,6 +62,7 @@ async def list_collection_items(
         collection_items = await potto.api_list_collection_items(
             collection_id, user=user, locale=locale, filter_=filter_, db_session=session
         )
+    logger.debug(f"{collection_items=}")
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
     response_headers: dict[str, str] = {
         "Content-Type": constants.MEDIA_TYPE_GEO_JSON,
@@ -69,10 +74,8 @@ async def list_collection_items(
         else None
     ):
         response_headers["Content-Crs"] = crs_header
-    return JSONResponse(
-        result.model_dump(exclude_none=True, by_alias=True),
-        headers=response_headers,
-    )
+    response.headers.update(response_headers)
+    return result
 
 
 @router.get(
@@ -80,9 +83,13 @@ async def list_collection_items(
     name="collection-item-get",
     tags=[tags.ITEMS],
     responses=responses.ERROR_RESPONSES,
+    response_model=GeoJsonItem,
+    response_model_by_alias=True,
+    response_model_exclude_none=True,
 )
 async def get_item_details(
     request: Request,
+    response: Response,
     potto: PottoDependency,
     user: UserDependency,
     collection_id: CollectionIdPath,
@@ -111,7 +118,5 @@ async def get_item_details(
         else None
     ):
         response_headers["Content-Crs"] = crs_header
-    return JSONResponse(
-        result.model_dump(exclude_none=True, by_alias=True),
-        headers=response_headers,
-    )
+    response.headers.update(response_headers)
+    return result

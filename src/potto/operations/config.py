@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from ..config import PottoSettings
 from ..db.models import Collection
 from ..schemas.auth import PottoUser
-from ..schemas.base import CollectionProvider
+from ..schemas.base import PygeoapiProvider
 from ..util import interpolate_configuration_value
 from . import metadata as metadata_ops
 from . import collections as collection_ops
@@ -123,8 +123,8 @@ def _convert_collection_to_pygeoapi_resource(
         links.append({"type": type_, **link_})
     converted_providers = []
     for type_, raw_provider in (db_collection.providers or {}).items():
-        provider = CollectionProvider.model_validate(raw_provider)
-        raw_data_value = provider.config.data if provider.config else ""
+        provider = PygeoapiProvider.model_validate(raw_provider)
+        raw_data_value = provider.details.data
         if isinstance(raw_data_value, str):
             interpolated_data_value = interpolate_configuration_value(
                 raw_data_value, settings.env_whitelist
@@ -135,8 +135,8 @@ def _convert_collection_to_pygeoapi_resource(
             {
                 "type": type_,
                 "data": interpolated_data_value,
-                "name": provider.python_callable,
-                **(provider.config.options if provider.config else {}),
+                "name": provider.details.python_callable,
+                **provider.details.options,
             }
         )
 
