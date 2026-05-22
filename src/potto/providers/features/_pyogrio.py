@@ -24,12 +24,6 @@ from ...schemas.base import (
 logger = logging.getLogger(__name__)
 
 
-class PyogrioFeatureProviderConfiguration(pydantic.BaseModel):
-    provider_name: Literal["pyogrio"] = "pyogrio"
-    data_source_uri: str
-    id_column: str | None = None
-
-
 _DTYPE_TO_JSON_SCHEMA: dict[str, JsonSchemaValue] = {
     "int8": {"type": "integer"},
     "int16": {"type": "integer"},
@@ -142,7 +136,10 @@ def _build_where_clause(item_filter: PottoFeatureFilter) -> str | None:
 
 
 def _list_features(
-    data_source_uri: str, item_filter: PottoFeatureFilter, id_column: str | None = None
+    data_source_uri: str,
+    item_filter: PottoFeatureFilter,
+    id_column: str | None = None,
+    gdal_open_options: dict[str, str | int | bool] | None = None,
 ) -> list[Feature]:
     feats_df = pyogrio.read_dataframe(
         data_source_uri,
@@ -151,6 +148,7 @@ def _list_features(
         fid_as_index=id_column is None,
         where=_build_where_clause(item_filter),
         bbox=item_filter.bbox,
+        **(gdal_open_options or {}),
     )
     return _geodataframe_to_features(feats_df, id_column=id_column)
 
@@ -235,6 +233,23 @@ def _get_feature(
     )
 
 
+class PyogrioCsvGdalOpenOption(pydantic.BaseModel):
+    driver_name: Literal["csv"]
+    separator: Literal["AUTO", "COMMA", "SEMICOLLON", "TAB", "SPACE", "PIPE"] = "AUTO"
+    keep_source_columns: bool = False
+    x_possible_names: list[str] | None = None
+    y_possible_names: list[str] | None = None
+    z_possible_names: list[str] | None = None
+    geom_possible_names: list[str] | None = None
+
+
+class PyogrioFeatureProviderConfiguration(pydantic.BaseModel):
+    provider_name: Literal["pyogrio"] = "pyogrio"
+    data_source_uri: str
+    id_column: str | None = None
+    gdal_open_options: PyogrioCsvGdalOpenOption | None = None
+
+
 class PyogrioFeatureProvider:
     config: PyogrioFeatureProviderConfiguration
     potto_config: PottoSettings
@@ -249,16 +264,6 @@ class PyogrioFeatureProvider:
         """
         self.config = config
         self.potto_config = potto_config
-
-    @classmethod
-    def from_factory(
-        cls,
-        raw_config: dict[str, Any],
-        session: AsyncSession,
-        potto_config: PottoSettings,
-    ) -> "PyogrioFeatureProvider":
-        config = PyogrioFeatureProviderConfiguration.model_validate(raw_config)
-        return PyogrioFeatureProvider(config, potto_config)
 
     async def list_features(
         self, feature_filter: PottoFeatureFilter | None = None
