@@ -167,6 +167,7 @@ class Potto:
             ]
         )
 
+    # TODO: no need to go through pygeoapi, get collections directly
     async def api_list_collections(
         self,
         *,
@@ -201,6 +202,7 @@ class Potto:
             ),
         )
 
+    # TODO: no need to go through pygeoapi, get collection directly
     async def api_get_collection(
         self,
         collection_id: str,
@@ -346,6 +348,7 @@ class Potto:
             metadata={},
         )
 
+    # TODO: rework initialization of provider
     async def api_list_collection_items(
         self,
         collection_id: str,
