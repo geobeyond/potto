@@ -20,7 +20,6 @@ from pygeoapi.api.itemtypes import (
     get_collection_item as _get_collection_item,
     get_collection_queryables as _get_collection_queryables,
 )
-from pygeoapi.openapi import get_oas_30
 from pygeoapi.l10n import translate_struct
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -98,8 +97,7 @@ class Potto:
                 collection_page=collection_page,
                 collection_page_size=collection_page_size,
             )
-        openapi_document = get_oas_30(pygeoapi_config, fail_on_invalid_collection=True)
-        return _API(config=pygeoapi_config, openapi=openapi_document)
+        return _API(config=pygeoapi_config, openapi={})
 
     async def _get_collection(
         self,

@@ -10,7 +10,10 @@ from typing import Any
 import shapely
 from pygeoapi.api import API as _PygeoapiApi
 
-from .. import util
+from .. import (
+    exceptions as potto_exceptions,
+    util,
+)
 from ..constants import CRS_84
 from . import (
     auth,
@@ -80,14 +83,27 @@ class Collection:
         parsed_providers = {}
         for raw_provider in pygeoapi_collection_conf.get("providers", []):
             modifiable_provider = dict(raw_provider)
-            provider_type = base.ProvidedDataType(modifiable_provider.pop("type"))
-            parsed_providers[provider_type] = base.PygeoapiProvider(
-                details=base.PygeoapiProviderDetails(
-                    python_callable=modifiable_provider.pop("name"),
-                    data=modifiable_provider.pop("data"),
-                    options=modifiable_provider,
+            provider_type = base.ProviderType(modifiable_provider.pop("provider_type"))
+            data_type = base.ProvidedDataType(modifiable_provider.pop("type"))
+            if provider_type == base.ProviderType.PYGEOAPI:
+                parsed_providers[data_type] = base.PygeoapiProvider(
+                    details=base.PygeoapiProviderDetails(
+                        python_callable=modifiable_provider.pop("name"),
+                        data=modifiable_provider.pop("data"),
+                        options=modifiable_provider,
+                    )
                 )
-            )
+            elif provider_type == base.ProviderType.POTTO:
+                parsed_providers[data_type] = base.PottoProvider(
+                    details=base.PottoProviderDetails(
+                        provider_name=modifiable_provider.pop("name"),
+                        config=modifiable_provider,
+                    )
+                )
+            else:
+                raise potto_exceptions.PottoException(
+                    f"Invalid provider {modifiable_provider=}"
+                )
         additional_links = pygeoapi_collection_conf.get("links")
         queryables = None
         if pygeoapi_collection_queryables is not None:
