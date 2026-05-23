@@ -8,7 +8,10 @@ from pydantic.json_schema import JsonSchemaValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import PottoSettings
-from ...schemas.potto import Feature
+from ...schemas.potto import (
+    Collection,
+    Feature,
+)
 from ...schemas.base import (
     CountedItems,
     PottoFeatureFilter,
@@ -57,6 +60,7 @@ class PostgisFeatureProvider:
 
 
 def postgis_provider_factory(
+    collection: Collection,
     raw_config: dict[str, Any],
     session: AsyncSession,
     potto_config: PottoSettings,

@@ -29,12 +29,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SyncFeatureProviderFactory: TypeAlias = Callable[
-    [dict[str, Any], AsyncSession, "PottoSettings"],
+    ["Collection", dict[str, Any], AsyncSession, "PottoSettings"],
     FeatureProviderProtocol,
 ]
 
 AsyncFeatureProviderFactory: TypeAlias = Callable[
-    [dict[str, Any], AsyncSession, "PottoSettings"],
+    ["Collection", dict[str, Any], AsyncSession, "PottoSettings"],
     Awaitable[FeatureProviderProtocol],
 ]
 
@@ -43,7 +43,8 @@ FeatureProviderFactory: TypeAlias = (
 )
 
 _registry: ProviderRegistry[
-    [dict[str, Any], AsyncSession, "PottoSettings"], FeatureProviderProtocol
+    ["Collection", dict[str, Any], AsyncSession, "PottoSettings"],
+    FeatureProviderProtocol,
 ] = ProviderRegistry()
 
 
@@ -78,4 +79,4 @@ async def get_feature_provider(
     )
     logger.debug(f"{details.config=}")
     logger.debug(f"{raw_provider_configuration=}")
-    return await factory(raw_provider_configuration, session, potto_config)
+    return await factory(collection, raw_provider_configuration, session, potto_config)

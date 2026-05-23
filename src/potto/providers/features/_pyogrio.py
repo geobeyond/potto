@@ -18,7 +18,10 @@ from pydantic.json_schema import JsonSchemaValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import PottoSettings
-from ...schemas.potto import Feature
+from ...schemas.potto import (
+    Collection,
+    Feature,
+)
 from ...schemas.base import (
     CountedItems,
     PottoFeatureFilter,
@@ -402,7 +405,10 @@ class PyogrioFeatureProvider:
 
 
 def pyogrio_provider_factory(
-    raw_config: dict[str, Any], session: AsyncSession, potto_config: PottoSettings
+    collection: Collection,
+    raw_config: dict[str, Any],
+    session: AsyncSession,
+    potto_config: PottoSettings,
 ) -> PyogrioFeatureProvider:
     config = PyogrioFeatureProviderConfiguration.model_validate(raw_config)
     return PyogrioFeatureProvider(config, potto_config)

@@ -31,6 +31,7 @@ class Pagination:
     total: int
 
 
+# TODO: Add support for additional extents
 @dataclasses.dataclass(frozen=True)
 class Collection:
     type_: base.CollectionType
