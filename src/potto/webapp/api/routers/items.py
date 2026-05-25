@@ -1,7 +1,6 @@
 import logging
 from typing import Annotated
 
-import babel
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -60,7 +59,7 @@ async def list_collection_items(
         )
     async with settings.get_db_session_maker()() as session:
         collection_items = await potto.api_list_collection_items(
-            collection_id, user=user, locale=locale, filter_=filter_, db_session=session
+            collection_id, user=user, filter_=filter_, session=session
         )
     logger.debug(f"{collection_items=}")
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
@@ -92,6 +91,7 @@ async def get_item_details(
     response: Response,
     potto: PottoDependency,
     user: UserDependency,
+    settings: SettingsDependency,
     collection_id: CollectionIdPath,
     item_id: ItemIdPath,
     crs: Annotated[
@@ -99,14 +99,14 @@ async def get_item_details(
     ] = None,
 ):
     """Get details about a collection item."""
-    current_locale = babel.Locale.parse(request.state.language)
-    collection_item = await potto.api_get_collection_item(
-        user,
-        collection_id=collection_id,
-        item_id=item_id,
-        locale=current_locale,
-        crs=crs,
-    )
+    async with settings.get_db_session_maker()() as session:
+        collection_item = await potto.api_get_collection_item(
+            user,
+            collection_id=collection_id,
+            item_id=item_id,
+            crs=crs,
+            session=session,
+        )
     result = GeoJsonItem.from_potto(collection_item, request.url_for)
     response_headers: dict[str, str] = {
         "Content-Type": constants.MEDIA_TYPE_GEO_JSON,

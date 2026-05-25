@@ -9,7 +9,7 @@ import pydantic
 
 from .base import (
     AdditionalExtent,
-    CollectionProvider,
+    PottoProvider,
     CollectionType,
     MaybeDescription,
     MaybeKeywords,
@@ -51,7 +51,7 @@ class CollectionCreate(pydantic.BaseModel):
         ),
     ] = None
     providers: Annotated[
-        dict[str, CollectionProvider] | None,
+        dict[str, PottoProvider] | None,
         pydantic.WithJsonSchema(
             {
                 "anyOf": [
@@ -60,7 +60,7 @@ class CollectionCreate(pydantic.BaseModel):
                             {"type": "object", "maxProperties": 10},
                             {
                                 "additionalProperties": {
-                                    "$ref": "#/components/schemas/CollectionProvider"
+                                    "$ref": "#/components/schemas/PottoProvider"
                                 }
                             },
                         ]
@@ -95,4 +95,4 @@ class CollectionUpdate(pydantic.BaseModel):
     custom_page_size: Annotated[int | None, pydantic.Field(ge=1)] = None
     custom_page_size_max: Annotated[int | None, pydantic.Field(ge=1)] = None
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
-    providers: dict[str, CollectionProvider] | None = None
+    providers: dict[str, PottoProvider] | None = None

@@ -15,7 +15,7 @@ import pandas as pd
 import pydantic
 import pyogrio
 from pydantic.json_schema import JsonSchemaValue
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ...config import PottoSettings
 from ...schemas.potto import (
@@ -334,7 +334,6 @@ def _get_feature(
 
 
 class PyogrioFeatureProviderConfiguration(pydantic.BaseModel):
-    provider_name: Literal["pyogrio"] = "pyogrio"
     data_source_uri: str
     id_column: str | None = None
     gdal_open_options: Annotated[
@@ -396,6 +395,14 @@ class PyogrioFeatureProvider:
         )
 
     async def get_schema(self) -> JsonSchemaValue:
+        return await asyncio.to_thread(
+            _get_schema,
+            self.config.data_source_uri,
+            self.config.id_column,
+            gdal_open_options=self.config.gdal_open_options,
+        )
+
+    async def get_queryables(self) -> JsonSchemaValue:
         return await asyncio.to_thread(
             _get_schema,
             self.config.data_source_uri,

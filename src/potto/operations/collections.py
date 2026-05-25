@@ -30,8 +30,7 @@ from ..schemas.auth import (
     PottoUser,
 )
 from ..schemas.base import (
-    PygeoapiProvider,
-    PygeoapiProviderDetails,
+    PottoProvider,
     CollectionType,
 )
 from ..schemas.auth import UserUpdate
@@ -301,12 +300,13 @@ async def import_pygeoapi_collection(
         modifiable_prov = copy.deepcopy(prov)
         if (type_ := modifiable_prov.pop("type")) in providers.keys():
             continue
-        providers[type_] = PygeoapiProvider(
-            details=PygeoapiProviderDetails(
-                python_callable=modifiable_prov.pop("name"),
-                data=modifiable_prov.pop("data"),
-                options=modifiable_prov,
-            ),
+        providers[type_] = PottoProvider(
+            provider_name="pygeoapi",
+            config={
+                "python_callable": modifiable_prov.pop("name"),
+                "data": modifiable_prov.pop("data"),
+                "options": modifiable_prov,
+            },
         )
 
     collection_type = util.get_collection_type(pygeoapi_collection)

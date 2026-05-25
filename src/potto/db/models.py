@@ -25,7 +25,7 @@ from ..schemas.auth import PottoUser
 from ..schemas import potto as potto_schemas
 from ..schemas import metadata as metadata_schemas
 from ..schemas.base import (
-    CollectionProvider,
+    PottoProvider,
     CollectionType,
     Title,
     MaybeDescription,
@@ -143,11 +143,7 @@ class Collection(SQLModel, table=True):
             temporal_extent_end=self.temporal_extent_end,
             additional_links=self.additional_links,
             providers={
-                ProvidedDataType(name): (
-                    pydantic.TypeAdapter(CollectionProvider).validate_python(
-                        raw_provider
-                    )
-                )
+                ProvidedDataType(name): PottoProvider.model_validate(raw_provider)
                 for name, raw_provider in (self.providers or {}).items()
             },
             custom_page_size=self.custom_page_size,

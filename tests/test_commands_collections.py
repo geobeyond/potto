@@ -59,8 +59,9 @@ async def test_collection_create_no_temporal_extent(db_session_maker, admin_user
         spatial_extent="POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))",
         spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
         providers={
-            "feature": base_schemas.CollectionProvider(
-                python_callable="fake",
+            "feature": base_schemas.PottoProvider(
+                provider_name="pygeoapi",
+                config={"python_callable": "fake", "data": None, "options": {}},
             )
         },
     )

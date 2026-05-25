@@ -1,11 +1,8 @@
-from typing import (
-    Any,
-    Literal,
-)
+from typing import Any
 
 import pydantic
 from pydantic.json_schema import JsonSchemaValue
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ...config import PottoSettings
 from ...schemas.potto import (
@@ -19,7 +16,7 @@ from ...schemas.base import (
 
 
 class PostgisFeatureProviderConfiguration(pydantic.BaseModel):
-    provider_name: Literal["postgis"] = "postgis"
+    pass
 
 
 class PostgisFeatureProvider:
@@ -56,6 +53,9 @@ class PostgisFeatureProvider:
         raise NotImplementedError
 
     async def get_schema(self) -> JsonSchemaValue:
+        raise NotImplementedError
+
+    async def get_queryables(self) -> JsonSchemaValue:
         raise NotImplementedError
 
 

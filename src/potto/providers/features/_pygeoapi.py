@@ -1,22 +1,21 @@
 import asyncio
 import babel
-import functools
 import json
 import logging
 from http import HTTPStatus
 from typing import (
     Any,
     cast,
-    Literal,
     TYPE_CHECKING,
 )
 
 import pydantic
-import shapely
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic.json_schema import JsonSchemaValue
-from pygeoapi.api import API as pygeoapi_API
-from pygeoapi.api import itemtypes as pygeoapi_itemtypes
+from pygeoapi.api import API as _API
+from pygeoapi.api import itemtypes as _itemtypes
+from pygeoapi.api import get_collection_schema as _get_collection_schema
+import shapely
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ... import exceptions as potto_exceptions
 from ...schemas.potto import (
@@ -24,26 +23,23 @@ from ...schemas.potto import (
     Feature,
 )
 from ...schemas import base
+from ...schemas.base import CountedItems
 from ...webapp.requests import PottoRequest
 
 if TYPE_CHECKING:
     from ...config import PottoSettings
-    from ...schemas.base import (
-        CountedItems,
-        PottoFeatureFilter,
-    )
 
 logger = logging.getLogger(__name__)
 
 
 class PygeoapiFeatureProviderConfig(pydantic.BaseModel):
-    provider_name: Literal["pygeoapi"] = "pygeoapi"
     python_callable: str
     data: str | dict
     options: dict[str, Any]
 
 
 class PygeoapiFeatureProvider:
+    _pygeoapi_api: _API
     collection: Collection
     config: PygeoapiFeatureProviderConfig
     potto_settings: "PottoSettings"
@@ -62,53 +58,70 @@ class PygeoapiFeatureProvider:
         self.config = config
         self.collection = collection
         self.potto_settings = potto_settings
+        self._pygeoapi_api = _get_pygeoapi_api(collection, config, potto_settings)
 
     async def list_features(
         self,
-        feature_filter: "PottoFeatureFilter | None" = None,
+        feature_filter: base.PottoFeatureFilter | None = None,
     ) -> list[Feature]:
         return await asyncio.to_thread(
             _list_features,
             self.collection,
-            self.config,
-            self.potto_settings,
+            self._pygeoapi_api,
             feature_filter,
         )
 
     async def count_items(
-        self, feature_filter: "PottoFeatureFilter | None" = None
+        self, feature_filter: base.PottoFeatureFilter | None = None
     ) -> "CountedItems":
-        raise NotImplementedError
+        return await asyncio.to_thread(
+            _count_items,
+            self.collection,
+            self._pygeoapi_api,
+            feature_filter,
+        )
 
     async def get_feature(
         self,
         feature_id: str,
         crs: str = "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
     ) -> Feature | None:
-        raise NotImplementedError
+        return await asyncio.to_thread(
+            _get_feature,
+            self.collection,
+            self._pygeoapi_api,
+            feature_id,
+            crs,
+        )
 
     async def get_schema(self) -> JsonSchemaValue:
-        raise NotImplementedError
+        return await asyncio.to_thread(
+            _get_schema,
+            self.collection,
+            self._pygeoapi_api,
+        )
+
+    async def get_queryables(self) -> JsonSchemaValue:
+        return await asyncio.to_thread(
+            _get_queryables,
+            self.collection,
+            self._pygeoapi_api,
+        )
 
 
 def _list_features(
     collection: Collection,
-    config: PygeoapiFeatureProviderConfig,
-    potto_settings: "PottoSettings",
-    feature_filter: "PottoFeatureFilter | None",
+    pygeoapi_api: _API,
+    feature_filter: base.PottoFeatureFilter | None,
 ):
-    pygeoapi_api = _get_pygeoapi_api(collection, config, potto_settings)
-    pygeoapi_response = pygeoapi_itemtypes.get_collection_items(
+    filter_ = (feature_filter or base.PottoFeatureFilter()).model_dump(
+        by_alias=True, exclude_none=True
+    )
+    if not filter_.get("bbox"):
+        del filter_["bbox-crs"]
+    pygeoapi_response = _itemtypes.get_collection_items(
         pygeoapi_api,
-        PottoRequest(
-            locale=babel.Locale("en"),
-            output_format="json",
-            **(
-                feature_filter.model_dump(by_alias=True, exclude_none=True)
-                if feature_filter
-                else {}
-            ),
-        ),
+        PottoRequest(locale=babel.Locale("en"), output_format="json", **filter_),
         dataset=collection.identifier,
     )
     pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
@@ -119,22 +132,104 @@ def _list_features(
             raise potto_exceptions.PottoBadRequestException(detail)
         raise potto_exceptions.PottoException(str(pygeoapi_response))
     parsed_pygeoapi_content = json.loads(pygeoapi_content)
-    return [
-        Feature.from_pygeoapi_feature(feat)
-        for feat in parsed_pygeoapi_content["features"]
-    ]
+    return [to_potto_feature(feat) for feat in parsed_pygeoapi_content["features"]]
 
 
-@functools.cache
+def _count_items(
+    collection: Collection,
+    pygeoapi_api: _API,
+    feature_filter: base.PottoFeatureFilter | None,
+) -> CountedItems:
+    filter_ = (
+        feature_filter.model_dump(by_alias=True, exclude_none=True)
+        if feature_filter
+        else {}
+    )
+    filter_.pop("bbox-crs", None)
+    if not filter_.get("bbox"):
+        filter_.pop("bbox", None)
+    pygeoapi_response = _itemtypes.get_collection_items(
+        pygeoapi_api,
+        PottoRequest(
+            locale=babel.Locale("en"),
+            output_format="json",
+            resulttype="hits",
+            **filter_,
+        ),
+        dataset=collection.identifier,
+    )
+    _, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
+    if cast(HTTPStatus, pygeoapi_status_code).value != 200:
+        raise potto_exceptions.PottoException(str(pygeoapi_response))
+    parsed = json.loads(pygeoapi_content)
+    matched = parsed.get("numberMatched", 0)
+    return CountedItems(matched=matched, total=matched)
+
+
+def _get_feature(
+    collection: Collection,
+    pygeoapi_api: _API,
+    feature_identifier: str,
+    crs: str = "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+) -> Feature | None:
+    pygeoapi_response = _itemtypes.get_collection_item(
+        api=pygeoapi_api,
+        request=PottoRequest(  # ty: ignore[invalid-argument-type]
+            locale=babel.Locale("en"),
+            output_format="json",
+        ),
+        dataset=collection.identifier,
+        identifier=feature_identifier,
+    )
+    pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
+    status_value = cast(HTTPStatus, pygeoapi_status_code).value
+    if status_value != 200:
+        detail = json.loads(pygeoapi_content).get("description", pygeoapi_content)
+        if status_value == 400:
+            raise potto_exceptions.PottoBadRequestException(detail)
+        raise potto_exceptions.PottoException(str(pygeoapi_response))
+    return to_potto_feature(json.loads(pygeoapi_content))
+
+
+def _get_queryables(
+    collection: Collection,
+    pygeoapi_api: _API,
+) -> JsonSchemaValue:
+    pygeoapi_response = _itemtypes.get_collection_queryables(
+        pygeoapi_api,
+        PottoRequest(locale=babel.Locale("en"), output_format="json"),
+        dataset=collection.identifier,
+    )
+    _, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
+    if cast(HTTPStatus, pygeoapi_status_code).value != 200:
+        raise potto_exceptions.PottoException(str(pygeoapi_response))
+    return json.loads(pygeoapi_content)
+
+
+def _get_schema(
+    collection: Collection,
+    pygeoapi_api: _API,
+) -> JsonSchemaValue:
+    pygeoapi_response = _get_collection_schema(
+        pygeoapi_api,
+        PottoRequest(locale=babel.Locale("en"), output_format="json"),
+        dataset=collection.identifier,
+    )
+    _, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
+    if cast(HTTPStatus, pygeoapi_status_code).value != 200:
+        raise potto_exceptions.PottoException(str(pygeoapi_response))
+    return json.loads(pygeoapi_content)
+
+
 def _get_pygeoapi_api(
     collection: Collection,
     config: PygeoapiFeatureProviderConfig,
     potto_settings: "PottoSettings",
-) -> pygeoapi_API:
+) -> _API:
     pygeoapi_config = _get_pygeoapi_config_single_collection(
         collection, config, potto_settings
     )
-    return pygeoapi_API(config=pygeoapi_config, openapi={})
+    return _API(config=pygeoapi_config, openapi={})
 
 
 def _get_pygeoapi_config_single_collection(
@@ -287,6 +382,17 @@ def _convert_collection_to_pygeoapi_resource(
     if limits:
         pygeoapi_collection["limits"] = limits  # ty: ignore[invalid-assignment]
     return pygeoapi_collection
+
+
+def to_potto_feature(pygeoapi_feature: dict) -> Feature:
+    logger.debug(f"{pygeoapi_feature=}")
+    return Feature(
+        id_=str(pygeoapi_feature["id"]),
+        properties={
+            k: v for k, v in pygeoapi_feature["properties"].items() if k != "id"
+        },
+        geometry=shapely.from_geojson(json.dumps(pygeoapi_feature["geometry"])),
+    )
 
 
 def pygeoapi_feature_provider_factory(

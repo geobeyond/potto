@@ -99,11 +99,12 @@ async def bootstrap_for_cite_ogcapi_features(
             spatial_extent="POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))",
             spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
             providers={
-                "feature": base_schemas.PygeoapiProvider(
-                    details=base_schemas.PygeoapiProviderDetails(
-                        python_callable="potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                        options={},
-                        data={
+                "feature": base_schemas.PottoProvider(
+                    provider_name="pygeoapi",
+                    config={
+                        "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
+                        "options": {},
+                        "data": {
                             "features": [
                                 {
                                     "id": 371,
@@ -202,7 +203,7 @@ async def bootstrap_for_cite_ogcapi_features(
                                 },
                             ]
                         },
-                    )
+                    },
                 )
             },
         )

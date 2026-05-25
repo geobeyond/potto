@@ -98,11 +98,12 @@ async def obs_feature_collection(db, db_session_maker, admin_user):
                 spatial_extent="POLYGON ((-122 43, -122 49, -75 49, -75 43, -122 43))",
                 spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
                 providers={
-                    "feature": base_schemas.CollectionProvider(
-                        python_callable="potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                        config=base_schemas.CollectionProviderConfiguration(
-                            options={},
-                            data={
+                    "feature": base_schemas.PottoProvider(
+                        provider_name="pygeoapi",
+                        config={
+                            "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
+                            "options": {},
+                            "data": {
                                 "features": [
                                     {
                                         "id": 371,
@@ -151,7 +152,7 @@ async def obs_feature_collection(db, db_session_maker, admin_user):
                                     },
                                 ]
                             },
-                        ),
+                        },
                     )
                 },
             ),

@@ -49,10 +49,7 @@ from ...db.queries import (
     auth as auth_queries,
     collections as collection_queries,
 )
-from ...schemas.base import (
-    ProviderType,
-    ProvidedDataType,
-)
+from ...schemas.base import ProvidedDataType
 from ...schemas.collections import (
     CollectionCreate,
     CollectionUpdate,
@@ -216,14 +213,11 @@ class CollectionView(_PottoAdminModelView):
                 name="providers",
                 fields=(
                     EnumField(
-                        name="provider_type",
-                        enum=ProviderType,
-                    ),
-                    EnumField(
                         name="data_type",
                         enum=ProvidedDataType,
                     ),
-                    JSONField(name="details"),
+                    StringField(name="provider_name"),
+                    JSONField(name="config"),
                 ),
             )
         ),
@@ -379,12 +373,11 @@ class CollectionView(_PottoAdminModelView):
             value: dict[str, dict[str, Any]]
             result = []
             for type_, prov in value.items():
-                provider_type = ProviderType(prov.pop("provider_type"))
                 result.append(
                     {
                         "data_type": ProvidedDataType(type_),
-                        "provider_type": provider_type,
-                        "details": prov["details"],
+                        "provider_name": prov["provider_name"],
+                        "config": prov["config"],
                     }
                 )
             return result

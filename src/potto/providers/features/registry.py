@@ -6,18 +6,13 @@ import json
 import logging
 from typing import (
     Any,
-    cast,
     TypeAlias,
     TYPE_CHECKING,
 )
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from ...schemas.base import (
-    ProvidedDataType,
-    ProviderType,
-    PottoProvider,
-)
+from ...schemas.base import ProvidedDataType
 from ...util import interpolate_configuration_value
 from .._registry import ProviderRegistry
 from .protocol import FeatureProviderProtocol
@@ -56,27 +51,20 @@ async def get_feature_provider(
     collection: "Collection",
     session: AsyncSession,
     potto_config: "PottoSettings",
-):
+) -> FeatureProviderProtocol | None:
     if collection.providers is None:
         return None
     try:
-        potto_provider = collection.providers[ProvidedDataType.FEATURE]
+        provider = collection.providers[ProvidedDataType.FEATURE]
     except KeyError:
         return None
-    if potto_provider.provider_type != ProviderType.POTTO:
-        raise ValueError("Only potto providers are supported")
-    potto_provider = cast(PottoProvider, potto_provider)
-    details = potto_provider.details
-    if details.provider_name is None:
-        raise ValueError("provider_name is required")
-    if (factory := _registry.get(details.provider_name)) is None:
-        raise ValueError(f"Unknown provider: {details.provider_name}")
-
+    if (factory := _registry.get(provider.provider_name)) is None:
+        raise ValueError(f"Unknown provider: {provider.provider_name}")
     raw_provider_configuration = json.loads(
         interpolate_configuration_value(
-            json.dumps(details.config), potto_config.env_whitelist
+            json.dumps(provider.config), potto_config.env_whitelist
         )
     )
-    logger.debug(f"{details.config=}")
+    logger.debug(f"{provider.config=}")
     logger.debug(f"{raw_provider_configuration=}")
     return await factory(collection, raw_provider_configuration, session, potto_config)

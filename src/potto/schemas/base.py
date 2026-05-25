@@ -63,11 +63,6 @@ class CollectionType(str, enum.Enum):
     RECORD_COLLECTION = "record"
 
 
-class ProviderType(str, enum.Enum):
-    POTTO = "potto"
-    PYGEOAPI = "pygeoapi"
-
-
 class ProvidedDataType(str, enum.Enum):
     COVERAGE = "coverage"
     EDR = "edr"
@@ -213,43 +208,13 @@ class AdditionalExtent(pydantic.BaseModel):
     unit_name: str | None = None
 
 
-class PygeoapiProviderDetails(pydantic.BaseModel):
-    python_callable: str
-    data: (
-        str
-        | typing.Annotated[
-            dict, pydantic.WithJsonSchema({"type": "object", "maxProperties": 10})
-        ]
-    )
-    options: typing.Annotated[
-        dict[str, typing.Any],
-        pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
-    ]
-
-
-class PygeoapiProvider(pydantic.BaseModel):
+class PottoProvider(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
-    provider_type: typing.Literal["pygeoapi"] = "pygeoapi"
-    details: PygeoapiProviderDetails
-
-
-class PottoProviderDetails(pydantic.BaseModel):
     provider_name: str
     config: typing.Annotated[
         dict[str, typing.Any],
         pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
     ]
-
-
-class PottoProvider(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
-    provider_type: typing.Literal["potto"] = "potto"
-    details: PottoProviderDetails
-
-
-CollectionProvider = typing.Annotated[
-    PottoProvider | PygeoapiProvider, pydantic.Field(discriminator="provider_type")
-]
 
 
 class PaginationContext(pydantic.BaseModel):

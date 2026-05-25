@@ -54,6 +54,7 @@ async def list_collections(
     response: Response,
     potto: PottoDependency,
     user: UserDependency,
+    settings: SettingsDependency,
     locale: LocaleDependency,
     limit: PaginationLimitDependency,
 ):
@@ -66,9 +67,10 @@ async def list_collections(
     - Private collections are visible to their owner and to any users that
       have the 'collection-{collection_identifier}:{editor|viewer}' scope
     """
-    potto_collections = await potto.api_list_collections(
-        user=user, locale=locale, page_size=limit
-    )
+    async with settings.get_db_session_maker()() as session:
+        potto_collections = await potto.api_list_collections(
+            user=user, page_size=limit, session=session
+        )
     result = JsonCollectionList.from_potto(potto_collections, request.url_for)
     response.headers.update(
         {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
@@ -92,6 +94,7 @@ async def get_collection_details(
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
+    settings: SettingsDependency,
 ):
     """Get details about a collection.
 
@@ -102,12 +105,13 @@ async def get_collection_details(
     - Private collections are visible to their owner and to any users that
       have the 'collection-{collection_identifier}:{editor|viewer}' scope
     """
-    if (
-        potto_collection := await potto.api_get_collection(
-            collection_id, user=user, locale=locale
-        )
-    ) is None:
-        raise HTTPException(status_code=404, detail="Collection not found.")
+    async with settings.get_db_session_maker()() as session:
+        if (
+            potto_collection := await potto.api_get_collection(
+                collection_id, user=user, session=session
+            )
+        ) is None:
+            raise HTTPException(status_code=404, detail="Collection not found.")
     result = JsonCollection.from_potto(potto_collection, request.url_for)
     response.headers.update(
         {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
@@ -126,14 +130,19 @@ async def get_collection_queryables(
     collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
+    settings: SettingsDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
     """
     Get a list of properties that can be used to query a collection's contents.
     """
-    potto_collection = await potto.api_get_collection(
-        collection_id, user=user, locale=locale, include_queryables=True
-    )
+    async with settings.get_db_session_maker()() as session:
+        potto_collection = await potto.api_get_collection(
+            collection_id,
+            user=user,
+            include_queryables=True,
+            session=session,
+        )
     if potto_collection is None:
         raise HTTPException(status_code=404, detail="Collection not found.")
     assert potto_collection.queryables is not None
@@ -175,12 +184,17 @@ async def get_collection_schema(
     collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
+    settings: SettingsDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
     """Get the schema of a collection."""
-    potto_collection = await potto.api_get_collection(
-        collection_id, user=user, locale=locale, include_schema=True
-    )
+    async with settings.get_db_session_maker()() as session:
+        potto_collection = await potto.api_get_collection(
+            collection_id,
+            user=user,
+            include_schema=True,
+            session=session,
+        )
     if potto_collection is None:
         raise HTTPException(
             status_code=404, detail=f"Collection {collection_id} not found"
