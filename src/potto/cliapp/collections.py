@@ -118,6 +118,7 @@ async def import_collections_from_pygeoapi(
                     settings.get_authorization_backend(),
                     identifier,
                     relevant_collection,
+                    settings,
                     overwrite=overwrite,
                 )
                 num_imported += 1
@@ -257,6 +258,7 @@ async def create_collection(
                 collection_owner,
                 settings.get_authorization_backend(),
                 collection_create,
+                settings,
             )
         except PottoException as err:
             collections_app.console.print(f"[red]Error:[/red] {err}")

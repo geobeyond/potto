@@ -212,6 +212,7 @@ async def bootstrap_for_cite_ogcapi_features(
             admin_user.to_potto(),
             settings.get_authorization_backend(),
             collection_to_create,
+            settings,
         )
         cite_app.console.print(
             f"[green]:heavy_check_mark: Created collection {collection_to_create.resource_identifier}[/green]"

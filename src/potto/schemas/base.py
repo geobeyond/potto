@@ -213,6 +213,12 @@ class AdditionalExtent(pydantic.BaseModel):
     unit_name: str | None = None
 
 
+@dataclasses.dataclass(frozen=True)
+class StorageCrs:
+    crs: str
+    coordinate_epoch: str | None = None
+
+
 class PottoProvider(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
     provider_name: str

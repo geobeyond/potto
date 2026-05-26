@@ -108,6 +108,26 @@ class PygeoapiFeatureProvider:
             self._pygeoapi_api,
         )
 
+    async def get_storage_crs(self) -> base.StorageCrs | None:
+        crs = self.config.options.get("storage_crs")
+        if crs is None:
+            return None
+        return base.StorageCrs(
+            crs=crs,
+            coordinate_epoch=self.config.options.get("storage_crs_coordinate_epoch"),
+        )
+
+    async def get_spatial_extent(
+        self,
+    ) -> base.TwoDimensionalSpatialExtent | base.ThreeDimensionSpatialExtent | None:
+        return None
+
+    async def get_temporal_extent(self) -> base.TemporalExtent | None:
+        return None
+
+    async def get_additional_extents(self) -> list[base.AdditionalExtent] | None:
+        return None
+
 
 def _list_features(
     collection: Collection,

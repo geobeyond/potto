@@ -490,6 +490,7 @@ class CollectionView(_PottoAdminModelView):
                             "owner_id": user.id,
                         }
                     ),
+                    potto_settings=settings,
                 )
             except (pydantic.ValidationError, PottoException) as err:
                 return self.handle_exception(err)

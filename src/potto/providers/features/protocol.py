@@ -8,8 +8,13 @@ from pydantic.json_schema import JsonSchemaValue
 
 if TYPE_CHECKING:
     from ...schemas.base import (
+        AdditionalExtent,
         CountedItems,
         PottoFeatureFilter,
+        StorageCrs,
+        TemporalExtent,
+        ThreeDimensionSpatialExtent,
+        TwoDimensionalSpatialExtent,
     )
     from ...schemas.potto import Feature
 
@@ -34,3 +39,13 @@ class FeatureProviderProtocol(Protocol):
     async def get_schema(self) -> JsonSchemaValue: ...
 
     async def get_queryables(self) -> JsonSchemaValue: ...
+
+    async def get_storage_crs(self) -> "StorageCrs | None": ...
+
+    async def get_spatial_extent(
+        self,
+    ) -> "TwoDimensionalSpatialExtent | ThreeDimensionSpatialExtent | None": ...
+
+    async def get_temporal_extent(self) -> "TemporalExtent | None": ...
+
+    async def get_additional_extents(self) -> "list[AdditionalExtent] | None": ...

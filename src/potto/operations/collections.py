@@ -1,4 +1,5 @@
 import copy
+import datetime as dt
 import logging
 
 import shapely
@@ -10,6 +11,7 @@ from .. import (
     util,
 )
 from ..authz.base import AuthorizationBackendProtocol
+from ..config import PottoSettings
 from ..db.models import Collection
 from ..db.commands import (
     auth as auth_commands,
@@ -27,6 +29,7 @@ from ..exceptions import (
     PottoCannotModifyCollectionAccessException,
     PottoException,
 )
+from ..providers.features.registry import get_feature_provider
 from ..schemas.auth import (
     PottoScope,
     PottoUser,
@@ -136,21 +139,90 @@ async def get_collection_by_resource_identifier(
     return collection
 
 
+async def _enrich_from_provider(
+    session: AsyncSession,
+    collection: Collection,
+    potto_settings: PottoSettings,
+) -> Collection:
+    try:
+        provider = await get_feature_provider(
+            collection.to_potto(), session, potto_settings
+        )
+    except Exception:
+        logger.warning(
+            "Failed to instantiate feature provider for collection enrichment"
+        )
+        return collection
+    if provider is None:
+        return collection
+
+    update_kwargs: dict = {}
+    try:
+        if collection.storage_crs is None:
+            if (storage_crs := await provider.get_storage_crs()) is not None:
+                update_kwargs["storage_crs"] = storage_crs.crs
+                if storage_crs.coordinate_epoch is not None:
+                    update_kwargs["storage_crs_coordinate_epoch"] = (
+                        storage_crs.coordinate_epoch
+                    )
+
+        if collection.spatial_extent is None:
+            if (spatial_extent := await provider.get_spatial_extent()) is not None:
+                bbox = spatial_extent.bbox[0]
+                update_kwargs["spatial_extent"] = shapely.box(
+                    bbox[0], bbox[1], bbox[2], bbox[3]
+                )
+                update_kwargs["spatial_extent_crs"] = spatial_extent.crs
+
+        if (
+            collection.temporal_extent_begin is None
+            and collection.temporal_extent_end is None
+        ):
+            if (temporal_extent := await provider.get_temporal_extent()) is not None:
+                if temporal_extent.interval:
+                    begin_str, end_str = temporal_extent.interval[0]
+                    if begin_str is not None:
+                        update_kwargs["temporal_extent_begin"] = (
+                            dt.datetime.fromisoformat(begin_str)
+                        )
+                    if end_str is not None:
+                        update_kwargs["temporal_extent_end"] = (
+                            dt.datetime.fromisoformat(end_str)
+                        )
+
+        if collection.additional_extents is None:
+            if (
+                additional_extents := await provider.get_additional_extents()
+            ) is not None:
+                update_kwargs["additional_extents"] = additional_extents
+    except Exception:
+        logger.exception("Failed to enrich collection from provider")
+        return collection
+
+    if not update_kwargs:
+        return collection
+    return await collection_commands.update_collection(
+        session, collection, CollectionUpdate(**update_kwargs)
+    )
+
+
 async def create_collection(
     session: AsyncSession,
     user: PottoUser | None,
     authorization_backend: AuthorizationBackendProtocol,
     to_create: CollectionCreate,
+    potto_settings: PottoSettings,
 ) -> Collection:
     if not await authorization_backend.can_create_collection(user):
         raise PottoCannotCreateCollectionException(
             "User does not have permission to create a collection."
         )
     try:
-        return await collection_commands.create_collection(session, to_create)
+        collection = await collection_commands.create_collection(session, to_create)
     except DatabaseError as err:
         await session.rollback()
         raise PottoCannotCreateCollectionException(str(err)) from err
+    return await _enrich_from_provider(session, collection, potto_settings)
 
 
 async def update_collection(
@@ -287,6 +359,7 @@ async def import_pygeoapi_collection(
     authorization_backend: AuthorizationBackendProtocol,
     identifier: str,
     pygeoapi_collection: dict,
+    potto_settings: PottoSettings,
     *,
     overwrite: bool = False,
 ) -> Collection:
@@ -386,4 +459,6 @@ async def import_pygeoapi_collection(
             additional_links=pygeoapi_collection.get("links"),
             providers=providers,
         )
-        return await create_collection(session, user, authorization_backend, to_create)
+        return await create_collection(
+            session, user, authorization_backend, to_create, potto_settings
+        )

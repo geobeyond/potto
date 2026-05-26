@@ -245,7 +245,7 @@ async def create_collection(
     """Create a new collection."""
     async with settings.get_db_session_maker()() as session:
         db_collection = await collection_operations.create_collection(
-            session, user, authorization_backend, to_create
+            session, user, authorization_backend, to_create, settings
         )
     return JsonCollection.from_db_item(db_collection, request.url_for)
 

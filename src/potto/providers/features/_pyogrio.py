@@ -23,8 +23,13 @@ from ...schemas.potto import (
     Feature,
 )
 from ...schemas.base import (
+    AdditionalExtent,
     CountedItems,
     PottoFeatureFilter,
+    StorageCrs,
+    TemporalExtent,
+    ThreeDimensionSpatialExtent,
+    TwoDimensionalSpatialExtent,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,6 +337,54 @@ def _get_feature(
     )
 
 
+def _crs_to_uri(crs: Any) -> str | None:
+    authority = crs.to_authority()
+    if authority is None:
+        return None
+    auth, code = authority
+    if auth == "OGC":
+        return f"http://www.opengis.net/def/crs/OGC/1.3/{code}"
+    return f"http://www.opengis.net/def/crs/{auth}/0/{code}"
+
+
+def _get_storage_crs(
+    data_source_uri: str,
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
+) -> StorageCrs | None:
+    info = pyogrio.read_info(
+        data_source_uri,
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
+    )
+    crs = info.get("crs")
+    if crs is None:
+        return None
+    crs_uri = _crs_to_uri(crs)
+    if crs_uri is None:
+        return None
+    return StorageCrs(crs=crs_uri)
+
+
+def _get_spatial_extent(
+    data_source_uri: str,
+    gdal_open_options: SupportsReadDataframeKwargs | None = None,
+) -> TwoDimensionalSpatialExtent | None:
+    info = pyogrio.read_info(
+        data_source_uri,
+        **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
+    )
+    bounds = info.get("total_bounds")
+    crs = info.get("crs")
+    if bounds is None or crs is None:
+        return None
+    crs_uri = _crs_to_uri(crs)
+    if crs_uri is None:
+        return None
+    return TwoDimensionalSpatialExtent(
+        bbox=[(float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))],
+        crs=crs_uri,
+    )
+
+
 class PyogrioFeatureProviderConfiguration(pydantic.BaseModel):
     data_source_uri: str
     id_column: str | None = None
@@ -408,6 +461,28 @@ class PyogrioFeatureProvider:
             self.config.id_column,
             gdal_open_options=self.config.gdal_open_options,
         )
+
+    async def get_storage_crs(self) -> StorageCrs | None:
+        return await asyncio.to_thread(
+            _get_storage_crs,
+            self.config.data_source_uri,
+            gdal_open_options=self.config.gdal_open_options,
+        )
+
+    async def get_spatial_extent(
+        self,
+    ) -> TwoDimensionalSpatialExtent | ThreeDimensionSpatialExtent | None:
+        return await asyncio.to_thread(
+            _get_spatial_extent,
+            self.config.data_source_uri,
+            gdal_open_options=self.config.gdal_open_options,
+        )
+
+    async def get_temporal_extent(self) -> TemporalExtent | None:
+        return None
+
+    async def get_additional_extents(self) -> list[AdditionalExtent] | None:
+        return None
 
 
 def pyogrio_provider_factory(
