@@ -1,15 +1,26 @@
 import logging
-from typing import Any, cast
+from typing import (
+    Any,
+    TYPE_CHECKING,
+)
 
 import pydantic
 from geoalchemy2 import Geometry as _Geometry  # registers column_reflect listener
 from geoalchemy2.shape import to_shape
 from pydantic.json_schema import JsonSchemaValue
-from sqlalchemy import MetaData, Table, and_, func, select, types as sa_types
-from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import (
+    MetaData,
+    Table,
+    and_,
+    func,
+    select,
+    types as sa_types,
+)
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    create_async_engine,
+)
 
-from ...config import PottoSettings
 from ...schemas.base import (
     AdditionalExtent,
     CountedItems,
@@ -20,9 +31,13 @@ from ...schemas.base import (
     TwoDimensionalSpatialExtent,
 )
 from ...schemas.potto import (
-    Collection,
     Feature,
 )
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    from ...config import PottoSettings
+    from ...schemas.potto import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +55,7 @@ _GEOM_TYPE_TO_FORMAT: dict[str, str] = {
 }
 
 
-def _srid_from_crs_uri(uri: str) -> int:
+def _parse_srid_from_crs_uri(uri: str) -> int:
     if uri.endswith("CRS84"):
         return 4326
     last_path_segment = uri.rstrip("/").rsplit("/", 1)[-1]
@@ -50,11 +65,11 @@ def _srid_from_crs_uri(uri: str) -> int:
         raise ValueError(f"Unsupported CRS URI: {uri!r}") from exc
 
 
-def _srid_to_crs_uri(srid: int) -> str:
+def _format_srid_as_crs_uri(srid: int) -> str:
     return f"http://www.opengis.net/def/crs/EPSG/0/{srid}"
 
 
-def _col_to_schema(col: Any) -> dict:
+def _build_col_schema(col: Any) -> dict:
     column_type = col.type
     schema: dict
     if isinstance(column_type, _Geometry):
@@ -92,22 +107,25 @@ def _col_to_schema(col: Any) -> dict:
     return schema
 
 
-def _table_to_ogc_schema(
+def _build_ogc_schema(
     table: Table,
     id_column: str,
     geom_column: str,
     native_srid: int,
 ) -> JsonSchemaValue:
     properties: dict[str, Any] = {}
-    properties[id_column] = {**_col_to_schema(table.c[id_column]), "x-ogc-role": "id"}
-    geometry_column_schema = _col_to_schema(table.c[geom_column])
+    properties[id_column] = {
+        **_build_col_schema(table.c[id_column]),
+        "x-ogc-role": "id",
+    }
+    geometry_column_schema = _build_col_schema(table.c[geom_column])
     if native_srid and native_srid != 4326:
-        geometry_column_schema["x-ogc-srs"] = _srid_to_crs_uri(native_srid)
+        geometry_column_schema["x-ogc-srs"] = _format_srid_as_crs_uri(native_srid)
     properties[geom_column] = geometry_column_schema
     for col in table.columns:
         if col.name in (id_column, geom_column):
             continue
-        properties[col.name] = _col_to_schema(col)
+        properties[col.name] = _build_col_schema(col)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -117,6 +135,7 @@ def _table_to_ogc_schema(
 
 
 class PostgisFeatureProviderConfiguration(pydantic.BaseModel):
+    db_dsn: str
     db_schema: str = "public"
     db_object: str
     geometry_column: str = "geom"
@@ -124,25 +143,47 @@ class PostgisFeatureProviderConfiguration(pydantic.BaseModel):
 
 
 class PostgisFeatureProvider:
-    def __init__(
-        self,
-        config: PostgisFeatureProviderConfiguration,
-        session: AsyncSession,
-        potto_config: PottoSettings,
-        *,
-        table: Table,
-        id_column: str,
-        native_srid: int,
-    ):
-        """A feature provider that reads from a PostGIS table or view."""
+    def __init__(self, config: PostgisFeatureProviderConfiguration):
         self.config = config
-        self.db_session = session
-        self.potto_config = potto_config
+        self._engine: AsyncEngine = create_async_engine(config.db_dsn)
+        self._table: Table | None = None
+        self._id_column: str | None = None
+        self._native_srid: int | None = None
+
+    async def _ensure_reflected(self) -> None:
+        if self._table is not None:
+            return
+        metadata = MetaData()
+        async with self._engine.connect() as conn:
+            await conn.run_sync(
+                metadata.reflect,
+                schema=self.config.db_schema,
+                only=[self.config.db_object],
+                views=True,
+            )
+        qualified_table_name = f"{self.config.db_schema}.{self.config.db_object}"
+        table = metadata.tables[qualified_table_name]
+        if self.config.id_column is not None:
+            if self.config.id_column not in table.c:
+                raise ValueError(
+                    f"id_column {self.config.id_column!r} not found in {qualified_table_name}"
+                )
+            id_column = self.config.id_column
+        else:
+            primary_key_columns = list(table.primary_key.columns)
+            if len(primary_key_columns) != 1:
+                raise ValueError(
+                    f"{qualified_table_name} has {len(primary_key_columns)} primary key column(s); "
+                    f"set id_column explicitly in the provider config"
+                )
+            id_column = primary_key_columns[0].name
+        geometry_column = table.c[self.config.geometry_column]
         self._table = table
         self._id_column = id_column
-        self._native_srid = native_srid
+        self._native_srid = getattr(geometry_column.type, "srid", None) or 4326
 
-    def _geom_expr(self, target_srid: int) -> Any:
+    def _transform_geom_to_srid(self, target_srid: int) -> Any:
+        assert self._table is not None and self._native_srid is not None
         geometry_column = self._table.c[self.config.geometry_column]
         if target_srid == self._native_srid:
             return geometry_column
@@ -151,8 +192,11 @@ class PostgisFeatureProvider:
     def _build_select(
         self, *, target_srid: int, projection: list[str] | None = None
     ) -> Any:
+        assert self._table is not None and self._id_column is not None
         geometry_column_name = self.config.geometry_column
-        geometry_expression = self._geom_expr(target_srid).label(geometry_column_name)
+        geometry_expression = self._transform_geom_to_srid(target_srid).label(
+            geometry_column_name
+        )
         non_geometry_columns = [
             c for c in self._table.columns if c.name != geometry_column_name
         ]
@@ -164,9 +208,10 @@ class PostgisFeatureProvider:
         return select(*non_geometry_columns, geometry_expression)
 
     def _apply_filter(self, stmt: Any, ff: PottoFeatureFilter) -> Any:
+        assert self._table is not None and self._native_srid is not None
         where_clauses = []
         if ff.bbox is not None:
-            bbox_srid = _srid_from_crs_uri(ff.bbox_crs)
+            bbox_srid = _parse_srid_from_crs_uri(ff.bbox_crs)
             bbox_envelope = func.ST_MakeEnvelope(*ff.bbox, bbox_srid)
             if bbox_srid != self._native_srid:
                 bbox_envelope = func.ST_Transform(bbox_envelope, self._native_srid)
@@ -181,6 +226,7 @@ class PostgisFeatureProvider:
         return stmt
 
     def _coerce_id(self, raw_id: str) -> Any:
+        assert self._table is not None and self._id_column is not None
         primary_key_column = self._table.c[self._id_column]
         python_type = primary_key_column.type.python_type
         if python_type is str:
@@ -192,12 +238,13 @@ class PostgisFeatureProvider:
                 f"Cannot coerce {raw_id!r} to {python_type.__name__}"
             ) from exc
 
-    def _row_to_feature(
+    def _build_feature_from_row(
         self,
         row_data: dict[str, Any],
         *,
         projection: list[str] | None = None,
     ) -> Feature:
+        assert self._id_column is not None
         raw_geometry = row_data.pop(self.config.geometry_column, None)
         feature_id = row_data.pop(self._id_column, None)
         if projection is not None:
@@ -211,31 +258,38 @@ class PostgisFeatureProvider:
     async def list_features(
         self, feature_filter: PottoFeatureFilter | None = None
     ) -> list[Feature]:
+        await self._ensure_reflected()
         effective_filter = feature_filter or PottoFeatureFilter()
         stmt = self._build_select(
-            target_srid=_srid_from_crs_uri(effective_filter.crs),
+            target_srid=_parse_srid_from_crs_uri(effective_filter.crs),
             projection=effective_filter.properties,
         )
         stmt = self._apply_filter(stmt, effective_filter)
         stmt = stmt.limit(effective_filter.limit).offset(effective_filter.offset)
-        result = await self.db_session.execute(stmt)  # ty: ignore[deprecated]
+        async with self._engine.connect() as conn:
+            result = await conn.execute(stmt)
         return [
-            self._row_to_feature(dict(row), projection=effective_filter.properties)
+            self._build_feature_from_row(
+                dict(row), projection=effective_filter.properties
+            )
             for row in result.mappings()
         ]
 
     async def count_items(
         self, feature_filter: PottoFeatureFilter | None = None
     ) -> CountedItems:
+        await self._ensure_reflected()
+        assert self._table is not None
         effective_filter = feature_filter or PottoFeatureFilter()
         total_stmt = select(func.count()).select_from(self._table)
-        total = (await self.db_session.execute(total_stmt)).scalar_one()  # ty: ignore[deprecated]
-        if effective_filter.bbox is None:
-            return CountedItems(matched=total, total=total)
-        matched_stmt = self._apply_filter(
-            select(func.count()).select_from(self._table), effective_filter
-        )
-        matched = (await self.db_session.execute(matched_stmt)).scalar_one()  # ty: ignore[deprecated]
+        async with self._engine.connect() as conn:
+            total = (await conn.execute(total_stmt)).scalar_one()
+            if effective_filter.bbox is None:
+                return CountedItems(matched=total, total=total)
+            matched_stmt = self._apply_filter(
+                select(func.count()).select_from(self._table), effective_filter
+            )
+            matched = (await conn.execute(matched_stmt)).scalar_one()
         return CountedItems(matched=matched, total=total)
 
     async def get_feature(
@@ -243,32 +297,50 @@ class PostgisFeatureProvider:
         feature_id: str,
         crs: str = "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
     ) -> Feature | None:
+        await self._ensure_reflected()
+        assert self._table is not None and self._id_column is not None
         primary_key_column = self._table.c[self._id_column]
-        stmt = self._build_select(target_srid=_srid_from_crs_uri(crs)).where(
+        stmt = self._build_select(target_srid=_parse_srid_from_crs_uri(crs)).where(
             primary_key_column == self._coerce_id(feature_id)
         )
-        result = await self.db_session.execute(stmt)  # ty: ignore[deprecated]
+        async with self._engine.connect() as conn:
+            result = await conn.execute(stmt)
         matched_row = result.mappings().first()
-        return self._row_to_feature(dict(matched_row)) if matched_row else None
+        return self._build_feature_from_row(dict(matched_row)) if matched_row else None
 
     async def get_schema(self) -> JsonSchemaValue:
-        return _table_to_ogc_schema(
+        await self._ensure_reflected()
+        assert (
+            self._table is not None
+            and self._id_column is not None
+            and self._native_srid is not None
+        )
+        return _build_ogc_schema(
             self._table, self._id_column, self.config.geometry_column, self._native_srid
         )
 
     async def get_queryables(self) -> JsonSchemaValue:
-        return _table_to_ogc_schema(
+        await self._ensure_reflected()
+        assert (
+            self._table is not None
+            and self._id_column is not None
+            and self._native_srid is not None
+        )
+        return _build_ogc_schema(
             self._table, self._id_column, self.config.geometry_column, self._native_srid
         )
 
     async def get_storage_crs(self) -> StorageCrs | None:
+        await self._ensure_reflected()
         if not self._native_srid:
             return None
-        return StorageCrs(crs=_srid_to_crs_uri(self._native_srid))
+        return StorageCrs(crs=_format_srid_as_crs_uri(self._native_srid))
 
     async def get_spatial_extent(
         self,
     ) -> TwoDimensionalSpatialExtent | ThreeDimensionSpatialExtent | None:
+        await self._ensure_reflected()
+        assert self._table is not None and self._native_srid is not None
         geometry_column = self._table.c[self.config.geometry_column]
         extent_subquery = select(
             func.ST_Extent(geometry_column).label("ext")
@@ -279,7 +351,8 @@ class PostgisFeatureProvider:
             func.ST_XMax(extent_subquery.c.ext),
             func.ST_YMax(extent_subquery.c.ext),
         )
-        result = await self.db_session.execute(stmt)  # ty: ignore[deprecated]
+        async with self._engine.connect() as conn:
+            result = await conn.execute(stmt)
         extent_row = result.one_or_none()
         if extent_row is None or extent_row[0] is None:
             return None
@@ -291,7 +364,7 @@ class PostgisFeatureProvider:
         )
         return TwoDimensionalSpatialExtent(
             bbox=[(xmin, ymin, xmax, ymax)],
-            crs=_srid_to_crs_uri(self._native_srid),
+            crs=_format_srid_as_crs_uri(self._native_srid),
         )
 
     async def get_temporal_extent(self) -> TemporalExtent | None:
@@ -302,44 +375,10 @@ class PostgisFeatureProvider:
 
 
 async def postgis_provider_factory(
-    collection: Collection,
+    collection: "Collection",
     raw_config: dict[str, Any],
-    session: AsyncSession,
-    potto_config: PottoSettings,
+    session: "AsyncSession",
+    potto_config: "PottoSettings",
 ) -> PostgisFeatureProvider:
     config = PostgisFeatureProviderConfiguration.model_validate(raw_config)
-    metadata = MetaData()
-    engine = cast(AsyncEngine, session.bind)
-    async with engine.connect() as conn:
-        await conn.run_sync(
-            metadata.reflect,
-            schema=config.db_schema,
-            only=[config.db_object],
-            views=True,
-        )
-    qualified_table_name = f"{config.db_schema}.{config.db_object}"
-    table = metadata.tables[qualified_table_name]
-    if config.id_column is not None:
-        if config.id_column not in table.c:
-            raise ValueError(
-                f"id_column {config.id_column!r} not found in {qualified_table_name}"
-            )
-        id_column = config.id_column
-    else:
-        primary_key_columns = list(table.primary_key.columns)
-        if len(primary_key_columns) != 1:
-            raise ValueError(
-                f"{qualified_table_name} has {len(primary_key_columns)} primary key column(s); "
-                f"set id_column explicitly in the provider config"
-            )
-        id_column = primary_key_columns[0].name
-    geometry_column = table.c[config.geometry_column]
-    native_srid = getattr(geometry_column.type, "srid", None) or 4326
-    return PostgisFeatureProvider(
-        config,
-        session,
-        potto_config,
-        table=table,
-        id_column=id_column,
-        native_srid=native_srid,
-    )
+    return PostgisFeatureProvider(config)

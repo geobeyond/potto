@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import logging
 import pydantic
 import typing
 
@@ -12,6 +13,8 @@ from .. import constants
 
 if typing.TYPE_CHECKING:
     from .pygeoapi_config import ExtentConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_localizable_field(value: dict[str, str] | str, _info):
@@ -35,6 +38,7 @@ def _serialize_localizable_list_field(value: dict[str, list[str]] | list[str], _
 def to_shapely(
     value: str | WKBElement | shapely.Geometry | None,
 ) -> shapely.Geometry | None:
+    logger.debug(f"{value=}")
     if not value:
         return None
     elif isinstance(value, shapely.Geometry):

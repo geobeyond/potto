@@ -34,10 +34,12 @@ class CollectionListItem(pydantic.BaseModel):
 
 
 class CollectionDetail(CollectionListItem):
+    title: str | dict[str, str]
     editors: list[str] = []
     viewers: list[str] = []
     created_at: dt.datetime
     updated_at: dt.datetime | None
+    spatial_extent: str | None
 
     @classmethod
     def from_db_item(
@@ -51,4 +53,5 @@ class CollectionDetail(CollectionListItem):
             owner=item.owner.username,
             editors=[u.username for u in (editors or [])],
             viewers=[v.username for v in (viewers or [])],
+            spatial_extent=str(item.spatial_extent) if item.spatial_extent else None,
         )

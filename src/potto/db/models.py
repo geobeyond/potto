@@ -92,8 +92,7 @@ class Collection(SQLModel, table=True):
     keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
     spatial_extent: MaybeShapelyGeometry = Field(
         default=None,
-        sa_type=ShapelyGeometryAdapter,
-        nullable=True,
+        sa_column=Column(ShapelyGeometryAdapter(srid=4326), nullable=True),
     )
     spatial_extent_crs: str | None = None  # part 1 - CRS of the spatial extent
     crs: list[str] | None = Field(

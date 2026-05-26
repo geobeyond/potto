@@ -30,9 +30,12 @@ Creating a collection requires that you explicitly use the `--collection` style 
 representation.
 
 ```shell
-potto collection create-feature \
-  --collection '{"resource_identifier": "test-id", "english_title": "A collection created via potto cli", "provider": {"provider_name": "pyogrio", "config": {"data_source_uri": "$DATA_ROOT/obs.csv", "id_column": "id", "gdal_open_options": {"driver_name": "CSV"}}}}'
+set -o allexport; source potto-dev.env; set +o allexport; \
+  uv run potto collection create-feature --collection \
+  '{"resource_identifier": "test-db-collections", "english_title": "collections from the db", "is_public": true, "spatial_extent": "POLYGON ((-14.0625 35.317366, -3.955078 35.317366, -3.955078 44.715514, -14.0625 44.715514, -14.0625 35.317366))", "provider": {"provider-name": "postgis", "config": {"db_dsn": "postgresql+psycopg://potto:pottopass@localhost:55432/potto", "db_object": "collection", "geometry_column": "spatial_extent", "id_column": "id"}}}'
+
 ```
+
 
 
 #### Delete collection
