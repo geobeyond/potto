@@ -2,6 +2,7 @@ import copy
 import logging
 
 import shapely
+from sqlalchemy.exc import DatabaseError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .. import (
@@ -23,6 +24,7 @@ from ..exceptions import (
     PottoCannotCreateCollectionException,
     PottoCannotDeleteCollectionException,
     PottoCannotEditCollectionException,
+    PottoCannotModifyCollectionAccessException,
     PottoException,
 )
 from ..schemas.auth import (
@@ -144,7 +146,11 @@ async def create_collection(
         raise PottoCannotCreateCollectionException(
             "User does not have permission to create a collection."
         )
-    return await collection_commands.create_collection(session, to_create)
+    try:
+        return await collection_commands.create_collection(session, to_create)
+    except DatabaseError as err:
+        await session.rollback()
+        raise PottoCannotCreateCollectionException(str(err)) from err
 
 
 async def update_collection(
@@ -167,7 +173,12 @@ async def update_collection(
                 f"User does not have permission to change the owner of collection "
                 f"{collection.resource_identifier!r}."
             )
-    return await collection_commands.update_collection(session, collection, to_update)
+    try:
+        return await collection_commands.update_collection(
+            session, collection, to_update
+        )
+    except DatabaseError as err:
+        raise PottoCannotEditCollectionException(str(err)) from err
 
 
 async def delete_collection(
@@ -183,7 +194,10 @@ async def delete_collection(
         raise PottoCannotDeleteCollectionException(
             f"User does not have permission to delete collection {collection_id}."
         )
-    return await collection_commands.delete_collection(session, collection_id)
+    try:
+        return await collection_commands.delete_collection(session, collection_id)
+    except DatabaseError as err:
+        raise PottoCannotDeleteCollectionException(str(err)) from err
 
 
 async def grant_collection_access(
@@ -210,7 +224,12 @@ async def grant_collection_access(
         new_scopes.append(editor_scope)
     else:
         new_scopes.append(viewer_scope)
-    await auth_commands.update_user(session, target_user, UserUpdate(scopes=new_scopes))
+    try:
+        await auth_commands.update_user(
+            session, target_user, UserUpdate(scopes=new_scopes)
+        )
+    except DatabaseError as err:
+        raise PottoCannotModifyCollectionAccessException(str(err)) from err
 
 
 async def revoke_collection_access(
@@ -232,7 +251,12 @@ async def revoke_collection_access(
     new_scopes = [
         s for s in target_user.scopes if s not in (editor_scope, viewer_scope)
     ]
-    await auth_commands.update_user(session, target_user, UserUpdate(scopes=new_scopes))
+    try:
+        await auth_commands.update_user(
+            session, target_user, UserUpdate(scopes=new_scopes)
+        )
+    except DatabaseError as err:
+        raise PottoCannotModifyCollectionAccessException(str(err)) from err
 
 
 def _get_crs_info(

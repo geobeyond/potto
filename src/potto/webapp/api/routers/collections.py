@@ -68,7 +68,7 @@ async def list_collections(
       have the 'collection-{collection_identifier}:{editor|viewer}' scope
     """
     async with settings.get_db_session_maker()() as session:
-        potto_collections = await potto.api_list_collections(
+        potto_collections = await potto.list_collections(
             user=user, page_size=limit, session=session
         )
     result = JsonCollectionList.from_potto(potto_collections, request.url_for)
@@ -107,7 +107,7 @@ async def get_collection_details(
     """
     async with settings.get_db_session_maker()() as session:
         if (
-            potto_collection := await potto.api_get_collection(
+            potto_collection := await potto.get_collection(
                 collection_id, user=user, session=session
             )
         ) is None:
@@ -137,7 +137,7 @@ async def get_collection_queryables(
     Get a list of properties that can be used to query a collection's contents.
     """
     async with settings.get_db_session_maker()() as session:
-        potto_collection = await potto.api_get_collection(
+        potto_collection = await potto.get_collection(
             collection_id,
             user=user,
             include_queryables=True,
@@ -189,7 +189,7 @@ async def get_collection_schema(
 ) -> JSONResponse:
     """Get the schema of a collection."""
     async with settings.get_db_session_maker()() as session:
-        potto_collection = await potto.api_get_collection(
+        potto_collection = await potto.get_collection(
             collection_id,
             user=user,
             include_schema=True,

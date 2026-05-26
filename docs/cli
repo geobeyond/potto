@@ -1,0 +1,42 @@
+# potto CLI
+
+The potto CLI allows an admin user to perform all sort of operations.
+
+
+## Examples
+
+### Manage collections
+
+The CLI has commands for managing collections
+
+
+#### List collections
+
+```shell
+potto collection list
+```
+
+
+#### Get details of a collection
+
+```shell
+potto collection detail <collection-identifier>
+```
+
+
+#### Create collections
+
+Creating a collection requires that you explicitly use the `--collection` style when passing in the collection
+representation.
+
+```shell
+potto collection create-feature \
+  --collection '{"resource_identifier": "test-id", "english_title": "A collection created via potto cli", "provider": {"provider_name": "pyogrio", "config": {"data_source_uri": "$DATA_ROOT/obs.csv", "id_column": "id", "gdal_open_options": {"driver_name": "CSV"}}}}'
+```
+
+
+#### Delete collection
+
+```shell
+potto collection delete <collection-identifier>
+```

@@ -25,7 +25,7 @@ async def get_landing_page(request: Request) -> Response:
     return request.state.templates.TemplateResponse(
         request,
         "landing-page.html",
-        context={"contents": await potto.api_get_landing_page(user=user)},
+        context={"contents": await potto.get_overview(user=user)},
     )
 
 

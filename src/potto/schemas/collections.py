@@ -9,11 +9,12 @@ import pydantic
 
 from .base import (
     AdditionalExtent,
-    PottoProvider,
     CollectionType,
+    CollectionIdentifier,
     MaybeDescription,
     MaybeKeywords,
     MaybeShapelyGeometry,
+    PottoProvider,
     Title,
 )
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class CollectionCreate(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
-    resource_identifier: str = pydantic.Field(min_length=3, max_length=100)
+    resource_identifier: CollectionIdentifier
     owner_id: str
     is_public: bool = False
     collection_type: CollectionType

@@ -45,6 +45,11 @@ def to_shapely(
         return to_shape(value)
 
 
+CollectionIdentifier = typing.Annotated[
+    str, pydantic.Field(min_length=3, max_length=100, pattern=r"[a-zA-Z]\w*")
+]
+
+
 MaybeShapelyGeometry = typing.Annotated[
     shapely.Geometry | None,
     pydantic.BeforeValidator(to_shapely),

@@ -214,7 +214,6 @@ def _list_features(
     id_column: str | None = None,
     gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> list[Feature]:
-    logger.debug(f"{gdal_open_options=}")
     feats_df = pyogrio.read_dataframe(
         data_source_uri,
         max_features=item_filter.limit,

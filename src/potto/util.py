@@ -48,7 +48,7 @@ def get_collection_pagination_limit(
 def interpolate_configuration_value(value: str, env_whitelist: list[str]) -> str:
 
     def make_replacement(re_match: re.Match) -> str:
-        default_value = "DISALLOWED"
+        default_value = "UNAUTHORIZED_ENVIRONMENT_ACCESS"
         env_variable_name = re_match.group(1)
         env_variable_value = default_value
         if (

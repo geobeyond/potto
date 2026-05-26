@@ -42,7 +42,7 @@ async def landing_page(
     user: UserDependency,
 ) -> base.JsonLanding:
     """API landing page."""
-    result = await potto.api_get_landing_page(user=user)
+    result = await potto.get_overview(user=user)
     return base.JsonLanding.from_potto(
         result, request.url_for, oidc_configured=settings.oidc is not None
     )
@@ -53,5 +53,5 @@ async def landing_page(
 )
 async def conformance_page(potto: PottoDependency) -> base.JsonConformance:
     """OGC API conformance information."""
-    result = await potto.api_get_conformance_details()
+    result = await potto.get_conformance_details()
     return base.JsonConformance(conforms_to=result.conforms_to)

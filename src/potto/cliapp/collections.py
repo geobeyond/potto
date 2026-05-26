@@ -24,11 +24,15 @@ from ..operations import (
     auth as auth_ops,
     collections as collection_ops,
 )
-from ..schemas import cli as cli_schemas
+from ..schemas import (
+    base as base_schemas,
+    cli as cli_schemas,
+)
 from ..schemas.auth import (
     PottoScope,
     PottoUser,
 )
+from ..schemas.collections import CollectionCreate
 
 
 collections_app = cyclopts.App()
@@ -199,6 +203,72 @@ async def get_collection(
         )
     result = cli_schemas.CollectionDetail.from_db_item(
         collection, editors=editors, viewers=viewers
+    )
+    if format == "json":
+        collections_app.console.print_json(result.model_dump_json(indent=2))
+    else:
+        detail_table = Table(title="Collection Details")
+        detail_table.add_column("property")
+        detail_table.add_column("value")
+        for field_name in cli_schemas.CollectionDetail.model_fields.keys():
+            detail_table.add_row(field_name, str(getattr(result, field_name)))
+        collections_app.console.print(detail_table)
+
+
+@collections_app.command(name="create-feature")
+async def create_collection(
+    *,
+    collection: cli_schemas.SimplifiedFeatureCollectionCreate,
+    format: Literal["json", "table"] = "table",
+    settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
+) -> None:
+    """Create a new feature collection."""
+    async with settings.get_db_session_maker()() as session:
+        existing_admins, total_admins = await auth_ops.paginated_list_users(
+            session, include_total=True, admin_filter=True
+        )
+        if not total_admins:
+            collections_app.error_console.print(
+                "Cannot import collections without there being at least one user with 'admin' "
+                "scope to inherit them."
+            )
+            sys.exit(1)
+        collection_owner = existing_admins[0].to_potto()
+        collection_create = CollectionCreate(
+            **collection.model_dump(
+                exclude_none=True,
+                exclude={
+                    "english_title",
+                    "provider",
+                },
+            ),
+            title=collection.english_title,
+            collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+            owner_id=collection_owner.id,
+            providers={
+                base_schemas.ProvidedDataType.FEATURE.value: base_schemas.PottoProvider(
+                    **collection.provider.model_dump(exclude_none=True)
+                )
+            },
+        )
+        try:
+            created = await collection_ops.create_collection(
+                session,
+                collection_owner,
+                settings.get_authorization_backend(),
+                collection_create,
+            )
+        except PottoException as err:
+            collections_app.console.print(f"[red]Error:[/red] {err}")
+            exit(1)
+        editors = await collection_queries.get_collection_editors(
+            session, created.resource_identifier
+        )
+        viewers = await collection_queries.get_collection_viewers(
+            session, created.resource_identifier
+        )
+    result = cli_schemas.CollectionDetail.from_db_item(
+        created, editors=editors, viewers=viewers
     )
     if format == "json":
         collections_app.console.print_json(result.model_dump_json(indent=2))

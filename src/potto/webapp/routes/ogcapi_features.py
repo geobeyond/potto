@@ -27,7 +27,7 @@ async def list_collections(request: Request) -> Response:
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
     async with settings.get_db_session_maker()() as session:
-        collections = await potto.api_list_collections(
+        collections = await potto.list_collections(
             user=user,
             session=session,
             page=int(request.query_params.get("page", 1)),
@@ -51,7 +51,7 @@ async def get_collection_details(request: Request) -> Response:
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
     async with settings.get_db_session_maker()() as session:
-        potto_response = await potto.api_get_collection(
+        potto_response = await potto.get_collection(
             request.path_params["collection_id"],
             user=user,
             session=session,

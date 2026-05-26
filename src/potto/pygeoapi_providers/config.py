@@ -179,7 +179,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
         features = list(self._data.values())
-        if bbox is not None:
+        if bbox:
             bbox_geom = _bbox_to_geometry(bbox)
             features = _perform_bbox_filtering(bbox_geom, features)
         num_matched = len(features)
@@ -210,6 +210,7 @@ def _bbox_to_geometry(bbox: RawBbox) -> shapely.Geometry:
     When minX > maxX the bbox spans the antimeridian (lon=±180), so we union
     two boxes: one for each side of the antimeridian.
     """
+    logger.debug(f"{bbox=}")
     minx, miny, maxx, maxy = bbox[0], bbox[1], bbox[2], bbox[3]
     if minx > maxx:
         return shapely.unary_union(

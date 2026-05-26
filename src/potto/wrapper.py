@@ -32,30 +32,6 @@ ResourceTypes: TypeAlias = Sequence[Literal["collection", "stac-collection", "pr
 
 
 class Potto:
-    """A wrapper around pygeoapi core.
-
-    This wrapper presents a simpler interface than pygeoapi core and also
-    implements some additional operations.
-
-    The major difference from pygeoapi core is that this wrapper's methods
-    accept direct arguments rather than receiving a generic `Request` class
-    and then parsing the contents of the request. This means that this class
-    demands that parsing of an HTTP request be done before calling it, or in
-    other words, that the framework that is wrapping pygeoapi core deals with
-    the complexity of retrieving parameters from the HTTP request.
-
-    Note that internally this class' methods still need to construct a
-    `Request` instance in order to send to pygeoapi core, which expects it.
-    But the interface they present to the world is request-free. This is done
-    with two intentions:
-
-    - Allow non HTTP clients to use pygeoapi core. For example, a CLI
-      application
-    - Demonstrate what pygeoapi core's public API would look like if it did
-      not focus on parsing HTTP Requests but rather whatever input parameters
-      were needed for each particular method
-    """
-
     _settings: PottoSettings
 
     def __init__(
@@ -64,7 +40,7 @@ class Potto:
     ) -> None:
         self._settings = settings
 
-    async def api_get_landing_page(
+    async def get_overview(
         self,
         *,
         user: auth.PottoUser | None,
@@ -96,7 +72,7 @@ class Potto:
             ),
         )
 
-    async def api_get_conformance_details(self) -> potto_schemas.ConformanceDetail:
+    async def get_conformance_details(self) -> potto_schemas.ConformanceDetail:
         return potto_schemas.ConformanceDetail(
             conforms_to=[
                 constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_CORE,
@@ -106,7 +82,7 @@ class Potto:
             ]
         )
 
-    async def api_list_collections(
+    async def list_collections(
         self,
         *,
         user: auth.PottoUser | None,
@@ -132,22 +108,7 @@ class Potto:
             ),
         )
 
-    async def _get_collection(
-        self,
-        collection_id: str,
-        *,
-        user: auth.PottoUser | None,
-        session: AsyncSession,
-    ) -> potto_schemas.Collection | None:
-        if (
-            db_collection := await collection_ops.get_collection_by_resource_identifier(
-                session, user, self._settings.get_authorization_backend(), collection_id
-            )
-        ) is None:
-            return None
-        return db_collection.to_potto()
-
-    async def api_get_collection(
+    async def get_collection(
         self,
         collection_id: str,
         *,
@@ -157,21 +118,23 @@ class Potto:
         include_schema: bool = False,
     ) -> potto_schemas.Collection | None:
         if (
-            potto_collection := await self._get_collection(
-                collection_id, user=user, session=session
+            db_collection := await collection_ops.get_collection_by_resource_identifier(
+                session, user, self._settings.get_authorization_backend(), collection_id
             )
         ) is None:
             return None
+        potto_collection = db_collection.to_potto()
+        if not any((include_queryables, include_schema)):
+            return potto_collection
+
         if (
             feature_provider := await get_feature_provider(
                 potto_collection, session, self._settings
             )
         ) is None:
-            if any((include_schema, include_queryables)):
-                logger.warning(
-                    "Cannot return schema nor queryables - unable to get feature provider"
-                )
-            return potto_collection
+            raise potto_exceptions.PottoException(
+                "Cannot return schema nor queryables - unable to get feature provider"
+            )
 
         if include_queryables:
             potto_collection = dataclasses.replace(
@@ -197,7 +160,7 @@ class Potto:
             else base.PottoFeatureFilter()
         )
         if (
-            collection := await self._get_collection(
+            collection := await self.get_collection(
                 collection_id, user=user, session=session
             )
         ) is None:
@@ -249,7 +212,7 @@ class Potto:
     ) -> potto_schemas.FeatureResponse:
 
         if (
-            collection := await self._get_collection(
+            collection := await self.get_collection(
                 collection_id, user=user, session=session
             )
         ) is None:
