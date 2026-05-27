@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import pydantic
 import pyogrio
+import pyproj
 from pydantic.json_schema import JsonSchemaValue
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -86,8 +87,8 @@ class PyogrioCsvGdalOpenOption(pydantic.BaseModel):
 
     def as_read_dataframe_kwargs(self) -> dict[str, str]:
         return {
-            k: v
-            for k, v in {
+            option_name: option_value
+            for option_name, option_value in {
                 "AUTODETECT_TYPE": "YES" if self.autodetect_type else "NO",
                 "SEPARATOR": self.separator,
                 "KEEP_SOURCE_COLUMNS": "YES" if self.keep_source_columns else "NO",
@@ -105,7 +106,7 @@ class PyogrioCsvGdalOpenOption(pydantic.BaseModel):
                 if self.geom_possible_names
                 else None,
             }.items()
-            if v is not None
+            if option_value is not None
         }
 
 
@@ -128,7 +129,7 @@ class PyogrioGeoJsonGdalOpenOption(pydantic.BaseModel):
 GdalOpenOptions = PyogrioCsvGdalOpenOption | PyogrioGeoJsonGdalOpenOption
 
 
-def _dtype_to_json_schema(dtype: str) -> JsonSchemaValue:
+def _map_dtype_to_json_schema(dtype: str) -> JsonSchemaValue:
     if dtype.startswith("datetime64"):
         return {"type": "string", "format": "date-time"}
     if dtype.startswith("date32") or dtype == "date":
@@ -136,17 +137,17 @@ def _dtype_to_json_schema(dtype: str) -> JsonSchemaValue:
     return _DTYPE_TO_JSON_SCHEMA.get(dtype, {"type": "string"})
 
 
-def _geometry_type_to_json_schema(geometry_type: str | None) -> JsonSchemaValue:
+def _map_geometry_type_to_json_schema(geometry_type: str | None) -> JsonSchemaValue:
     # pyogrio can report "Point Z", "Polygon ZM", etc. — only the first token matters.
     # "Unknown" and None both fall back to geometry-any.
-    base = (geometry_type or "").split(" ")[0]
+    base_geometry_type = (geometry_type or "").split(" ")[0]
     return {
         "x-ogc-role": "primary-geometry",
-        "format": _GEOMETRY_TYPE_TO_FORMAT.get(base, "geometry-any"),
+        "format": _GEOMETRY_TYPE_TO_FORMAT.get(base_geometry_type, "geometry-any"),
     }
 
 
-def _coerce(value: Any) -> str | int | float | bool | dt.datetime | None:
+def _coerce_value(value: Any) -> str | int | float | bool | dt.datetime | None:
     """Convert numpy scalars to native Python types and NaN to None."""
     if value is None:
         return None
@@ -163,7 +164,7 @@ def _coerce(value: Any) -> str | int | float | bool | dt.datetime | None:
     return value
 
 
-def _series_to_feature(
+def _build_feature_from_series(
     row: pd.Series,
     geom_col: str,
     id_value: Any,
@@ -173,7 +174,7 @@ def _series_to_feature(
     return Feature(
         id_=str(id_value),
         properties={
-            str(name): _coerce(value)
+            str(name): _coerce_value(value)
             for name, value in row.items()
             if name != geom_col and name != id_column
         },
@@ -181,20 +182,20 @@ def _series_to_feature(
     )
 
 
-def _geodataframe_to_features(
-    gdf: gpd.GeoDataFrame,
+def _build_features_from_geodataframe(
+    geodataframe: gpd.GeoDataFrame,
     id_column: str | None = None,
 ) -> list[Feature]:
     """Convert a GeoDataFrame into a list of Feature instances."""
-    geom_col = str(gdf.geometry.name)
+    geom_col = str(geodataframe.geometry.name)
     return [
-        _series_to_feature(
+        _build_feature_from_series(
             row,
             geom_col=geom_col,
             id_value=index if id_column is None else row[id_column],
             id_column=id_column,
         )
-        for index, row in gdf.iterrows()
+        for index, row in geodataframe.iterrows()
     ]
 
 
@@ -219,7 +220,7 @@ def _list_features(
     id_column: str | None = None,
     gdal_open_options: SupportsReadDataframeKwargs | None = None,
 ) -> list[Feature]:
-    feats_df = pyogrio.read_dataframe(
+    features_gdf = pyogrio.read_dataframe(
         data_source_uri,
         max_features=item_filter.limit,
         skip_features=item_filter.offset,
@@ -228,7 +229,7 @@ def _list_features(
         bbox=item_filter.bbox,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
-    return _geodataframe_to_features(feats_df, id_column=id_column)
+    return _build_features_from_geodataframe(features_gdf, id_column=id_column)
 
 
 def _count_features(
@@ -241,7 +242,7 @@ def _count_features(
     if feature_filter is None:
         return CountedItems(matched=total, total=total)
     where_clause = _build_where_clause(feature_filter)
-    df = pyogrio.read_dataframe(
+    matched_gdf = pyogrio.read_dataframe(
         data_source_uri,
         read_geometry=False,
         fid_as_index=True,
@@ -250,7 +251,7 @@ def _count_features(
         bbox=feature_filter.bbox,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
-    return CountedItems(matched=len(df), total=total)
+    return CountedItems(matched=len(matched_gdf), total=total)
 
 
 def _get_schema(
@@ -263,20 +264,20 @@ def _get_schema(
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     geom_col = info["geometry_name"] or "geometry"
-    skip = {f for f in (geom_col, id_column) if f}
+    excluded_fields = {field for field in (geom_col, id_column) if field}
     field_dtypes = dict(zip(info["fields"], info["dtypes"]))
     properties: dict[str, JsonSchemaValue] = {}
     if id_column is not None:
         properties[id_column] = {
-            **_dtype_to_json_schema(field_dtypes.get(id_column, "object")),
+            **_map_dtype_to_json_schema(field_dtypes.get(id_column, "object")),
             "x-ogc-role": "id",
         }
-    properties[geom_col] = _geometry_type_to_json_schema(info["geometry_type"])
+    properties[geom_col] = _map_geometry_type_to_json_schema(info["geometry_type"])
     properties.update(
         {
-            field: _dtype_to_json_schema(dtype)
+            field: _map_dtype_to_json_schema(dtype)
             for field, dtype in zip(info["fields"], info["dtypes"])
-            if field not in skip
+            if field not in excluded_fields
         }
     )
     return {
@@ -304,19 +305,23 @@ def _get_feature(
             fid = int(feature_id)
         except ValueError:
             return None
-        gdf = pyogrio.read_dataframe(
-            data_source_uri,
-            fids=[fid],
-            fid_as_index=True,
-            **(
-                gdal_open_options.as_read_dataframe_kwargs()
-                if gdal_open_options
-                else {}
-            ),
-        )
+        try:
+            result_gdf = pyogrio.read_dataframe(
+                data_source_uri,
+                fids=[fid],
+                fid_as_index=True,
+                **(
+                    gdal_open_options.as_read_dataframe_kwargs()
+                    if gdal_open_options
+                    else {}
+                ),
+            )
+        except pyogrio.errors.FeatureError:
+            logger.debug(f"FID {fid} not found in {data_source_uri}")
+            return None
     else:  # id is column value, select via OGR's SQL layer
         escaped = feature_id.replace("'", "''")
-        gdf = pyogrio.read_dataframe(
+        result_gdf = pyogrio.read_dataframe(
             data_source_uri,
             where=f"{id_column} = '{escaped}'",
             **(
@@ -325,11 +330,11 @@ def _get_feature(
                 else {}
             ),
         )
-    if gdf.empty:
+    if result_gdf.empty:
         return None
-    row = gdf.iloc[0]
-    index = gdf.index[0]
-    return _series_to_feature(
+    row = result_gdf.iloc[0]
+    index = result_gdf.index[0]
+    return _build_feature_from_series(
         row,
         geom_col=geom_col,
         id_value=index if id_column is None else row[id_column],
@@ -337,14 +342,13 @@ def _get_feature(
     )
 
 
-def _crs_to_uri(crs: Any) -> str | None:
-    authority = crs.to_authority()
+def _format_crs_as_uri(authority: tuple[str, str] | None) -> str | None:
     if authority is None:
         return None
-    auth, code = authority
-    if auth == "OGC":
-        return f"http://www.opengis.net/def/crs/OGC/1.3/{code}"
-    return f"http://www.opengis.net/def/crs/{auth}/0/{code}"
+    authority_name, authority_code = authority
+    if authority_name == "OGC":
+        return f"http://www.opengis.net/def/crs/OGC/1.3/{authority_code}"
+    return f"http://www.opengis.net/def/crs/{authority_name}/0/{authority_code}"
 
 
 def _get_storage_crs(
@@ -355,11 +359,9 @@ def _get_storage_crs(
         data_source_uri,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
-    crs = info.get("crs")
-    if crs is None:
+    if (raw_crs := info.get("crs")) is None:
         return None
-    crs_uri = _crs_to_uri(crs)
-    if crs_uri is None:
+    if (crs_uri := _format_crs_as_uri(pyproj.CRS(raw_crs).to_authority())) is None:
         return None
     return StorageCrs(crs=crs_uri)
 
@@ -372,12 +374,11 @@ def _get_spatial_extent(
         data_source_uri,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
-    bounds = info.get("total_bounds")
-    crs = info.get("crs")
-    if bounds is None or crs is None:
+    if (bounds := info.get("total_bounds")) is None:
         return None
-    crs_uri = _crs_to_uri(crs)
-    if crs_uri is None:
+    if (raw_crs := info.get("crs")) is None:
+        return None
+    if (crs_uri := _format_crs_as_uri(pyproj.CRS(raw_crs).to_authority())) is None:
         return None
     return TwoDimensionalSpatialExtent(
         bbox=[(float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))],
@@ -411,13 +412,13 @@ class PyogrioFeatureProvider:
     async def list_features(
         self, feature_filter: PottoFeatureFilter | None = None
     ) -> list[Feature]:
-        filter_ = feature_filter or PottoFeatureFilter(
+        resolved_filter = feature_filter or PottoFeatureFilter(
             limit=self.potto_config.page_size,
         )
         return await asyncio.to_thread(
             _list_features,
             self.config.data_source_uri,
-            filter_,
+            resolved_filter,
             self.config.id_column,
             gdal_open_options=self.config.gdal_open_options,
         )
