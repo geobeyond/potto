@@ -137,7 +137,9 @@ def _list_features(
     filter_ = (feature_filter or base.PottoFeatureFilter()).model_dump(
         by_alias=True, exclude_none=True
     )
-    if not filter_.get("bbox"):
+    if bbox := filter_.get("bbox"):
+        filter_["bbox"] = ",".join(str(v) for v in bbox)
+    else:
         del filter_["bbox-crs"]
     pygeoapi_response = _itemtypes.get_collection_items(
         pygeoapi_api,
@@ -166,7 +168,9 @@ def _count_items(
         else {}
     )
     filter_.pop("bbox-crs", None)
-    if not filter_.get("bbox"):
+    if bbox := filter_.get("bbox"):
+        filter_["bbox"] = ",".join(str(v) for v in bbox)
+    else:
         filter_.pop("bbox", None)
     pygeoapi_response = _itemtypes.get_collection_items(
         pygeoapi_api,
@@ -203,6 +207,8 @@ def _get_feature(
     )
     pygeoapi_headers, pygeoapi_status_code, pygeoapi_content = pygeoapi_response
     status_value = cast(HTTPStatus, pygeoapi_status_code).value
+    if status_value == 404:
+        return None
     if status_value != 200:
         detail = json.loads(pygeoapi_content).get("description", pygeoapi_content)
         if status_value == 400:
