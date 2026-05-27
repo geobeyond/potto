@@ -18,6 +18,7 @@ dependencies = [
     "bcrypt>=5.0.0",
     "cryptography>=46.0.7",
     "cyclopts>=4.2.4",
+    "duckdb>=1.5.3",
     "fastapi[standard]>=0.128.0",
     "geoalchemy2>=0.18.1",
     "geopandas>=1.1.3",

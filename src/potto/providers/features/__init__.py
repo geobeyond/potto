@@ -6,6 +6,7 @@ from .registry import (
     get_feature_provider,
 )
 from . import (
+    _duckdb,
     _postgis,
     _pygeoapi,
 )
@@ -18,6 +19,7 @@ except ImportError:
     logger.info("pyogrio is not installed; PyogrioFeatureProvider will not work")
     pass
 
+register_feature_provider("duckdb", _duckdb.duckdb_provider_factory)
 register_feature_provider("pyogrio", _pyogrio.pyogrio_provider_factory)
 register_feature_provider("pygeoapi", _pygeoapi.pygeoapi_feature_provider_factory)
 register_feature_provider("postgis", _postgis.postgis_provider_factory)
