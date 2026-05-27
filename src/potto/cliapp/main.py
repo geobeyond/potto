@@ -26,6 +26,7 @@ from ..webapp.api.main import create_api_app_from_settings
 from .cite import cite_app
 from .collections import collections_app
 from .db import db_app
+from .dev import dev_app
 from .metadata import metadata_app
 from .users import user_app
 
@@ -42,12 +43,15 @@ collections_app.console = _console
 collections_app.error_console = _error_console
 db_app.console = _console
 db_app.error_console = _error_console
+dev_app.console = _console
+dev_app.error_console = _error_console
 metadata_app.console = _console
 metadata_app.error_console = _error_console
 user_app.console = _console
 user_app.error_console = _error_console
 potto_app.command(collections_app.meta, name="collection")
 potto_app.command(db_app.meta, name="db")
+potto_app.command(dev_app.meta, name="dev")
 potto_app.command(metadata_app.meta, name="metadata")
 potto_app.command(user_app.meta, name="user")
 potto_app.command(cite_app.meta, name="cite-testing")

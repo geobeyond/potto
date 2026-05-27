@@ -50,7 +50,7 @@ def to_shapely(
 
 
 CollectionIdentifier = typing.Annotated[
-    str, pydantic.Field(min_length=3, max_length=100, pattern=r"[a-zA-Z]\w*")
+    str, pydantic.Field(min_length=3, max_length=100, pattern=r"[a-zA-Z][\w\-]*")
 ]
 
 

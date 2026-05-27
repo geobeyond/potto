@@ -49,7 +49,7 @@ class CollectionDetail(CollectionListItem):
         viewers: list[User] | None = None,
     ) -> "CollectionDetail":
         return cls(
-            **item.model_dump(),
+            **item.model_dump(exclude={"spatial_extent"}),
             owner=item.owner.username,
             editors=[u.username for u in (editors or [])],
             viewers=[v.username for v in (viewers or [])],

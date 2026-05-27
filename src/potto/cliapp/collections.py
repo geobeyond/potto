@@ -217,7 +217,7 @@ async def get_collection(
 
 
 @collections_app.command(name="create-feature")
-async def create_collection(
+async def create_feature_collection(
     *,
     collection: cli_schemas.SimplifiedFeatureCollectionCreate,
     format: Literal["json", "table"] = "table",
