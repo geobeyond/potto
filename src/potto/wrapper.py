@@ -129,7 +129,7 @@ class Potto:
 
         if (
             feature_provider := await get_feature_provider(
-                potto_collection, session, self._settings
+                potto_collection, self._settings
             )
         ) is None:
             raise potto_exceptions.PottoException(
@@ -170,9 +170,7 @@ class Potto:
         )
 
         if (
-            feature_provider := await get_feature_provider(
-                collection, session, self._settings
-            )
+            feature_provider := await get_feature_provider(collection, self._settings)
         ) is None:
             return potto_schemas.FeatureListResponse(
                 collection=collection,
@@ -218,9 +216,7 @@ class Potto:
         ) is None:
             raise potto_exceptions.PottoCollectionNotFoundException(collection_id)
         if (
-            feature_provider := await get_feature_provider(
-                collection, session, self._settings
-            )
+            feature_provider := await get_feature_provider(collection, self._settings)
         ) is None:
             raise potto_exceptions.PottoException(
                 f"Collection {collection_id!r} does not have a feature provider"

@@ -359,7 +359,6 @@ def test_provider_factory_returns_configured_provider():
     provider = _pyogrio.pyogrio_provider_factory(
         collection=None,
         raw_config={"data_source_uri": "/path/to/data.geojson"},
-        session=None,
         potto_config=PottoSettings(),
     )
     assert isinstance(provider, _pyogrio.PyogrioFeatureProvider)

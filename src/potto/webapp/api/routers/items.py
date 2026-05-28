@@ -61,7 +61,6 @@ async def list_collection_items(
         collection_items = await potto.api_list_collection_items(
             collection_id, user=user, filter_=filter_, session=session
         )
-    logger.debug(f"{collection_items=}")
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
     response_headers: dict[str, str] = {
         "Content-Type": constants.MEDIA_TYPE_GEO_JSON,

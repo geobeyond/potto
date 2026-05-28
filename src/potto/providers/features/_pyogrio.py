@@ -14,9 +14,9 @@ import numpy as np
 import pandas as pd
 import pydantic
 import pyogrio
+import pyogrio.errors
 import pyproj
 from pydantic.json_schema import JsonSchemaValue
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ...config import PottoSettings
 from ...schemas.potto import (
@@ -495,7 +495,6 @@ class PyogrioFeatureProvider:
 def pyogrio_provider_factory(
     collection: Collection,
     raw_config: dict[str, Any],
-    session: AsyncSession,
     potto_config: PottoSettings,
 ) -> PyogrioFeatureProvider:
     config = PyogrioFeatureProviderConfiguration.model_validate(raw_config)

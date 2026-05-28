@@ -207,7 +207,18 @@ class CollectionView(_PottoAdminModelView):
         Collection.custom_page_size,
         Collection.custom_page_size_max,
         Collection.keywords,
-        # JSONField(name="providers"),
+        ListField(
+            CollectionField(
+                name="additional_links",
+                fields=(
+                    StringField(name="type", label="media type".capitalize()),
+                    StringField(name="rel"),
+                    URLField(name="href"),
+                    JSONField(name="title"),
+                    StringField(name="href_lang"),
+                ),
+            )
+        ),
         ListField(
             CollectionField(
                 name="providers",
@@ -218,18 +229,6 @@ class CollectionView(_PottoAdminModelView):
                     ),
                     StringField(name="provider_name"),
                     JSONField(name="config"),
-                ),
-            )
-        ),
-        ListField(
-            CollectionField(
-                name="additional_links",
-                fields=(
-                    StringField(name="media_type"),
-                    StringField(name="rel"),
-                    URLField(name="href"),
-                    JSONField(name="title"),
-                    StringField(name="href_lang"),
                 ),
             )
         ),
@@ -381,6 +380,18 @@ class CollectionView(_PottoAdminModelView):
                     }
                 )
             return result
+        # elif field.name == "additional_links":
+        #     logger.debug(f"{value=}")
+        #     result = []
+        #     for raw_db_link in value:
+        #         serialized_link = {}
+        #         for k, v in raw_db_link.items():
+        #             if k == "type":
+        #                 serialized_link["media_type"] = v
+        #             else:
+        #                 serialized_link[k] = v
+        #         result.append(serialized_link)
+        #     return result
         else:
             return await super().serialize_field_value(value, field, action, request)
 

@@ -245,7 +245,10 @@ class PaginationContext(pydantic.BaseModel):
         additional_query_params: dict[str, str] | None = None,
     ) -> list[Link]:
         additional = (
-            "&".join(f"{k}={v}" for k, v in additional_query_params.items())
+            "&".join(
+                f"{k}={','.join(str(x) for x in v) if isinstance(v, (list, tuple)) else v}"
+                for k, v in additional_query_params.items()
+            )
             if additional_query_params
             else None
         )
@@ -429,7 +432,7 @@ class PottoFeatureFilter(pydantic.BaseModel):
     @classmethod
     def from_feature_filter(cls, feature_filter: FeatureFilter) -> "PottoFeatureFilter":
         bbox = None
-        if raw_bbox := feature_filter.crs.split(",") if feature_filter.crs else None:
+        if raw_bbox := feature_filter.bbox.split(",") if feature_filter.bbox else None:
             try:
                 bbox = (
                     float(raw_bbox[0]),

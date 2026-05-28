@@ -89,6 +89,17 @@ class PottoSettings(pydantic_settings.BaseSettings):
             "CITE validation, which only supports OAS 3.0."
         ),
     )
+    feature_provider_cache_size: int = pydantic.Field(
+        default=256,
+        ge=0,
+        description=(
+            "Maximum number of feature provider instances to keep in the cache. "
+            "Each entry holds an open connection (e.g. a DuckDB in-memory DB), so "
+            "tune this against available memory. 256 is suitable for deployments with "
+            "up to a few hundred collections under typical power-law access patterns. "
+            "Set to 0 to disable caching (useful for testing)."
+        ),
+    )
 
     _jinja_env: jinja2.Environment | None = None
     _db_engine: AsyncEngine | None = None

@@ -35,7 +35,6 @@ from ...schemas.potto import (
 )
 
 if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
     from ...config import PottoSettings
     from ...schemas.potto import Collection
 
@@ -377,7 +376,6 @@ class PostgisFeatureProvider:
 async def postgis_provider_factory(
     collection: "Collection",
     raw_config: dict[str, Any],
-    session: "AsyncSession",
     potto_config: "PottoSettings",
 ) -> PostgisFeatureProvider:
     config = PostgisFeatureProviderConfiguration.model_validate(raw_config)

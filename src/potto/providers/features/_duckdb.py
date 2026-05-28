@@ -14,16 +14,14 @@ queries against a shared connection.
 
 Provider caching
 ----------------
-# TODO: A new DuckdbFeatureProvider is created for every request because the
-# registry does not cache provider instances.  This means DuckDB setup (extension
-# loading, CREATE SECRET, ATTACH, schema probing) runs on every request, which is
-# expensive — especially for S3-backed Parquet sources.  A registry-level cache
-# keyed by (collection_identifier, config_hash) is required for production use and
-# should be designed to cover all provider types, not just DuckDB.
+Provider instances are cached at the registry level, keyed by collection identifier
+and a hash of the provider config.  DuckDB setup (extension loading, CREATE SECRET,
+ATTACH, schema probing) therefore runs once per unique config rather than per request.
 """
 
 import asyncio
 import logging
+import re
 from typing import (
     Annotated,
     Any,
@@ -49,7 +47,6 @@ from ...schemas.base import (
 from ...schemas.potto import Feature
 
 if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
     from ...config import PottoSettings
     from ...schemas.potto import Collection
 
@@ -414,16 +411,25 @@ class DuckdbFeatureProvider:
         )
         self._conn.execute(sql)
 
+    @property
+    def _source_from_clause(self) -> str:
+        """FROM clause fragment usable for all source types.
+
+        DuckDB TVFs (read_parquet, read_csv, …) and plain table names cannot
+        serve as bare subquery bodies; only a SELECT can.  Detect whether the
+        source is already a query expression and wrap accordingly.
+        """
+        source = self.config.source.strip()
+        if re.match(r"^\s*(SELECT|WITH|VALUES)\b", source, re.IGNORECASE):
+            return f"({source}) AS _src"
+        return f"(SELECT * FROM {source}) AS _src"
+
     def _describe_source_columns(self) -> list[tuple[str, str]]:
         """Return ``[(column_name, duckdb_type_str), …]`` for the configured source."""
-        sql = f"DESCRIBE SELECT * FROM ({self.config.source}) AS _src LIMIT 0"
+        sql = f"SELECT * FROM {self._source_from_clause} LIMIT 0"
         cursor = self._conn.cursor()
         cursor.execute(sql)
-        # DESCRIBE result columns: column_name, column_type, null, key, default, extra
-        return [
-            (description_entry[0], description_entry[1])
-            for description_entry in cursor.fetchall()
-        ]
+        return [(desc[0], str(desc[1])) for desc in cursor.description]
 
     def _validate_columns(self) -> None:
         column_names = {name for name, _ in self._columns}
@@ -517,7 +523,7 @@ class DuckdbFeatureProvider:
                 target_crs = _quote_string_literal(
                     _format_srid_as_epsg_string(native_srid)
                 )
-                envelope_expr = f"ST_Transform(ST_MakeEnvelope(?, ?, ?, ?), {source_crs}, {target_crs})"
+                envelope_expr = f"ST_Transform(ST_MakeEnvelope(?, ?, ?, ?), {source_crs}, {target_crs}, always_xy := true)"
             where_clauses.append(f"ST_Intersects({quoted_geom_col}, {envelope_expr})")
             params.extend(feature_filter.bbox)
 
@@ -543,15 +549,12 @@ class DuckdbFeatureProvider:
         else:
             source_crs = _quote_string_literal(_format_srid_as_epsg_string(native_srid))
             target_crs = _quote_string_literal(_format_srid_as_epsg_string(target_srid))
-            geom_expr = f"ST_AsGeoJSON(ST_Transform({quoted_geom_col}, {source_crs}, {target_crs}))"
+            geom_expr = f"ST_AsGeoJSON(ST_Transform({quoted_geom_col}, {source_crs}, {target_crs}, always_xy := true))"
 
         select_expressions = non_geometry_columns + [
             f"{geom_expr} AS {quoted_geom_col}"
         ]
-        sql = (
-            f"SELECT {', '.join(select_expressions)}\n"
-            f"FROM ({self.config.source}) AS _src"
-        )
+        sql = f"SELECT {', '.join(select_expressions)}\nFROM {self._source_from_clause}"
 
         params: list[Any] = []
         where_clauses: list[str] = []
@@ -583,7 +586,7 @@ class DuckdbFeatureProvider:
         feature_filter: PottoFeatureFilter,
     ) -> tuple[str, tuple[Any, ...]]:
         where_clauses, params = self._build_predicates(feature_filter, native_srid)
-        sql = f"SELECT COUNT(*)\nFROM ({self.config.source}) AS _src"
+        sql = f"SELECT COUNT(*)\nFROM {self._source_from_clause}"
         if where_clauses:
             sql += "\nWHERE " + " AND ".join(where_clauses)
         return sql, tuple(params)
@@ -633,7 +636,7 @@ class DuckdbFeatureProvider:
         quoted_geom_col = _quote_ident(self.config.geometry_column)
         sql = (
             f"SELECT DISTINCT ST_GeometryType({quoted_geom_col}) AS geom_type\n"
-            f"FROM ({self.config.source}) AS _src\n"
+            f"FROM {self._source_from_clause}\n"
             f"WHERE {quoted_geom_col} IS NOT NULL\n"
             f"LIMIT 2"
         )
@@ -783,12 +786,12 @@ class DuckdbFeatureProvider:
             geom_expr = quoted_geom_col
         else:
             source_crs = _quote_string_literal(_format_srid_as_epsg_string(native_srid))
-            geom_expr = f"ST_Transform({quoted_geom_col}, {source_crs}, 'EPSG:4326')"
+            geom_expr = f"ST_Transform({quoted_geom_col}, {source_crs}, 'EPSG:4326', always_xy := true)"
 
         sql = (
             f"WITH bbox AS (\n"
             f"    SELECT ST_Extent_Agg({geom_expr}) AS extent\n"
-            f"    FROM ({self.config.source}) AS _src\n"
+            f"    FROM {self._source_from_clause}\n"
             f")\n"
             f"SELECT\n"
             f"    ST_XMin(extent) AS xmin,\n"
@@ -824,7 +827,7 @@ class DuckdbFeatureProvider:
             sql = (
                 f'SELECT MIN({quoted_temporal_col}) AS "temporal_begin",\n'
                 f'       MAX({quoted_temporal_col}) AS "temporal_end"\n'
-                f"FROM ({self.config.source}) AS _src"
+                f"FROM {self._source_from_clause}"
             )
             rows = await self._execute(sql)
             if rows:
@@ -842,7 +845,7 @@ class DuckdbFeatureProvider:
             sql = (
                 f'SELECT MIN({quoted_start_col}) AS "temporal_begin",\n'
                 f'       MAX({quoted_end_col}) AS "temporal_end"\n'
-                f"FROM ({self.config.source}) AS _src"
+                f"FROM {self._source_from_clause}"
             )
             rows = await self._execute(sql)
             if rows:
@@ -862,10 +865,8 @@ class DuckdbFeatureProvider:
 async def duckdb_provider_factory(
     collection: "Collection",  # noqa: ARG001 — required by factory protocol; not used
     raw_config: dict[str, Any],
-    session: "AsyncSession",  # noqa: ARG001 — DuckDB does not use the SQLAlchemy session
     potto_config: "PottoSettings",
 ) -> DuckdbFeatureProvider:
-    # TODO: provider caching — see module docstring.
     config = DuckdbFeatureProviderConfiguration.model_validate(raw_config)
     # Run DuckDB setup in a thread so extension loading and schema probing
     # (which are synchronous) do not block the async event loop.

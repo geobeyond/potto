@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 async def create_collection(
     session: AsyncSession, to_create: CollectionCreate
 ) -> Collection:
+    logger.debug(f"{to_create=}")
     instance = Collection(
         **to_create.model_dump(exclude={"additional_extents"}),
     )

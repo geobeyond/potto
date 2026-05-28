@@ -145,9 +145,7 @@ async def _enrich_from_provider(
     potto_settings: PottoSettings,
 ) -> Collection:
     try:
-        provider = await get_feature_provider(
-            collection.to_potto(), session, potto_settings
-        )
+        provider = await get_feature_provider(collection.to_potto(), potto_settings)
     except Exception:
         logger.warning(
             "Failed to instantiate feature provider for collection enrichment"

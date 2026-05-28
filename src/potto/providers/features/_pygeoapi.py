@@ -15,7 +15,6 @@ from pygeoapi.api import API as _API
 from pygeoapi.api import itemtypes as _itemtypes
 from pygeoapi.api import get_collection_schema as _get_collection_schema
 import shapely
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ... import exceptions as potto_exceptions
 from ...schemas.potto import (
@@ -425,7 +424,6 @@ def to_potto_feature(pygeoapi_feature: dict) -> Feature:
 def pygeoapi_feature_provider_factory(
     collection: Collection,
     raw_config: dict[str, Any],
-    session: AsyncSession,
     potto_config: "PottoSettings",
 ) -> PygeoapiFeatureProvider:
     config = PygeoapiFeatureProviderConfig.model_validate(raw_config)
