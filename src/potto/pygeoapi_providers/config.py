@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 import shapely
 import shapely.strtree
 import shapely.geometry
+from pygeoapi.crs import crs_transform
 from pygeoapi.provider.base import ProviderItemNotFoundError
 
 from .base import (
@@ -75,6 +76,7 @@ class PygeoapiConfigWktFeatureProvider:
     def fields(self) -> dict:
         return self._fields.copy()
 
+    @crs_transform
     def query(
         self,
         offset: int = 0,
@@ -106,6 +108,7 @@ class PygeoapiConfigWktFeatureProvider:
             }
         )
 
+    @crs_transform
     def get(
         self,
         identifier: str | int,
@@ -162,6 +165,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
     def fields(self) -> dict:
         return self._fields.copy()
 
+    @crs_transform
     def query(
         self,
         offset: int = 0,
@@ -192,6 +196,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
             }
         )
 
+    @crs_transform
     def get(
         self,
         identifier: str | int,

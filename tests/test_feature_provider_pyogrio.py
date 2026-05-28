@@ -289,6 +289,35 @@ def test_get_feature_by_id_column_returns_none_when_not_found(
     )
 
 
+def test_list_features_reprojects_to_requested_crs(geojson_uri):
+    # Point(10, 20) in EPSG:4326 → approx (1113194.9, 2273030.9) in EPSG:3857
+    feature_filter = PottoFeatureFilter(
+        limit=10,
+        offset=0,
+        crs="http://www.opengis.net/def/crs/EPSG/0/3857",
+    )
+    features = _pyogrio._list_features(geojson_uri, feature_filter)
+    first_geom = features[0].geometry
+    assert first_geom.x == pytest.approx(1113194.9, rel=1e-4)
+    assert first_geom.y == pytest.approx(2273030.9, rel=1e-4)
+
+
+def test_get_feature_reprojects_to_requested_crs(geojson_uri):
+    all_features = _pyogrio._list_features(
+        geojson_uri, PottoFeatureFilter(limit=10, offset=0)
+    )
+    target = all_features[0]
+    feature = _pyogrio._get_feature(
+        geojson_uri,
+        target.id_,
+        crs="http://www.opengis.net/def/crs/EPSG/0/3857",
+    )
+    assert feature is not None
+    # Point(10, 20) in EPSG:4326 → approx (1113194.9, 2273030.9) in EPSG:3857
+    assert feature.geometry.x == pytest.approx(1113194.9, rel=1e-4)
+    assert feature.geometry.y == pytest.approx(2273030.9, rel=1e-4)
+
+
 def test_get_storage_crs_returns_well_formed_uri_for_geojson(geojson_uri):
     storage_crs = _pyogrio._get_storage_crs(geojson_uri)
     assert storage_crs is not None

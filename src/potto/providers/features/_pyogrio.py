@@ -229,6 +229,9 @@ def _list_features(
         bbox=item_filter.bbox,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
+    target_crs = pyproj.CRS(item_filter.crs)
+    if features_gdf.crs is not None and not features_gdf.crs.equals(target_crs):
+        features_gdf = features_gdf.to_crs(target_crs)
     return _build_features_from_geodataframe(features_gdf, id_column=id_column)
 
 
@@ -332,6 +335,9 @@ def _get_feature(
         )
     if result_gdf.empty:
         return None
+    target_crs = pyproj.CRS(crs)
+    if result_gdf.crs is not None and not result_gdf.crs.equals(target_crs):
+        result_gdf = result_gdf.to_crs(target_crs)
     row = result_gdf.iloc[0]
     index = result_gdf.index[0]
     return _build_feature_from_series(

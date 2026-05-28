@@ -201,6 +201,7 @@ def _get_feature(
         request=PottoRequest(  # ty: ignore[invalid-argument-type]
             locale=babel.Locale("en"),
             output_format="json",
+            crs=crs,
         ),
         dataset=collection.identifier,
         identifier=feature_identifier,
