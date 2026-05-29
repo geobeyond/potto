@@ -146,7 +146,7 @@ class Potto:
             )
         return potto_collection
 
-    async def api_list_collection_items(
+    async def list_collection_items(
         self,
         collection_id: str,
         *,
@@ -199,7 +199,7 @@ class Potto:
             metadata={},
         )
 
-    async def api_get_collection_item(
+    async def get_collection_item(
         self,
         user: auth.PottoUser | None,
         *,

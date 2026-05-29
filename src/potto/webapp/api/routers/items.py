@@ -58,7 +58,7 @@ async def list_collection_items(
             status_code=400, detail=f"Unknown query parameters: {unknown}"
         )
     async with settings.get_db_session_maker()() as session:
-        collection_items = await potto.api_list_collection_items(
+        collection_items = await potto.list_collection_items(
             collection_id, user=user, filter_=filter_, session=session
         )
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
@@ -99,7 +99,7 @@ async def get_item_details(
 ):
     """Get details about a collection item."""
     async with settings.get_db_session_maker()() as session:
-        collection_item = await potto.api_get_collection_item(
+        collection_item = await potto.get_collection_item(
             user,
             collection_id=collection_id,
             item_id=item_id,

@@ -25,7 +25,6 @@ class LocalAuthBackend(AuthenticationBackend):
     async def authenticate(
         self, conn: HTTPConnection
     ) -> tuple[AuthCredentials, PottoUser] | None:
-        logger.debug("Inside LocalAuthBackend.authenticate")
         if user_id := conn.session.get("user_id"):
             logger.debug(f"{user_id=} found in the session")
             if (potto_user := await self._get_user_from_db(user_id)) is not None:

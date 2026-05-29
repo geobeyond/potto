@@ -325,7 +325,8 @@ class ItemFilter(pydantic.BaseModel):
     filter_lang: typing.Annotated[
         str | None,
         pydantic.Field(
-            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json')."
+            alias="filter-lang",
+            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
         ),
     ] = None
     filter_crs_uri: typing.Annotated[
@@ -428,6 +429,17 @@ class PottoFeatureFilter(pydantic.BaseModel):
         ),
     ] = 0
     properties: list[str] | None = None
+    filter_: typing.Annotated[
+        str | None,
+        pydantic.Field(serialization_alias="filter", description="Filter expression."),
+    ] = None
+    filter_lang: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            serialization_alias="filter-lang",
+            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
+        ),
+    ] = None
 
     @classmethod
     def from_feature_filter(cls, feature_filter: FeatureFilter) -> "PottoFeatureFilter":
@@ -449,4 +461,6 @@ class PottoFeatureFilter(pydantic.BaseModel):
             limit=feature_filter.limit,
             offset=feature_filter.offset,
             properties=feature_filter.select_properties,
+            filter_=feature_filter.filter_,
+            filter_lang=feature_filter.filter_lang,
         )
