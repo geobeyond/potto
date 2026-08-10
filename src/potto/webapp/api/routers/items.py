@@ -9,7 +9,6 @@ from fastapi import (
     Response,
 )
 
-from .... import constants
 from ....schemas.base import FeatureFilter
 from ....schemas.web.items import (
     GeoJsonItem,
@@ -40,6 +39,7 @@ router = APIRouter()
     response_model=GeoJsonItemCollection,
     response_model_by_alias=True,
     response_model_exclude_none=True,
+    response_class=responses.GeoJsonResponse,
 )
 async def list_collection_items(
     request: Request,
@@ -63,7 +63,6 @@ async def list_collection_items(
         )
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
     response_headers: dict[str, str] = {
-        "Content-Type": constants.MEDIA_TYPE_GEO_JSON,
         "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
     }
     if crs_header := (
@@ -84,6 +83,7 @@ async def list_collection_items(
     response_model=GeoJsonItem,
     response_model_by_alias=True,
     response_model_exclude_none=True,
+    response_class=responses.GeoJsonResponse,
 )
 async def get_item_details(
     request: Request,
@@ -108,7 +108,6 @@ async def get_item_details(
         )
     result = GeoJsonItem.from_potto(collection_item, request.url_for)
     response_headers: dict[str, str] = {
-        "Content-Type": constants.MEDIA_TYPE_GEO_JSON,
         "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
     }
     if crs_header := (

@@ -6,8 +6,9 @@ from pydantic import SecretStr
 from starlette.routing import Mount
 
 from potto import config
+from potto.authz.backend import LocalAuthorizationBackend
 from potto.db.commands.auth import create_user
-from potto.db.commands.collections import create_collection
+from potto.operations.collections import create_collection
 from potto.schemas import (
     auth as auth_schemas,
     base as base_schemas,
@@ -85,10 +86,12 @@ async def admin_user(db, db_session_maker):
 
 
 @pytest_asyncio.fixture
-async def obs_feature_collection(db, db_session_maker, admin_user):
+async def obs_feature_collection(db, db_session_maker, admin_user, settings):
     async with db_session_maker() as session:
         yield await create_collection(
             session,
+            admin_user,
+            LocalAuthorizationBackend(),
             collections_schemas.CollectionCreate(
                 resource_identifier="obs-test",
                 owner_id=admin_user.id,
@@ -156,4 +159,5 @@ async def obs_feature_collection(db, db_session_maker, admin_user):
                     )
                 },
             ),
+            settings,
         )

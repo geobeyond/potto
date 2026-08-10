@@ -31,6 +31,7 @@ def collection():
         identifier="test-collection",
         title="Test Collection",
         owner=auth.PottoUser(id="user-1", username="testuser", is_active=True),
+        crs=[CRS_84],
         providers={
             base.ProvidedDataType.FEATURE.value: base.PottoProvider(
                 provider_name="pygeoapi",

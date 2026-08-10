@@ -220,7 +220,12 @@ async def create_collection(
     except DatabaseError as err:
         await session.rollback()
         raise PottoCannotCreateCollectionException(str(err)) from err
-    return await _enrich_from_provider(session, collection, potto_settings)
+    collection = await _enrich_from_provider(session, collection, potto_settings)
+    if collection.storage_crs is None:
+        collection = await collection_commands.update_collection(
+            session, collection, CollectionUpdate(storage_crs=constants.CRS_84)
+        )
+    return collection
 
 
 async def update_collection(

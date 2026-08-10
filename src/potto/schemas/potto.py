@@ -31,10 +31,10 @@ class Collection:
     identifier: str
     title: base.Title
     owner: auth.PottoUser
+    crs: list[str]
     description: base.MaybeDescription = None
     keywords: base.MaybeKeywords = None
     spatial_extent: base.MaybeShapelyGeometry = None
-    crs: list[str] | None = dataclasses.field(default_factory=lambda: [CRS_84])
     storage_crs: str | None = CRS_84
     storage_crs_coordinate_epoch: float | None = None
     custom_page_size: int | None = None
