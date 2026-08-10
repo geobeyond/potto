@@ -18,8 +18,11 @@ from ..base import Link
 class GeoJsonItem(pydantic.BaseModel):
     id_: str = pydantic.Field(serialization_alias="id")
     type_: Annotated[str, pydantic.Field(serialization_alias="type")] = "feature"
-    properties: dict
-    geometry: dict
+    # WithJsonSchema avoids the explicit additionalProperties: true that Pydantic
+    # emits by default for untyped dict fields, which trips the OWASP
+    # no-additionalProperties lint rule despite being identical to omitting the key.
+    properties: Annotated[dict, pydantic.WithJsonSchema({"type": "object"})]
+    geometry: Annotated[dict, pydantic.WithJsonSchema({"type": "object"})]
     links: list[Link]
 
     @classmethod

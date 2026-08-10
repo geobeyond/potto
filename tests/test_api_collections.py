@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -87,6 +89,7 @@ def test_api_collection_get_oapif_part2(
     )
     assert response.status_code == 200
     payload = response.json()
+    print(f"{json.dumps(payload, indent=2)}")
     assert payload["id"] == obs_feature_collection.resource_identifier
     assert "http://www.opengis.net/def/crs/OGC/1.3/CRS84" in payload["crs"]
     assert payload["storageCrs"] == "http://www.opengis.net/def/crs/OGC/1.3/CRS84"

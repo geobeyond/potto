@@ -9,11 +9,12 @@ import pydantic
 
 from .base import (
     AdditionalExtent,
-    CollectionProvider,
     CollectionType,
+    CollectionIdentifier,
     MaybeDescription,
     MaybeKeywords,
     MaybeShapelyGeometry,
+    PottoProvider,
     Title,
 )
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class CollectionCreate(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
-    resource_identifier: str = pydantic.Field(min_length=3, max_length=100)
+    resource_identifier: CollectionIdentifier
     owner_id: str
     is_public: bool = False
     collection_type: CollectionType
@@ -51,7 +52,7 @@ class CollectionCreate(pydantic.BaseModel):
         ),
     ] = None
     providers: Annotated[
-        dict[str, CollectionProvider] | None,
+        dict[str, PottoProvider] | None,
         pydantic.WithJsonSchema(
             {
                 "anyOf": [
@@ -60,7 +61,7 @@ class CollectionCreate(pydantic.BaseModel):
                             {"type": "object", "maxProperties": 10},
                             {
                                 "additionalProperties": {
-                                    "$ref": "#/components/schemas/CollectionProvider"
+                                    "$ref": "#/components/schemas/PottoProvider"
                                 }
                             },
                         ]
@@ -95,4 +96,4 @@ class CollectionUpdate(pydantic.BaseModel):
     custom_page_size: Annotated[int | None, pydantic.Field(ge=1)] = None
     custom_page_size_max: Annotated[int | None, pydantic.Field(ge=1)] = None
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
-    providers: dict[str, CollectionProvider] | None = None
+    providers: dict[str, PottoProvider] | None = None

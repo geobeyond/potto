@@ -1,8 +1,10 @@
 import logging
+import os
+import re
 import typing
 
-from .schemas.base import CollectionType
 from .exceptions import PottoException
+from .schemas.base import CollectionType
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ def get_collection_type(pygeoapi_collection: dict) -> CollectionType:
         raise PottoException(f"Unsupported collection type: {provider_types=}") from err
 
 
+# TODO: check this function's usage of settings
 def get_collection_pagination_limit(
     request_limit: int | None, collection: "Collection", settings: "PottoSettings"
 ) -> int:
@@ -40,3 +43,19 @@ def get_collection_pagination_limit(
     return min(
         requested_limit, collection.custom_page_size_max or settings.page_size_max
     )
+
+
+def interpolate_configuration_value(value: str, env_whitelist: list[str]) -> str:
+
+    def make_replacement(re_match: re.Match) -> str:
+        default_value = "UNAUTHORIZED_ENVIRONMENT_ACCESS"
+        env_variable_name = re_match.group(1)
+        env_variable_value = default_value
+        if (
+            env_variable_name.startswith("POTTO__")
+            or env_variable_name in env_whitelist
+        ):
+            env_variable_value = os.getenv(str(env_variable_name), "ENV_VAR_NOT_FOUND")
+        return env_variable_value
+
+    return re.sub(r"\${?(\w+)}?", make_replacement, value)

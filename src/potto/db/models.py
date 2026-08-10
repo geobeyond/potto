@@ -21,16 +21,18 @@ from sqlmodel import (
 )
 from starlette.requests import Request
 
+from .. import constants
 from ..schemas.auth import PottoUser
 from ..schemas import potto as potto_schemas
 from ..schemas import metadata as metadata_schemas
 from ..schemas.base import (
-    CollectionProvider,
+    PottoProvider,
     CollectionType,
     Title,
     MaybeDescription,
     MaybeKeywords,
     MaybeShapelyGeometry,
+    ProvidedDataType,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,12 +93,11 @@ class Collection(SQLModel, table=True):
     keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
     spatial_extent: MaybeShapelyGeometry = Field(
         default=None,
-        sa_type=ShapelyGeometryAdapter,
-        nullable=True,
+        sa_column=Column(ShapelyGeometryAdapter(srid=4326), nullable=True),
     )
     spatial_extent_crs: str | None = None  # part 1 - CRS of the spatial extent
-    crs: list[str] | None = Field(
-        sa_type=JSONB, nullable=True
+    crs: list[str] = Field(
+        default_factory=lambda: [constants.CRS_84], sa_type=JSONB, nullable=False
     )  # part 2 - list of supported CRS
     storage_crs: str | None = Field(
         default=None, nullable=True
@@ -142,7 +143,7 @@ class Collection(SQLModel, table=True):
             temporal_extent_end=self.temporal_extent_end,
             additional_links=self.additional_links,
             providers={
-                name: CollectionProvider.model_validate(raw_provider)
+                ProvidedDataType(name): PottoProvider.model_validate(raw_provider)
                 for name, raw_provider in (self.providers or {}).items()
             },
             custom_page_size=self.custom_page_size,

@@ -5,6 +5,7 @@ from .base import (
 from .collections import (
     CollectionDetail,
     CollectionListItem,
+    SimplifiedFeatureCollectionCreate,
 )
 from .metadata import ServerMetadataDetail
 from .auth import (
@@ -18,6 +19,7 @@ __all__ = [
     "ItemList",
     "ItemListMeta",
     "ServerMetadataDetail",
+    "SimplifiedFeatureCollectionCreate",
     "UserDetail",
     "UserListItem",
 ]

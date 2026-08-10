@@ -66,6 +66,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     debug: bool = False
     public_url: str = "http://localhost:3001"
     pygeoapi_config_file: Path = Path.home() / "pygeoapi-config.yml"
+    env_whitelist: list[str] = pydantic.Field(default_factory=list)
     templates_dir: Path | None = None
     admin_templates_dir: Path | None = None
     translations_dir: Path | None = None
@@ -75,6 +76,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     static_dir: Path | None = None
     uvicorn_num_workers: int = 8
     uvicorn_log_config_file: Path | None = None
+    local_data_root: Path = Path.home() / "potto_data"
     oidc: OIDCSettings | None = None
     opa: OPASettings | None = None
     page_size: int = 20
@@ -85,6 +87,17 @@ class PottoSettings(pydantic_settings.BaseSettings):
             "Apply OAS 3.0 compatibility fixes to the generated OpenAPI schema "
             "(converts Pydantic v2 anyOf+null to nullable:true). Required for OGC "
             "CITE validation, which only supports OAS 3.0."
+        ),
+    )
+    feature_provider_cache_size: int = pydantic.Field(
+        default=256,
+        ge=0,
+        description=(
+            "Maximum number of feature provider instances to keep in the cache. "
+            "Each entry holds an open connection (e.g. a DuckDB in-memory DB), so "
+            "tune this against available memory. 256 is suitable for deployments with "
+            "up to a few hundred collections under typical power-law access patterns. "
+            "Set to 0 to disable caching (useful for testing)."
         ),
     )
 

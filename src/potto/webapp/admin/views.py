@@ -49,7 +49,7 @@ from ...db.queries import (
     auth as auth_queries,
     collections as collection_queries,
 )
-from ...schemas.base import PygeoapiProviderType
+from ...schemas.base import ProvidedDataType
 from ...schemas.collections import (
     CollectionCreate,
     CollectionUpdate,
@@ -207,29 +207,28 @@ class CollectionView(_PottoAdminModelView):
         Collection.custom_page_size,
         Collection.custom_page_size_max,
         Collection.keywords,
-        # JSONField(name="providers"),
         ListField(
             CollectionField(
-                name="providers",
+                name="additional_links",
                 fields=(
-                    EnumField(
-                        name="type",
-                        enum=PygeoapiProviderType,
-                    ),
-                    StringField(name="python_callable"),
-                    JSONField(name="config"),
+                    StringField(name="type", label="media type".capitalize()),
+                    StringField(name="rel"),
+                    URLField(name="href"),
+                    JSONField(name="title"),
+                    StringField(name="href_lang"),
                 ),
             )
         ),
         ListField(
             CollectionField(
-                name="additional_links",
+                name="providers",
                 fields=(
-                    StringField(name="media_type"),
-                    StringField(name="rel"),
-                    URLField(name="href"),
-                    JSONField(name="title"),
-                    StringField(name="href_lang"),
+                    EnumField(
+                        name="data_type",
+                        enum=ProvidedDataType,
+                    ),
+                    StringField(name="provider_name"),
+                    JSONField(name="config"),
                 ),
             )
         ),
@@ -256,6 +255,7 @@ class CollectionView(_PottoAdminModelView):
         "created_at",
         "updated_at",
         "editors",
+        "owner",
         "viewers",
     )
     exclude_fields_from_edit = (
@@ -368,17 +368,30 @@ class CollectionView(_PottoAdminModelView):
         request: Request,
     ) -> Any:
         if field.name == "providers":
+            logger.debug(f"{value=}")
             value: dict[str, dict[str, Any]]
             result = []
             for type_, prov in value.items():
                 result.append(
                     {
-                        "type": PygeoapiProviderType(type_),
-                        "python_callable": prov["python_callable"],
+                        "data_type": ProvidedDataType(type_),
+                        "provider_name": prov["provider_name"],
                         "config": prov["config"],
                     }
                 )
             return result
+        # elif field.name == "additional_links":
+        #     logger.debug(f"{value=}")
+        #     result = []
+        #     for raw_db_link in value:
+        #         serialized_link = {}
+        #         for k, v in raw_db_link.items():
+        #             if k == "type":
+        #                 serialized_link["media_type"] = v
+        #             else:
+        #                 serialized_link[k] = v
+        #         result.append(serialized_link)
+        #     return result
         else:
             return await super().serialize_field_value(value, field, action, request)
 
@@ -475,13 +488,20 @@ class CollectionView(_PottoAdminModelView):
         )
         settings = cast(PottoSettings, request.app.state.SETTINGS)
         auth_backend = settings.get_authorization_backend()
+        logger.debug(f"{data=}")
         async with settings.get_db_session_maker()() as session:
             try:
                 return await collection_operations.create_collection(
                     session,
                     user,
                     auth_backend,
-                    to_create=CollectionCreate.model_validate(data),
+                    to_create=CollectionCreate.model_validate(
+                        {
+                            **data,
+                            "owner_id": user.id,
+                        }
+                    ),
+                    potto_settings=settings,
                 )
             except (pydantic.ValidationError, PottoException) as err:
                 return self.handle_exception(err)
@@ -489,9 +509,14 @@ class CollectionView(_PottoAdminModelView):
     def _adapt_request_providers_to_internal_model(
         self, request_providers: list[dict]
     ) -> dict[str, dict]:
+        """Admin form gets providers as a list but we then store as a dict.
+
+        This also means that it is not possible to store more than one
+        provider of each data type.
+        """
         new_providers = {}
         for sent_provider in request_providers:
-            new_providers[sent_provider.pop("type")] = sent_provider
+            new_providers[sent_provider.pop("data_type")] = sent_provider
         return new_providers
 
 

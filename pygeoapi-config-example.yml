@@ -146,7 +146,7 @@ resources:
         providers:
             - type: feature
               name: CSV
-              data: ${PYGEOAPI_ROOT}/tests/data/obs.csv
+              data: ${DATA_ROOT}/obs.csv
               id_field: id
               geometry:
                   x_field: long
@@ -183,7 +183,7 @@ resources:
         providers:
             - type: feature
               name: GeoJSON
-              data: ${PYGEOAPI_ROOT}/tests/data/ne_110m_lakes.geojson
+              data: ${DATA_ROOT}/ne_110m_lakes.geojson
               id_field: id
               title_field: name
 
@@ -235,7 +235,7 @@ resources:
         providers:
             - type: coverage
               name: rasterio
-              data: ${PYGEOAPI_ROOT}/tests/data/CMC_glb_TMP_TGL_2_latlon.15x.15_2020081000_P000.grib2
+              data: ${DATA_ROOT}/CMC_glb_TMP_TGL_2_latlon.15x.15_2020081000_P000.grib2
               options:
                   DATA_ENCODING: COMPLEX_PACKING
               format:
@@ -262,7 +262,7 @@ resources:
         providers:
             - type: stac
               name: FileSystem
-              data: ${PYGEOAPI_ROOT}/tests/data
+              data: ${DATA_ROOT}
               file_types:
                   - .gpkg
                   - .sqlite
@@ -304,7 +304,7 @@ resources:
         providers:
             - type: record
               name: TinyDBCatalogue
-              data: ${PYGEOAPI_ROOT}/tests/data/open.canada.ca/sample-records.tinydb
+              data: ${DATA_ROOT}/sample-records.tinydb
               id_field: externalId
               time_field: created
               title_field: title

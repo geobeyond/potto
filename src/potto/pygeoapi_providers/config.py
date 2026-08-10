@@ -8,7 +8,10 @@ if TYPE_CHECKING:
 import shapely
 import shapely.strtree
 import shapely.geometry
+from pygeoapi.crs import crs_transform
 from pygeoapi.provider.base import ProviderItemNotFoundError
+from pygeofilter.parsers.cql2_text import parse as cql2_text_parse
+from pygeofilter.backends.native.evaluate import NativeEvaluator
 
 from .base import (
     CqlQueryText,
@@ -75,6 +78,7 @@ class PygeoapiConfigWktFeatureProvider:
     def fields(self) -> dict:
         return self._fields.copy()
 
+    @crs_transform
     def query(
         self,
         offset: int = 0,
@@ -96,6 +100,12 @@ class PygeoapiConfigWktFeatureProvider:
         if bbox:
             bbox_geom = _bbox_to_geometry(bbox)
             features = _perform_bbox_filtering(bbox_geom, features)
+        # we can't enable this, as pygeoapi does not support cql2-text yet, as per:
+        # https://github.com/geopython/pygeoapi/issues/2297
+        # alternatively, we could convert the filter from cql2-text to cql2-json
+        # and feed that to pygeoapi
+        # if language == "cql2-text" and filterq:
+        #     features = _perform_cql2_filtering(filterq, features)
         num_matched = len(features)
         features = _perform_offset_limit_filtering(limit, offset, features)
         return GeoJsonFeatureCollection(
@@ -106,6 +116,7 @@ class PygeoapiConfigWktFeatureProvider:
             }
         )
 
+    @crs_transform
     def get(
         self,
         identifier: str | int,
@@ -162,6 +173,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
     def fields(self) -> dict:
         return self._fields.copy()
 
+    @crs_transform
     def query(
         self,
         offset: int = 0,
@@ -179,7 +191,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         filterq: CqlQueryText | None = None,
     ) -> GeoJsonFeatureCollection:
         features = list(self._data.values())
-        if bbox is not None:
+        if bbox:
             bbox_geom = _bbox_to_geometry(bbox)
             features = _perform_bbox_filtering(bbox_geom, features)
         num_matched = len(features)
@@ -192,6 +204,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
             }
         )
 
+    @crs_transform
     def get(
         self,
         identifier: str | int,
@@ -210,6 +223,7 @@ def _bbox_to_geometry(bbox: RawBbox) -> shapely.Geometry:
     When minX > maxX the bbox spans the antimeridian (lon=±180), so we union
     two boxes: one for each side of the antimeridian.
     """
+    logger.debug(f"{bbox=}")
     minx, miny, maxx, maxy = bbox[0], bbox[1], bbox[2], bbox[3]
     if minx > maxx:
         return shapely.unary_union(
@@ -229,6 +243,33 @@ def _perform_offset_limit_filtering(
     if offset > len(features) or limit <= 0:
         return []
     return features[max(offset, 0) : limit]
+
+
+def _perform_cql2_filtering(
+    filter_expression: str, features: list[GeoJsonFeature]
+) -> list[GeoJsonFeature]:
+    if len(features) == 0:
+        return []
+    attribute_names = list(features[0]["properties"].keys())
+    attribute_names.extend(["id", "geometry"])
+    # adding `shapely.box` to function_map is a workaround for:
+    # https://github.com/geopython/pygeofilter/issues/143
+    evaluator = NativeEvaluator(
+        function_map={"bbox": shapely.box},
+        attribute_map={i: i for i in attribute_names},
+        use_getattr=False,
+    )
+    parsed_filter_expression = cql2_text_parse(filter_expression)
+    filter_ = evaluator.evaluate(parsed_filter_expression)
+    result = []
+    for feat in features:
+        filterable = {
+            **feat["properties"],
+            "geometry": feat["geometry"],
+        }
+        if filter_(filterable):
+            result.append(feat)
+    return result
 
 
 def _perform_bbox_filtering(

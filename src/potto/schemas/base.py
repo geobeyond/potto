@@ -1,6 +1,8 @@
+import dataclasses
 import enum
-import typing
+import logging
 import pydantic
+import typing
 
 import shapely
 from geoalchemy2 import WKBElement
@@ -11,6 +13,8 @@ from .. import constants
 
 if typing.TYPE_CHECKING:
     from .pygeoapi_config import ExtentConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_localizable_field(value: dict[str, str] | str, _info):
@@ -34,6 +38,7 @@ def _serialize_localizable_list_field(value: dict[str, list[str]] | list[str], _
 def to_shapely(
     value: str | WKBElement | shapely.Geometry | None,
 ) -> shapely.Geometry | None:
+    logger.debug(f"{value=}")
     if not value:
         return None
     elif isinstance(value, shapely.Geometry):
@@ -42,6 +47,11 @@ def to_shapely(
         return shapely.from_wkt(value)
     else:
         return to_shape(value)
+
+
+CollectionIdentifier = typing.Annotated[
+    str, pydantic.Field(min_length=3, max_length=100, pattern=r"[a-zA-Z][\w\-]*")
+]
 
 
 MaybeShapelyGeometry = typing.Annotated[
@@ -62,7 +72,7 @@ class CollectionType(str, enum.Enum):
     RECORD_COLLECTION = "record"
 
 
-class PygeoapiProviderType(str, enum.Enum):
+class ProvidedDataType(str, enum.Enum):
     COVERAGE = "coverage"
     EDR = "edr"
     FEATURE = "feature"
@@ -108,6 +118,12 @@ MaybeKeywords = typing.Annotated[
         }
     ),
 ]
+
+
+@dataclasses.dataclass
+class CountedItems:
+    matched: int
+    total: int
 
 
 class Link(pydantic.BaseModel):
@@ -201,24 +217,19 @@ class AdditionalExtent(pydantic.BaseModel):
     unit_name: str | None = None
 
 
-class CollectionProviderConfiguration(pydantic.BaseModel):
+@dataclasses.dataclass(frozen=True)
+class StorageCrs:
+    crs: str
+    coordinate_epoch: str | None = None
+
+
+class PottoProvider(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
-    data: (
-        str
-        | typing.Annotated[
-            dict, pydantic.WithJsonSchema({"type": "object", "maxProperties": 10})
-        ]
-    )
-    options: typing.Annotated[
+    provider_name: str
+    config: typing.Annotated[
         dict[str, typing.Any],
         pydantic.WithJsonSchema({"type": "object", "maxProperties": 10}),
     ]
-
-
-class CollectionProvider(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid")
-    python_callable: str
-    config: CollectionProviderConfiguration | None = None
 
 
 class PaginationContext(pydantic.BaseModel):
@@ -234,7 +245,10 @@ class PaginationContext(pydantic.BaseModel):
         additional_query_params: dict[str, str] | None = None,
     ) -> list[Link]:
         additional = (
-            "&".join(f"{k}={v}" for k, v in additional_query_params.items())
+            "&".join(
+                f"{k}={','.join(str(x) for x in v) if isinstance(v, (list, tuple)) else v}"
+                for k, v in additional_query_params.items()
+            )
             if additional_query_params
             else None
         )
@@ -311,7 +325,8 @@ class ItemFilter(pydantic.BaseModel):
     filter_lang: typing.Annotated[
         str | None,
         pydantic.Field(
-            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json')."
+            alias="filter-lang",
+            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
         ),
     ] = None
     filter_crs_uri: typing.Annotated[
@@ -392,4 +407,60 @@ class FeatureFilter(ItemFilter):
                 in ("true", "yes", "on", "t", "1")
                 else False
             ),
+        )
+
+
+class PottoFeatureFilter(pydantic.BaseModel):
+    bbox: tuple[float, float, float, float] | None = None
+    bbox_crs: typing.Annotated[
+        str,
+        pydantic.Field(
+            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+        ),
+    ] = constants.CRS_84
+    crs: str = constants.CRS_84
+    limit: typing.Annotated[
+        int, pydantic.Field(description="Maximum number of items to return.", ge=1)
+    ] = 20
+    offset: typing.Annotated[
+        int,
+        pydantic.Field(
+            description="Number of items to skip before returning results.", ge=0
+        ),
+    ] = 0
+    properties: list[str] | None = None
+    filter_: typing.Annotated[
+        str | None,
+        pydantic.Field(serialization_alias="filter", description="Filter expression."),
+    ] = None
+    filter_lang: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            serialization_alias="filter-lang",
+            description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
+        ),
+    ] = None
+
+    @classmethod
+    def from_feature_filter(cls, feature_filter: FeatureFilter) -> "PottoFeatureFilter":
+        bbox = None
+        if raw_bbox := feature_filter.bbox.split(",") if feature_filter.bbox else None:
+            try:
+                bbox = (
+                    float(raw_bbox[0]),
+                    float(raw_bbox[1]),
+                    float(raw_bbox[2]),
+                    float(raw_bbox[3]),
+                )
+            except IndexError:
+                bbox = None
+        return cls(
+            bbox=bbox,
+            bbox_crs=feature_filter.bbox_crs or constants.CRS_84,
+            crs=feature_filter.crs or constants.CRS_84,
+            limit=feature_filter.limit,
+            offset=feature_filter.offset,
+            properties=feature_filter.select_properties,
+            filter_=feature_filter.filter_,
+            filter_lang=feature_filter.filter_lang,
         )

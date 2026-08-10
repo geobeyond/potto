@@ -1,7 +1,6 @@
 import json
 import logging
 
-import babel
 from pygments import highlight
 from pygments.formatters import HtmlFormatter  # ty: ignore
 from pygments.lexers import JsonLexer  # ty: ignore
@@ -9,6 +8,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
+from ...config import PottoSettings
 from ...schemas import auth as auth_schemas
 
 from ...wrapper import Potto
@@ -24,17 +24,20 @@ async def list_collections(request: Request) -> Response:
         if isinstance((potto_user := request.user), auth_schemas.PottoUser)
         else None
     )
+    settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
+    async with settings.get_db_session_maker()() as session:
+        collections = await potto.list_collections(
+            user=user,
+            session=session,
+            page=int(request.query_params.get("page", 1)),
+            page_size=int(request.query_params.get("page_size", 20)),
+        )
     return request.state.templates.TemplateResponse(
         request,
         "collections/list.html",
         context={
-            "contents": await potto.api_list_collections(
-                user=user,
-                locale=babel.Locale.parse(request.state.language),
-                page=int(request.query_params.get("page", 1)),
-                page_size=int(request.query_params.get("page_size", 20)),
-            ),
+            "contents": collections,
         },
     )
 
@@ -45,14 +48,16 @@ async def get_collection_details(request: Request) -> Response:
         if isinstance((potto_user := request.user), auth_schemas.PottoUser)
         else None
     )
+    settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
-    potto_response = await potto.api_get_collection(
-        request.path_params["collection_id"],
-        user=user,
-        locale=babel.Locale.parse(request.state.language),
-        include_queryables=True,
-        include_schema=True,
-    )
+    async with settings.get_db_session_maker()() as session:
+        potto_response = await potto.get_collection(
+            request.path_params["collection_id"],
+            user=user,
+            session=session,
+            include_queryables=True,
+            include_schema=True,
+        )
     if potto_response is None:
         raise HTTPException(404, detail="Collection not found")
     queryables_html = (

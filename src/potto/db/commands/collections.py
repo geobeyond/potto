@@ -2,8 +2,12 @@ import logging
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from ... import constants
 from ...exceptions import PottoException
-from ...schemas.collections import CollectionCreate, CollectionUpdate
+from ...schemas.collections import (
+    CollectionCreate,
+    CollectionUpdate,
+)
 from ..models import Collection
 from ..queries import get_collection
 
@@ -13,9 +17,10 @@ logger = logging.getLogger(__name__)
 async def create_collection(
     session: AsyncSession, to_create: CollectionCreate
 ) -> Collection:
-    instance = Collection(
-        **to_create.model_dump(exclude={"additional_extents"}),
-    )
+    logger.debug(f"{to_create=}")
+    collection_kwargs = to_create.model_dump(exclude={"additional_extents"})
+    collection_kwargs["crs"] = to_create.crs or [constants.CRS_84]
+    instance = Collection(**collection_kwargs)
     for additional_extent in instance.additional_extents or []:
         instance.additional_extents[additional_extent.name] = (
             additional_extent.model_dump(exclude={"name"})
@@ -38,6 +43,10 @@ async def update_collection(
         exclude={"additional_extents"},
         exclude_unset=True,
     )
+    if "crs" in updates and updates["crs"] is None:
+        updates["crs"] = [constants.CRS_84]
+    if "storage_crs" in updates and updates["storage_crs"] is None:
+        updates["storage_crs"] = constants.CRS_84
     for key, value in updates.items():
         setattr(db_collection, key, value)
     if to_update.additional_extents is not None:

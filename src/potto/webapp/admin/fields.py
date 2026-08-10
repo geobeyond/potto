@@ -37,6 +37,8 @@ class SpatialExtentField(BaseField):
             and isinstance(max_lat, str)
         ):
             return None
+        if not all((min_lon, min_lat, max_lon, max_lat)):
+            return None
         min_lon = float(min_lon)
         max_lon = float(max_lon)
         min_lat = float(min_lat)

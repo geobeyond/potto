@@ -42,6 +42,24 @@ services:
         published: 55433
     volumes:
       - test-db:/var/lib/postgresql/data
+#
+#  external-db:
+#    image: *db-image
+#    environment:
+#      POSTGRES_DB: external
+#      POSTGRES_USER: external
+#      POSTGRES_PASSWORD: externalpass
+#    healthcheck:
+#      test: "pg_isready -d external -U extertnal"
+#      start_period: 20s
+#      interval: 30s
+#      retries: 5
+#      timeout: 5s
+#    ports:
+#      - target: 5432
+#        published: 55433
+#    volumes:
+#      - external-db:/var/lib/postgresql/data
 
   keycloak:
     image: "quay.io/keycloak/keycloak:26.5.5"
@@ -84,4 +102,5 @@ services:
 volumes:
   db:
   test-db:
+#  external-db:
   keycloak:

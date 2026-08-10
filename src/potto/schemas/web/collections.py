@@ -24,7 +24,7 @@ class JsonCollection(pydantic.BaseModel):
     item_type: Annotated[str | None, pydantic.Field(serialization_alias="itemType")] = (
         constants.FEATURE_COLLECTION_ITEM_TYPE
     )
-    crs: list[str] | None = pydantic.Field(default_factory=lambda: [constants.CRS_84])
+    crs: list[str]
     storage_crs: Annotated[
         str | None, pydantic.Field(serialization_alias="storageCrs")
     ] = None
@@ -63,6 +63,7 @@ class JsonCollection(pydantic.BaseModel):
             extent=base.Extent(spatial=spatial_extent, temporal=temporal_extent)
             if (temporal_extent or spatial_extent)
             else None,
+            crs=item.crs,
         )
 
     @classmethod

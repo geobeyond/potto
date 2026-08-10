@@ -99,11 +99,12 @@ async def bootstrap_for_cite_ogcapi_features(
             spatial_extent="POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))",
             spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
             providers={
-                "feature": base_schemas.CollectionProvider(
-                    python_callable="potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                    config=base_schemas.CollectionProviderConfiguration(
-                        options={},
-                        data={
+                "feature": base_schemas.PottoProvider(
+                    provider_name="pygeoapi",
+                    config={
+                        "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
+                        "options": {},
+                        "data": {
                             "features": [
                                 {
                                     "id": 371,
@@ -202,7 +203,7 @@ async def bootstrap_for_cite_ogcapi_features(
                                 },
                             ]
                         },
-                    ),
+                    },
                 )
             },
         )
@@ -211,6 +212,7 @@ async def bootstrap_for_cite_ogcapi_features(
             admin_user.to_potto(),
             settings.get_authorization_backend(),
             collection_to_create,
+            settings,
         )
         cite_app.console.print(
             f"[green]:heavy_check_mark: Created collection {collection_to_create.resource_identifier}[/green]"
