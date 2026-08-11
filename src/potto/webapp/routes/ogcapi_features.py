@@ -9,7 +9,11 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from ...config import PottoSettings
-from ...schemas import auth as auth_schemas
+from ...exceptions import PottoCollectionNotFoundException
+from ...schemas import (
+    auth as auth_schemas,
+    base as base_schemas,
+)
 
 from ...wrapper import Potto
 
@@ -86,5 +90,36 @@ async def get_collection_details(request: Request) -> Response:
             "queryables_html": queryables_html,
             "schema_html": schema_html,
             "pygments_css": _PYGMENTS_FORMATTER.get_style_defs(".highlight"),
+        },
+    )
+
+
+async def list_collection_items(request: Request) -> Response:
+    user = (
+        potto_user
+        if isinstance((potto_user := request.user), auth_schemas.PottoUser)
+        else None
+    )
+    settings: PottoSettings = request.state.settings
+    potto: Potto = request.state.potto
+    feature_filter = base_schemas.FeatureFilter.from_query_parameters(
+        request.query_params
+    )
+    try:
+        async with settings.get_db_session_maker()() as session:
+            items_response = await potto.list_collection_items(
+                request.path_params["collection_id"],
+                user=user,
+                filter_=feature_filter,
+                session=session,
+            )
+    except PottoCollectionNotFoundException as err:
+        raise HTTPException(404, detail="Collection not found") from err
+    return request.state.templates.TemplateResponse(
+        request,
+        "items/list.html",
+        context={
+            "collection": items_response.collection,
+            "items": items_response,
         },
     )

@@ -88,6 +88,11 @@ def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
                     name="collection-get",
                 ),
                 Route(
+                    "/collections/{collection_id}/items",
+                    ogc_api_features_routes.list_collection_items,
+                    name="collection-item-list",
+                ),
+                Route(
                     "/collections",
                     ogc_api_features_routes.list_collections,
                     name="collection-list",
