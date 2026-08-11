@@ -1,5 +1,6 @@
 import copy
 import logging
+from typing import cast
 
 from fastapi import (
     APIRouter,
@@ -266,8 +267,13 @@ async def delete_collection(
     if user is None:
         raise HTTPException(status_code=404, detail="An authenticated user is required")
     async with settings.get_db_session_maker()() as session:
+        collection = await collection_operations.get_collection_by_resource_identifier(
+            session, user, authorization_backend, collection_id
+        )
+        if collection is None:
+            raise HTTPException(status_code=404, detail="Collection not found")
         await collection_operations.delete_collection(
-            session, user, authorization_backend, int(collection_id)
+            session, user, authorization_backend, cast(int, collection.id)
         )
 
 

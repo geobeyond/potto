@@ -79,6 +79,8 @@
                 <div class="dropdown">
                     <button class="btn btn-secondary dropdown-toggle border border-dark-subtle"
                             type="button"
+                            id="user-menu-toggle"
+                            aria-label="User menu"
                             data-bs-toggle="dropdown"
                             aria-expanded="false">
                         <i class="bi bi-person fs-5" aria-hidden="true"></i>
@@ -91,7 +93,13 @@
                     </ul>
                 </div>
             {% else %}
-                <a href="{{ url_for('admin:login') }}?next={{ url_for('landing-page') }}" class="btn btn-outline-primary btn-sm">Login</a>
+                <a
+                        id="auth-login-link"
+                        href="{{ url_for('admin:login') }}?next={{ url_for('landing-page') }}"
+                        class="btn btn-outline-primary btn-sm"
+                >
+                    Login
+                </a>
             {% endif %}
         </div>
         <button

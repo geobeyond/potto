@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from starlette.routing import Mount
 
+from playwright.sync_api import expect
 from potto import config
 from potto.authz.backend import LocalAuthorizationBackend
 from potto.db.commands.auth import create_user
@@ -16,6 +17,13 @@ from potto.schemas import (
 )
 from potto.webapp.main import create_app_from_settings
 from potto.webapp.api import dependencies
+
+pytest_plugins = ("live_server",)
+
+# This module deals with playwright tracing options manually because some
+# tests need the `authenticated_context` fixture, which creates a new
+# browser context different from the default one.
+_TRACING_VALUES = ("on", "retain-on-failure")
 
 
 @pytest.fixture
@@ -83,6 +91,95 @@ async def admin_user(db, db_session_maker):
             ),
         )
         yield db_user
+
+
+@pytest.fixture(scope="session")
+def authenticated_context(browser, auth_credentials, base_url, request):
+    context = browser.new_context(base_url=base_url)
+
+    if (tracing_value := request.config.getoption("--tracing")) in _TRACING_VALUES:
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
+    page = context.new_page()
+
+    try:
+        page.goto("/")
+        page.get_by_role("link", name="login").click()
+        username, password = auth_credentials
+        page.get_by_role("textbox", name="username").fill(username)
+        page.get_by_role("textbox", name="password").fill(password)
+        page.get_by_role("button", name="sign in").click()
+
+        page.wait_for_url("/")
+        expect(page.get_by_role("link", name="login")).not_to_be_visible()
+        user_menu = page.locator("#user-menu-toggle")
+        expect(user_menu).to_be_visible()
+
+        user_menu.click()
+        expect(page.get_by_text(username)).to_be_visible()
+
+        storage_state = context.storage_state()
+
+        if tracing_value in _TRACING_VALUES:
+            context.tracing.stop()
+
+    except:
+        if tracing_value in _TRACING_VALUES:
+            trace_path = "test-results/auth-setup-trace.zip"
+            context.tracing.stop(path=trace_path)
+        raise
+    finally:
+        page.close()
+        context.close()
+
+    yield storage_state
+
+
+@pytest.fixture(scope="function")
+def authenticated_page(browser, authenticated_context, base_url, request):
+    context = browser.new_context(
+        storage_state=authenticated_context, base_url=base_url
+    )
+
+    if (tracing_value := request.config.getoption("--tracing")) in _TRACING_VALUES:
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
+    page = context.new_page()
+    yield page
+
+    if tracing_value in _TRACING_VALUES:
+        if tracing_value == "on" or (
+            tracing_value == "retain-on-failure" and request.node.rep_call.failed
+        ):
+            trace_path = f"test-results/{request.node.name}-trace.zip"
+            context.tracing.stop(path=trace_path)
+        else:
+            context.tracing.stop()
+    context.close()
+
+
+@pytest.fixture(scope="function")
+def fresh_authenticated_page(browser, auth_credentials, base_url):
+    context = browser.new_context(base_url=base_url)
+    page = context.new_page()
+
+    page.goto("/")
+    page.get_by_role("link", name="login").click()
+    username, password = auth_credentials
+    page.get_by_role("textbox", name="username").fill(username)
+    page.get_by_role("textbox", name="password").fill(password)
+    page.get_by_role("button", name="sign in").click()
+
+    page.wait_for_url("/")
+    expect(page.get_by_role("link", name="login")).not_to_be_visible()
+    user_menu = page.locator("#user-menu-toggle")
+    expect(user_menu).to_be_visible()
+
+    user_menu.click()
+    expect(page.get_by_text(username)).to_be_visible()
+
+    yield page
+    context.close()
 
 
 @pytest_asyncio.fixture

@@ -1,291 +1,77 @@
-{% extends "_old_base.html" %}
-{% block title %}{{ super() }} {{ data.resource.title }} {% endblock %}
-{% block crumbs %}{{ super() }}
-    / <a href="{{ url_for('list-collections') }}">{% trans %}Collections{% endtrans %}</a>
-    / <a href="{{ url_for('get-collection', collection_id=data.resource.identifier) }}">{{ data.resource.title }}</a>
-    / <a href="{{ url_for('list-collection-items', collection_id=data.resource.identifier) }}">{% trans %}Items{% endtrans %}</a>
-{% endblock %}
-{% block extrahead %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
-    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
+{% extends "_base.html" %}
 
-    {% if data.provider.type_ == 'record' %}
-        <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"></script>
-        <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-    {% endif %}
+{% block page_title %}Items – {{ collection.title | get_translatable_string }}{% endblock %}
+{% block page_description %}Browse the items in this collection.{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('landing-page') }}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('collection-list') }}">Collections</a></li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('collection-get', collection_id=collection.identifier) }}">
+                {{ collection.title | get_translatable_string }}
+            </a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Items</li>
+    </ol>
+</nav>
 {% endblock %}
 
 {% block body %}
-    <section id="collection">
-        <h1>{{ data.resource.title }}</h1>
-    </section>
-    <section id="items">
-        {% if data.features %}
-            {% if data.provider.type_ == 'record' %}
-                <div class="row">
-                    <div class="col-sm-12 col-md-6">
-                        <div class="row">
-                            <div class="col-sm-4">
-                                <label for="q">Search</label>
-                                <input name="q" id="q" type="text" class="form-control search-input"
-                                       placeholder="Search">
-                            </div>
-                            <div class="col-sm-4">
-                                <label for="datetime_begin">Start date</label>
-                                <input name="datetime_begin" id="datetime_begin" type="date" class="form-control"/>
-                            </div>
-                            <div class="col-sm-4">
-                                <label for="datetime_end">End date</label>
-                                <input name="datetime_end" id="datetime_end" type="date" class="form-control"/>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-sm-12">
-                                <input class="form-check-input" onchange="checkSpatialFilter()" type="checkbox"
-                                       id="spatial_filter_check">
-                                <label class="form-check-label" for="spatial_filter_check">Spatial filter</label>
-                                <button type="button" class="btn btn-primary" onclick="submitForm();">Search</button>
-                                <button type="reset" class="btn btn-secondary">Reset</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% endif %}
-            <div class="row">
-                <div class="col-sm-12 col-md-6">
-                    <div class="row">
-                        <div class="col-sm-12">
-                            <div id="items-map"></div>
-                        </div>
-                        <div class="col-sm-12">
-                            <div class="row">
-                                <div class="col-sm-12">
-                                    {% if data.pagination.number_matched %}
-                                        <p>{% trans %}Items in this collection{% endtrans %}: {{ data.pagination.number_matched }}</p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-sm-12">
-                                    {% trans %}Limit{% endtrans %}:
-                                    <select id="limits">
-                                        <option value="{{ pygeoapi_config.server.limits.default_items }}">{{ pygeoapi_config.server.limits.default_items }}
-                                            ({% trans %}default{% endtrans %})
-                                        </option>
-                                        <option value="100">100</option>
-                                        <option value="1000">1,000</option>
-                                        <option value="2000">2,000</option>
-                                    </select>
-                                    <p>{% trans %}Warning: Higher limits not recommended!{% endtrans %}</p>
-                                    <script>
-                                        var select = document.getElementById('limits');
-                                        var defaultValue = select.getElementsByTagName('option')[0].value;
-                                        let params = (new URL(document.location)).searchParams;
-                                        select.value = params.get('limit') || defaultValue;
-                                        select.addEventListener('change', ev => {
-                                            var limit = ev.target.value;
-                                            document.location.search = `limit=${limit}`;
-                                        });
-                                    </script>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-sm-12">
-                                    {% for link in data.links %}
-                                        {% if link.rel == 'prev' and data.filter_.offset > 0 %}
-                                            <a role="button" href="{{ link.href }}">{% trans %}Prev{% endtrans %}</a>
-                                        {% elif link.rel == 'next' and data.features %}
-                                            <a role="button" href="{{ link.href }}">{% trans %}Next{% endtrans %}</a>
-                                        {% endif %}
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="py-3">
+    <h1 class="h3 mb-4">Items</h1>
 
-                <div class="col-sm-12 col-md-6" style="overflow-x: scroll;">
-                    {% set props = [] %}
-                    <table class="table table-striped table-bordered">
-                        <thead>
-                        <tr>
-                            {% if data.provider.uri_field %}
-                                {% set uri_field = data.provider.uri_field %}
-                                <th>{{ uri_field }}</th>
-                            {% elif data.provider.title_field %}
-                                {% set title_field = data.provider.title_field %}
-                                <th>{{ title_field }}</th>
-                            {% else %}
-                                <th>id</th>
-                            {% endif %}
-
-                            {% for k in data.features.features[0].properties %}
-                                {% if k not in [data.provider.id_field, data.provider.title_field, data.provider.uri_field, 'extent', 'links'] %}
-                                    {% set props = props.append(k) %}
-                                    <th>{{ k | striptags }}</th>
-                                {% endif %}
-                            {% endfor %}
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {% for feature in data.features.features %}
-                            <tr>
-                                {% if data.provider.uri_field %}
-                                    {% set uri_field = data.provider.uri_field %}
-                                    <td data-label="{{ uri_field }}">
-                                        <a href="{{ feature.properties.get(uri_field) }}"
-                                           title="{{ feature.properties.get(uri_field) }}">
-                                            {{ feature.properties.get(uri_field) }}
-                                        </a>
-                                    </td>
-                                {% elif data.provider.title_field %}
-                                    {% set title_field = data.provider.title_field %}
-                                    <td data-label="{{ title_field }}">
-                                        <a href="{{ data.provider.items_path }}/{{ feature.id }}"
-                                           title="{{ feature.properties.get(title_field) }}">
-                                            {{ feature.properties.get(title_field) | string | truncate( 35 ) }}
-                                        </a>
-                                    </td>
-                                {% else %}
-                                    <td data-label="id">
-                                        <a href="{{ feature.properties.links[0].href }}" title="{{ feature.id }}">
-                                            {{ feature.id | string | truncate( 12 ) }}
-                                        </a>
-                                    </td>
-                                {% endif %}
-                                {% for prop in props %}
-                                    <td data-label="{{ prop }}">
-                                        {{ feature.properties.get(prop, '') | string | truncate( 35 ) }}
-                                    </td>
+    {% if items.features %}
+        <p class="text-muted small">
+            {{ items.pagination.number_matched }} item(s) total, showing {{ items.pagination.number_returned }}.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Properties</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for feature in items.features %}
+                    <tr>
+                        <td class="font-monospace">{{ feature.id_ }}</td>
+                        <td>
+                            <dl class="row mb-0 small">
+                                {% for key, value in feature.properties.items() %}
+                                <dt class="col-sm-3">{{ key }}</dt>
+                                <dd class="col-sm-9">{{ value }}</dd>
                                 {% endfor %}
+                            </dl>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        {% elif data.pagination.number_matched %}
-            <div class="row">
-                <div class="col-sm-12">
-                    <p>{% trans %}Items in this collection{% endtrans %}: {{ data.pagination.number_matched }}</p>
-                </div>
-            </div>
-        {% else %}
-            <div class="row col-sm-12">
-                <p>{% trans %}No items{% endtrans %}</p>
-            </div>
-        {% endif %}
-    </section>
-{% endblock %}
-
-{% block extrafoot %}
-    {% if data.features %}
-        <script>
-            {% if data.provider.type_ == 'record' %}
-
-                document.getElementById("q").addEventListener("keydown", function (event) {
-                    if (event.key === "Enter") {
-                        submitForm();
-                    }
-                });
-
-                function submitForm() {
-                    var query_string = [];
-                    var datetime = [];
-
-                    var q = document.getElementById('q').value;
-                    var datetime_begin = document.getElementById('datetime_begin').value;
-                    var datetime_end = document.getElementById('datetime_end').value;
-
-                    if (q) {
-                        query_string.push('q=' + encodeURIComponent(q));
-                    }
-                    if (datetime_begin) {
-                        datetime.push(datetime_begin + 'T00:00:00Z');
-                    } else {
-                        datetime.push('..');
-                    }
-                    if (datetime_end) {
-                        datetime.push(datetime_end + 'T23:59:59Z');
-                    } else {
-                        datetime.push('..');
-                    }
-
-                    datetime = datetime.join('/');
-
-                    if (datetime !== '../..') {
-                        query_string.push('datetime=' + encodeURIComponent(datetime));
-                    }
-
-                    if (map.hasLayer(rectangle)) {
-                        query_string.push('bbox=' + getBbox(rectangle).join(','));
-                    }
-
-                    if (query_string.length > 0) {
-                        document.location.href = '{{ data.provider.items_path }}' + '?' + query_string.join('&');
-                    }
-                }
-            {% endif %}
-            var map = L.map('items-map').setView([{{ 45 }}, {{ -75 }}], 5);
-            map.addLayer(new L.TileLayer(
-                '{{ pygeoapi_config.server.map.url }}', {
-                    maxZoom: 18,
-                    attribution: '{{ pygeoapi_config.server.map.attribution | safe }}'
-                }
-            ));
-            var geojson_data = {{ data.features | tojson }};
-
-            var items = new L.GeoJSON(geojson_data, {
-                onEachFeature: function (feature, layer) {
-                    var html = '<span><a href="' + feature.properties.links[0].href + '">' + {% if data.provider.title_field %}feature.properties['{{ data.provider.title_field }}'] {% else %}
-                        feature.id {% endif %} + '</a></span>';
-                    layer.bindPopup(html);
-                }
-            });
-            var markers = L.markerClusterGroup({
-                disableClusteringAtZoom: 9,
-                chunkedLoading: true,
-                chunkInterval: 500,
-            });
-            markers.clearLayers().addLayer(items);
-            map.addLayer(markers);
-
-            map.fitBounds(items.getBounds());
-
-            {% if data.provider.itemtype == 'record' %}
-                function getBbox(rect) {
-                    bounds = rect.getBounds();
-
-                    return [bounds.getWest(),
-                        bounds.getSouth(),
-                        bounds.getEast(),
-                        bounds.getNorth()];
-                }
-
-                var rectangle;
-                function setRectangle(bbox) {
-                    if (rectangle) {
-                        rectangle.setBounds(bbox)
-                    } else {
-                        rectangle = L.rectangle(bbox);
-                        rectangle.editing.enable();
-                        rectangle.setStyle({color: 'green'});
-                    }
-                    map.addLayer(rectangle);
-                }
-
-                function checkSpatialFilter() {
-                    if (map.hasLayer(rectangle)) {
-                        rectangle.remove();
-                    } else {
-                        setRectangle(map.getBounds().pad(-0.95));
-                    }
-                }
-            {% endif %}
-        </script>
+        <nav class="mt-4" aria-label="Items pagination">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if items.pagination.offset == 0 %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="?offset={{ [items.pagination.offset - items.pagination.limit, 0] | max }}&limit={{ items.pagination.limit }}">
+                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    </a>
+                </li>
+                <li class="page-item {% if items.pagination.offset + items.pagination.limit >= items.pagination.number_matched %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="?offset={{ items.pagination.offset + items.pagination.limit }}&limit={{ items.pagination.limit }}">
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    {% else %}
+        <div class="text-center py-5 text-muted">
+            <p class="mb-0">No items available.</p>
+        </div>
     {% endif %}
+</div>
 {% endblock %}
