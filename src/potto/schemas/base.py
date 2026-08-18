@@ -464,3 +464,8 @@ class PottoFeatureFilter(pydantic.BaseModel):
             filter_=feature_filter.filter_,
             filter_lang=feature_filter.filter_lang,
         )
+
+
+class PottoHealthCheck(pydantic.BaseModel):
+    status: typing.Literal["ok", "error"]
+    database: typing.Literal["ok", "error"]

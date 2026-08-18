@@ -27,3 +27,10 @@ overrides:
       - "**#/paths/~1conformance/get"
     rules:
       owasp:api2:2019-protection-global-safe: off
+
+  # /health is a public liveness/readiness probe for deployment tooling and CI,
+  # with no sensitive data.
+  - files:
+      - "**#/paths/~1health/get"
+    rules:
+      owasp:api2:2019-protection-global-safe: off
