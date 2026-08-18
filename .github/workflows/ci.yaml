@@ -66,7 +66,23 @@ jobs:
 
       - name: "Validate OpenAPI schema with declared conformance classes"
         run: |
+          nohup uv run potto run-server > /dev/null 2>&1 &
+          echo $! > potto-server.pid
+          sleep 1
+          if ps --pid $(cat potto-server.pid) > /dev/null; then
+              echo "potto server is up and running with PID $(cat potto-server.pid)"
+          else
+              echo "potto server failed to start"
+              exit 1
+          fi
+
           uv run potto openapi validate --format table --no-error-on-failure
+
+          if [ -f potto-server.pid ]; then
+              echo "Shutting down potto server with PID $(cat potto-server.pid)..."
+              kill $(cat potto-server.pid)  || true
+              rm potto-server.pid
+          fi
 
       - name: "Export OpenAPI schema document"
         run: uv run potto openapi export --output potto_openapi_ci.json
