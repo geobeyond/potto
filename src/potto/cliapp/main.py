@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-import json
 import logging
 import logging.config
 import os
@@ -11,7 +10,6 @@ from typing import Annotated
 import cyclopts
 import yaml
 from cyclopts import App
-from cyclopts.types import StdioPath
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
@@ -21,13 +19,13 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ..webapp.api.main import create_api_app_from_settings
 
 from .cite import cite_app
 from .collections import collections_app
 from .db import db_app
 from .dev import dev_app
 from .metadata import metadata_app
+from .openapi import app as openapi_app
 from .users import user_app
 
 _console = Console()
@@ -47,14 +45,18 @@ dev_app.console = _console
 dev_app.error_console = _error_console
 metadata_app.console = _console
 metadata_app.error_console = _error_console
+openapi_app.console = _console
+openapi_app.error_console = _error_console
 user_app.console = _console
 user_app.error_console = _error_console
+
 potto_app.command(collections_app.meta, name="collection")
 potto_app.command(db_app.meta, name="db")
 potto_app.command(dev_app.meta, name="dev")
 potto_app.command(metadata_app.meta, name="metadata")
 potto_app.command(user_app.meta, name="user")
 potto_app.command(cite_app.meta, name="cite-testing")
+potto_app.command(openapi_app.meta, name="openapi")
 
 
 @potto_app.meta.default
@@ -149,29 +151,3 @@ def run_uvicorn_server(
     sys.stdout.flush()
     sys.stderr.flush()
     os.execvp("uvicorn", uvicorn_args)
-
-
-@potto_app.command(name="export-openapi")
-def export_openapi_document(
-    output: Annotated[
-        StdioPath,
-        cyclopts.Parameter(
-            help=(
-                "Path to the openapi document that will be created. "
-                "A value of '-' means write to stdout."
-            )
-        ),
-    ] = StdioPath("-"),
-    indent: bool = True,
-    *,
-    settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
-):
-    """Export the OpenAPI document.
-
-    This is mainly useful for using the openapi document with third-party
-    tools, usually for checking compliance - it is not required to run
-    potto.
-    """
-    app = create_api_app_from_settings(settings)
-    openapi_document = app.openapi()
-    output.write_text(json.dumps(openapi_document, indent=2 if indent else None))

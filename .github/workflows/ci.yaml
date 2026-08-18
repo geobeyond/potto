@@ -64,8 +64,12 @@ jobs:
         run: |
           uv run potto db upgrade
 
+      - name: "Validate OpenAPI schema with declared conformance classes"
+        run: |
+          uv run potto openapi validate --format table --no-error-on-failure
+
       - name: "Export OpenAPI schema document"
-        run: uv run potto export-openapi --output potto_openapi_ci.json
+        run: uv run potto openapi export --output potto_openapi_ci.json
 
       - name: "Lint OpenAPI schema with spectral"
         run: |
