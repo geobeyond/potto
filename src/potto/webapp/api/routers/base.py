@@ -3,9 +3,15 @@ from fastapi import (
     Request,
 )
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import (
+    Response,
+    HTMLResponse,
+)
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from ....schemas.web import base
+from ....schemas.base import PottoHealthCheck
 
 from .. import responses
 from ..dependencies import (
@@ -27,6 +33,27 @@ async def swagger_ui_html(request: Request) -> HTMLResponse:
             request.url_for("static", path="/img/potto-favicon.png")
         ),
     )
+
+
+@router.get(
+    "/health",
+    response_model=PottoHealthCheck,
+    responses={
+        **responses.ERROR_RESPONSES,
+        503: {"model": PottoHealthCheck, "description": "Service Unavailable"},
+    },
+)
+async def health_check(response: Response, settings: SettingsDependency):
+    """Liveness and readiness probe for deployment tooling and CI."""
+    session_maker = settings.get_db_session_maker()
+    try:
+        async with session_maker() as session:
+            await session.exec(text("SELECT 1"))
+    except SQLAlchemyError:
+        response.status_code = 503
+        return PottoHealthCheck(status="error", database="error")
+    response.status_code = 200
+    return PottoHealthCheck(status="ok", database="ok")
 
 
 @router.get(

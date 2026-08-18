@@ -64,8 +64,23 @@ jobs:
         run: |
           uv run potto db upgrade
 
+      - name: "Validate OpenAPI schema with declared conformance classes"
+        run: |
+          nohup uv run potto run-server &
+          echo $! > potto-server.pid
+
+          uv run python scripts/wait-for-server.py http://localhost:3001/api/health
+
+          uv run potto openapi validate --format table --no-error-on-failure
+
+          if [ -f potto-server.pid ]; then
+              echo "Shutting down potto server with PID $(cat potto-server.pid)..."
+              kill $(cat potto-server.pid)  || true
+              rm potto-server.pid
+          fi
+
       - name: "Export OpenAPI schema document"
-        run: uv run potto export-openapi --output potto_openapi_ci.json
+        run: uv run potto openapi export --output potto_openapi_ci.json
 
       - name: "Lint OpenAPI schema with spectral"
         run: |
@@ -100,15 +115,10 @@ jobs:
           POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
           POTTO__USE_OAS30_FIXES: "true"
         run: |
-          nohup uv run potto run-server > /dev/null 2>&1 &
+          nohup uv run potto run-server &
           echo $! > potto-server.pid
-          sleep 1
-          if ps --pid $(cat potto-server.pid) > /dev/null; then
-              echo "potto server is up and running with PID $(cat potto-server.pid)"
-          else
-              echo "potto server failed to start"
-              exit 1
-          fi
+
+          uv run python scripts/wait-for-server.py http://localhost:3001/api/health
 
       - name: "Run OGC CITE tests"
         env:
