@@ -14,7 +14,7 @@ docker compose -f docker/compose.dev.yaml up -d --force-recreate
 export PYGEOAPI_ROOT="wherever-you-cloned-pygeoapi-repo"
 POTTO__DATABASE_DSN="postgresql+psycopg://potto:pottopass@localhost:55432/potto"
 export POTTO__DEBUG=true
-export POTTO__PYGEOAPI_CONFIG_FILE=pygeoapi-config-example.yml
+# export POTTO__PYGEOAPI_CONFIG_FILE=pygeoapi-config-example.yml
 export POTTO__RELOAD_DIRS=$(pwd -P)
 export POTTO__UVICORN_LOG_CONFIG_FILE=uvicorn-log-config-example.yml
 
@@ -137,6 +137,21 @@ You are now ready to start working on the code.
     ```
 
 
+## Rebuilding the docker image
+
+Usually potto's development docker images are built remotely, when the continuous integration pipeline is run.
+This process is triggered everytime the source code repository's `main` branch has changes merged in. The newly built
+image is then pushed to potto's docker registry at ghcr.io/geobeyond/potto/potto.
+
+You can also build the potto docker image locally - this is especially useful if you add a new upstream dependency.
+
+```shell
+docker build --tag ghcr.io/geobeyond/potto/potto:$(git branch --show-current) --file docker/Dockerfile .
+```
+
+The built image will be named after the current `git` branch. Use it only during your own local development.
+
+
 ## Code formatting and static analysis
 
 The pre-commit hook uses [ruff] and [ty] to format the code and perform linting and static analysis. These tools also
@@ -154,7 +169,8 @@ uv run ty check
 
 ## Running tests
 
-potto uses [pytest] and running the tests requires the existence of an additional database.
+potto uses [pytest] and running the tests requires the existence of an additional database. Additionally, end-to-end
+tests use [playwright], which requires a previous installation step (check the playwright docs).
 
 1.  Ensure you define the `POTTO__TEST_DATABASE_DSN` environment variable. Create this test database and then put
     this in your `potto-dev.env` file:
@@ -162,6 +178,10 @@ potto uses [pytest] and running the tests requires the existence of an additiona
     ```shell
     POTTO__TEST_DATABASE_DSN="postgresql+psycopg://<user>:<password>@localhost:<port>/<db>"
     ```
+
+    !!! tip
+
+        If you use the `docker/compose.dev.yaml` docker compose stack this database will already be setup up
 
     !!! note
 
@@ -171,8 +191,15 @@ potto uses [pytest] and running the tests requires the existence of an additiona
 
     ```shell
     uv run pytest
+
+    # only run the integration tests
+    uv run pytest -m integration
+
+    # only run the end-to-end tests
+    uv run pytest -m e2e
     ```
 
+[playwright]: https://playwright.dev/python/
 [pytest]: https://docs.pytest.org/en/stable/
 
 
