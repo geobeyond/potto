@@ -38,3 +38,47 @@ services:
     ports:
       - target: 5432
         published: 55433
+
+  # potto-test and potto-e2e build FROM the "ci-build" tag, which the CI workflow's
+  # own build step (via docker/build-push-action + load: true) has already placed
+  # in the runner's local image store - not from source. This ensures CI tests the
+  # exact image it may go on to publish, instead of a separate rebuild.
+
+  potto-test:
+    build:
+      context: ../
+      dockerfile_inline: |
+        FROM ghcr.io/geobeyond/potto/potto:ci-build
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv sync --locked --group dev
+    environment:
+      POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    depends_on:
+      test-db:
+        condition: service_healthy
+    entrypoint: ["tini", "-g", "--"]
+    command: ["uv", "run", "pytest", "-m", "not e2e"]
+    profiles:
+      - test
+
+  potto-e2e:
+    build:
+      context: ../
+      dockerfile_inline: |
+        FROM ghcr.io/geobeyond/potto/potto:ci-build
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv sync --locked --group dev
+        USER root
+        RUN uv run playwright install-deps chromium
+        USER appuser
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv run playwright install chromium
+    environment:
+      POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    depends_on:
+      test-db:
+        condition: service_healthy
+    entrypoint: ["tini", "-g", "--"]
+    command: ["uv", "run", "pytest", "-m", "e2e"]
+    profiles:
+      - e2e
