@@ -7,6 +7,114 @@ x-db-image: &db-image "postgis/postgis:17-3.5-alpine"
 
 services:
 
+  potto:
+    image: ghcr.io/geobeyond/potto/potto:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+    develop:
+      watch:
+        - path: ../src/potto
+          action: sync
+          target: /home/appuser/app/src/potto
+        - path: ../tests
+          action: sync
+          target: /home/appuser/app/tests
+        - path: ../pyproject.toml
+          action: rebuild
+        - path: ../uv.lock
+          action: rebuild
+    environment:
+      DATA_ROOT: "/data"
+      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+      POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+      POTTO__DEBUG: "true"
+      POTTO__UVICORN_LOG_CONFIG_FILE: "/home/appuser/app/uvicorn-log-config-no-db.yml"
+      POTTO__ENV_WHITELIST: '["DATA_ROOT"]'
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${POTTO_DATA_ROOT:?set POTTO_DATA_ROOT environment variable to your local data directory}
+        target: /data
+    ports:
+      - target: 3001
+        published: 3001
+
+  potto-test:
+    image: ghcr.io/geobeyond/potto/potto-test:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile_inline: |
+        FROM potto
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv sync --locked --group dev
+      additional_contexts:
+        potto: service:potto
+    develop:
+      watch:
+        - path: ../src/potto
+          action: sync
+          target: /home/appuser/app/src/potto
+        - path: ../tests
+          action: sync
+          target: /home/appuser/app/tests
+        - path: ../pyproject.toml
+          action: rebuild
+        - path: ../uv.lock
+          action: rebuild
+    environment:
+      POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    depends_on:
+      test-db:
+        condition: service_healthy
+    entrypoint: ["tini", "-g", "--"]
+    command: ["uv", "run", "pytest", "-m", "not e2e"]
+    profiles:
+      - test
+
+  potto-e2e:
+    image: ghcr.io/geobeyond/potto/potto-e2e:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile_inline: |
+        FROM potto
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv sync --locked --group dev
+        USER root
+        RUN uv run playwright install-deps chromium
+        USER appuser
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv run playwright install chromium
+      additional_contexts:
+        potto: service:potto
+    develop:
+      watch:
+        - path: ../src/potto
+          action: sync
+          target: /home/appuser/app/src/potto
+        - path: ../tests
+          action: sync
+          target: /home/appuser/app/tests
+        - path: ../pyproject.toml
+          action: rebuild
+        - path: ../uv.lock
+          action: rebuild
+    environment:
+      POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    depends_on:
+      test-db:
+        condition: service_healthy
+    volumes:
+      - ../test-results:/home/appuser/app/test-results
+    entrypoint: ["tini", "-g", "--"]
+    command: ["uv", "run", "pytest", "-m", "e2e"]
+    profiles:
+      - e2e
+
   db:
     image: *db-image
     environment:

@@ -62,6 +62,9 @@ docs = [
 [project.scripts]
 potto = "potto.__main__:potto_app.meta"
 
+[tool.uv]
+default-groups = []
+
 [tool.pytest.ini_options]
 addopts = "--strict-markers --verbose"
 markers = [

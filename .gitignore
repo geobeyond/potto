@@ -19,5 +19,8 @@ potto_openapi_precommit.json
 
 potto_openapi_dev.json
 
+# playwright trace/screenshot/video artifacts from e2e test runs
+test-results/
+
 # docs
 site
