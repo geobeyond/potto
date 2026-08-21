@@ -1173,6 +1173,7 @@ dependencies = [
     { name = "geopandas" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "ogcapi-registry" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1196,7 +1197,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "ogc-cite-runner" },
-    { name = "ogcapi-registry" },
     { name = "playwright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1222,6 +1222,7 @@ requires-dist = [
     { name = "geopandas", specifier = ">=1.1.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "ogcapi-registry", specifier = ">=0.3.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
@@ -1245,7 +1246,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "ogc-cite-runner", specifier = ">=0.3.1" },
-    { name = "ogcapi-registry", specifier = ">=0.3.0" },
     { name = "playwright", specifier = ">=1.62.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
