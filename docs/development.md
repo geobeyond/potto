@@ -285,6 +285,10 @@ Beyond this test suite, potto's OpenAPI document and running instances are also 
 ogcapi-registry, and ogc-cite-runner - see [API compliance testing] for what each does and how to run them
 against the dev stack.
 
+The OGC CITE suite has its own profile-gated service too, `potto-cite-runner` (profile `cite`), alongside a
+dedicated `cite-db`, `potto-cite-bootstrap` and `potto-cite` server - see [API compliance testing] for the
+one-line command that brings the whole thing up and runs it.
+
 [API compliance testing]: api-compliance-testing.md
 
 

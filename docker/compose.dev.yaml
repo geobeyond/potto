@@ -115,6 +115,101 @@ services:
     profiles:
       - e2e
 
+  potto-cite-bootstrap:
+    image: ghcr.io/geobeyond/potto/potto:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+    environment:
+      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@cite-db:5432/potto_cite"
+    depends_on:
+      cite-db:
+        condition: service_healthy
+    entrypoint: ["tini", "-g", "--"]
+    command:
+      - "sh"
+      - "-c"
+      - |
+        # cite-db's pg_isready healthcheck can report healthy against the transient
+        # instance postgres runs during initdb, just before it restarts into the real
+        # server - so retry the first connection for a bit rather than trusting it blindly.
+        n=0
+        until uv run potto db upgrade; do
+          n=$((n + 1))
+          if [ "$$n" -ge 15 ]; then
+            echo "potto db upgrade did not succeed after retrying" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        (printf '12345678' | uv run potto user create cite-admin --password-stdin --scope admin || true)
+        uv run potto cite-testing bootstrap-ogcapi-features-1
+    profiles:
+      - cite
+
+  potto-cite:
+    image: ghcr.io/geobeyond/potto/potto:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+    environment:
+      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@cite-db:5432/potto_cite"
+      POTTO__PUBLIC_URL: "http://potto-cite:3001"
+      POTTO__USE_OAS30_FIXES: "true"
+      POTTO__DEBUG: "true"
+      POTTO__UVICORN_LOG_CONFIG_FILE: "/home/appuser/app/uvicorn-log-config-no-db.yml"
+    depends_on:
+      cite-db:
+        condition: service_healthy
+      potto-cite-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: >-
+        python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:3001/api/health')"
+      start_period: 10s
+      interval: 5s
+      retries: 10
+      timeout: 5s
+    ports:
+      - target: 3001
+        published: 3002
+    profiles:
+      - cite
+
+  potto-cite-runner:
+    image: ghcr.io/geobeyond/potto/potto-cite-runner:${CURRENT_GIT_BRANCH:-main}
+    build:
+      context: ../
+      dockerfile_inline: |
+        FROM potto
+        RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
+            uv sync --locked --group dev
+      additional_contexts:
+        potto: service:potto
+    depends_on:
+      potto-cite:
+        condition: service_healthy
+      ogc-teamengine:
+        condition: service_healthy
+    entrypoint: ["tini", "-g", "--"]
+    command:
+      - "uv"
+      - "run"
+      - "ogc-cite-runner"
+      - "execute-test-suite"
+      - "http://ogc-teamengine:8080/te2"
+      - "ogcapi-features-1.0"
+      - "--suite-input"
+      - "iut"
+      - "http://potto-cite:3001/api"
+      - "--with-failed"
+    profiles:
+      - cite
+
   db:
     image: *db-image
     environment:
@@ -150,24 +245,40 @@ services:
         published: 55433
     volumes:
       - test-db:/var/lib/postgresql/data
-#
-#  external-db:
-#    image: *db-image
-#    environment:
-#      POSTGRES_DB: external
-#      POSTGRES_USER: external
-#      POSTGRES_PASSWORD: externalpass
-#    healthcheck:
-#      test: "pg_isready -d external -U extertnal"
-#      start_period: 20s
-#      interval: 30s
-#      retries: 5
-#      timeout: 5s
-#    ports:
-#      - target: 5432
-#        published: 55433
-#    volumes:
-#      - external-db:/var/lib/postgresql/data
+
+  cite-db:
+    image: *db-image
+    environment:
+      POSTGRES_DB: potto_cite
+      POSTGRES_USER: potto
+      POSTGRES_PASSWORD: pottopass
+    healthcheck:
+      test: "pg_isready -d potto_cite -U potto"
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    ports:
+      - target: 5432
+        published: 55434
+    volumes:
+      - cite-db:/var/lib/postgresql/data
+    profiles:
+      - cite
+
+  ogc-teamengine:
+    image: "ogccite/teamengine-beta:1.0-SNAPSHOT"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080'"]
+      start_period: 40s
+      interval: 10s
+      retries: 10
+      timeout: 5s
+    ports:
+      - target: 8080
+        published: 59080
+    profiles:
+      - cite
 
   keycloak:
     image: "quay.io/keycloak/keycloak:26.5.5"
@@ -210,5 +321,6 @@ services:
 volumes:
   db:
   test-db:
+  cite-db:
 #  external-db:
   keycloak:
