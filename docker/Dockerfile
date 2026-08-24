@@ -24,7 +24,8 @@ ENV GIT_COMMIT=$GIT_COMMIT \
     PYTHONFAULTHANDLER=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_NO_SYNC=true \
-    UV_LOCKED=true
+    UV_LOCKED=true \
+    UV_PYTHON=3.14
 
 RUN --mount=type=cache,uid=1000,gid=1000,target=/home/appuser/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
