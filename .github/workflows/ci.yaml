@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
     paths-ignore:
       - 'docs/**'
 
@@ -15,37 +17,36 @@ on:
 
 env:
   COLUMNS: 120
+  PUBLISH_IMAGE: ${{ (github.ref_name == 'main' || github.ref_type == 'tag') && 'TRUE' || 'FALSE' }}
 
 jobs:
   run_ci:
     permissions:
       contents: read
       checks: write
+      packages: write
     runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: "python-package"
-      POTTO__BIND_HOST: "0.0.0.0"
-      POTTO__BIND_PORT: "3001"
-      POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55432/potto"
     steps:
 
       - name: "Grab code"
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Set up Python"
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version-file: "pyproject.toml"
 
       - name: "Install uv"
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: "0.11.7"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
       - name: "Install code with dev-related dependencies"
-        run: uv sync --locked --all-groups
+        run: uv sync --locked --group dev
 
       - name: "Run ruff formatter"
         run: uv run ruff format --check
@@ -56,31 +57,60 @@ jobs:
       - name: "Run ty"
         run: uv run ty check
 
+      - name: "Determine docker-related metadata"
+        id: docker_metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ github.event.repository.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{raw}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: "check generated docker metadata"
+        run: |
+          env | grep DOCKER_METADATA_OUTPUT
+          echo 'OUTPUT LABELS = ${{ steps.docker_metadata.outputs.labels }}'
+          echo 'OUTPUT TAGS = ${{ steps.docker_metadata.outputs.tags }}'
+          echo 'OUTPUT ANNOTATIONS = ${{ steps.docker_metadata.outputs.annotations}}'
+
+      - name: "Setup docker buildx"
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          driver: docker
+
+      - name: "Build docker image"
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+          push: false
+          load: true
+          file: docker/Dockerfile
+          tags: |
+            ${{ steps.docker_metadata.outputs.tags }}
+            ghcr.io/geobeyond/potto/potto:ci-build
+          labels: |
+            ${{ steps.docker_metadata.outputs.labels }}
+
       - name: "Stand up compose stack for testing"
         run: |
           docker compose --file docker/compose.ci.yaml up --detach --wait
 
       - name: "Initialize potto database"
         run: |
-          uv run potto db upgrade
+          docker compose --file docker/compose.ci.yaml --profile app run --rm -T potto db upgrade
 
       - name: "Validate OpenAPI schema with declared conformance classes"
         run: |
-          nohup uv run potto run-server &
-          echo $! > potto-server.pid
-
-          uv run python scripts/wait-for-server.py http://localhost:3001/api/health
-
+          docker compose --file docker/compose.ci.yaml --profile app up --detach --wait potto
           uv run potto openapi validate --format table --no-error-on-failure
-
-          if [ -f potto-server.pid ]; then
-              echo "Shutting down potto server with PID $(cat potto-server.pid)..."
-              kill $(cat potto-server.pid)  || true
-              rm potto-server.pid
-          fi
+          docker compose --file docker/compose.ci.yaml --profile app stop potto
 
       - name: "Export OpenAPI schema document"
-        run: uv run potto openapi export --output potto_openapi_ci.json
+        run: |
+          docker compose --file docker/compose.ci.yaml --profile app run --rm -T potto openapi export > potto_openapi_ci.json
 
       - name: "Lint OpenAPI schema with spectral"
         run: |
@@ -91,38 +121,30 @@ jobs:
           --format github-actions
 
       - name: "Run integration tests"
-        env:
-          POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55433/potto_test"
-          POTTO__DEBUG: "true"
-        run: uv run pytest -m integration
-
-      - name: "Install Playwright browsers"
-        run: uv run playwright install --with-deps --only-shell chromium
+        run: |
+          docker compose --file docker/compose.ci.yaml --profile test run --rm potto-test
 
       - name: "Run e2e tests"
-        env:
-          POTTO__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@localhost:55433/potto_test"
-          POTTO__DEBUG: "true"
-        run: uv run pytest -m e2e
+        run: |
+          docker compose --file docker/compose.ci.yaml --profile e2e run --rm potto-e2e
 
       - name: "bootstrap potto database with data for OGC CITE testing"
         run: |
-          echo "12345678" | uv run potto user create cite-admin --password-stdin --scope admin
-          uv run potto cite-testing bootstrap-ogc-api-features-1
+          echo "12345678" | docker compose --file docker/compose.ci.yaml --profile app run --rm -T potto user create cite-admin --password-stdin --scope admin
+          docker compose --file docker/compose.ci.yaml --profile app run --rm -T potto cite-testing bootstrap-ogc-api-features-1
 
       - name: "Launch potto server for OGC CITE testing"
-        env:
-          POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
-          POTTO__USE_OAS30_FIXES: "true"
         run: |
-          nohup uv run potto run-server &
-          echo $! > potto-server.pid
-
-          uv run python scripts/wait-for-server.py http://localhost:3001/api/health
+          docker compose --file docker/compose.ci.yaml --profile cite up --detach --wait potto-cite
 
       - name: "Run OGC CITE tests"
         env:
           PUBLIC_URL: "http://host.docker.internal:3001"
+        # Pinned by tag, not SHA: this action derives its own package version from
+        # `github.action_ref` (via SETUPTOOLS_SCM_PRETEND_VERSION) to build itself with
+        # hatch-vcs. A full commit SHA is not a valid PEP 440 version, so SHA-pinning
+        # breaks `uv sync --frozen` inside the action. See OSGEO/ogc-cite-runner's
+        # action.yml "Install ogc-cite-runner" step.
         uses: OSGEO/ogc-cite-runner@v0.3.2
         with:
           test_suite_identifier: ogcapi-features-1.0
@@ -133,11 +155,7 @@ jobs:
       - name: "Shut down potto server for OGC CITE testing"
         if: always()
         run: |
-          if [ -f potto-server.pid ]; then
-              echo "Shutting down potto server with PID $(cat potto-server.pid)..."
-              kill $(cat potto-server.pid)  || true
-              rm potto-server.pid
-          fi
+          docker compose --file docker/compose.ci.yaml --profile cite stop potto-cite
 
       - name: "Stand down compose stack"
         run: |
@@ -148,9 +166,26 @@ jobs:
 
       - name: "Upload built package as artifact"
         id: upload_package_artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ github.event_name != 'pull_request' }}
         with:
           name: "${{ env.ARTIFACT_NAME }}"
           path: dist/
           retention-days: 2
+
+      - name: "Remove CI-only image tag"
+        if: ${{ env.PUBLISH_IMAGE == 'TRUE' }}
+        run: docker rmi ghcr.io/geobeyond/potto/potto:ci-build
+
+      - name: "Login to container registry"
+        if: ${{ env.PUBLISH_IMAGE == 'TRUE' }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Push docker image to registry"
+        id: push_image
+        if: ${{ env.PUBLISH_IMAGE == 'TRUE' }}
+        run: docker push --all-tags ghcr.io/geobeyond/potto/potto

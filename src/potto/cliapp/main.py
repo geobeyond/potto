@@ -20,6 +20,7 @@ from ..config import (
     PottoSettings,
 )
 
+from .banner import BANNER
 from .cite import cite_app
 from .collections import collections_app
 from .db import db_app
@@ -99,6 +100,7 @@ def run_uvicorn_server(
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ):
+    potto_app.console.print(BANNER)
     table = Table(title="Potto configuration")
     table.add_column("Parameter")
     table.add_column("Value")

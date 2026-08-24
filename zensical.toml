@@ -13,6 +13,7 @@ Copyright &copy; 2026 potto dev team
 nav = [
     { "Home" = "index.md" },
     { "Development" = "development.md" },
+    { "API compliance testing" = "api-compliance-testing.md" },
     { "Motivation" = "motivation.md" },
 ]
 
