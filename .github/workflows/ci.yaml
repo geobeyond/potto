@@ -140,7 +140,12 @@ jobs:
       - name: "Run OGC CITE tests"
         env:
           PUBLIC_URL: "http://host.docker.internal:3001"
-        uses: OSGEO/ogc-cite-runner@0c47c4badb692847666c601acd86b2013efd7443 # v0.3.2
+        # Pinned by tag, not SHA: this action derives its own package version from
+        # `github.action_ref` (via SETUPTOOLS_SCM_PRETEND_VERSION) to build itself with
+        # hatch-vcs. A full commit SHA is not a valid PEP 440 version, so SHA-pinning
+        # breaks `uv sync --frozen` inside the action. See OSGEO/ogc-cite-runner's
+        # action.yml "Install ogc-cite-runner" step.
+        uses: OSGEO/ogc-cite-runner@v0.3.2
         with:
           test_suite_identifier: ogcapi-features-1.0
           test_session_arguments: >-

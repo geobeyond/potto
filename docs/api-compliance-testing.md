@@ -84,7 +84,11 @@ conform to.
 To run it yourself against the dev stack (already running - see [Installation]):
 
 ```shell
-uv run potto openapi validate --format table --no-error-on-failure
+docker compose \
+    --env-file docker/local.env \
+    -f docker/compose.dev.yaml \
+    exec -ti \
+    uv run potto openapi validate
 ```
 
 This defaults to validating `http://localhost:3001/api`, matching the dev stack's published port. Pass
