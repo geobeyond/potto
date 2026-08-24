@@ -102,8 +102,9 @@ async def list_collection_items(request: Request) -> Response:
     )
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
-    feature_filter = base_schemas.FeatureFilter.from_query_parameters(
-        request.query_params
+    # FIXME
+    feature_filter = base_schemas.PottoFeatureFilter.from_feature_filter(
+        base_schemas.FeatureFilter.from_query_parameters(request.query_params)
     )
     try:
         async with settings.get_db_session_maker()() as session:

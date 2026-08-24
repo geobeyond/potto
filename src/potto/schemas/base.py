@@ -296,7 +296,8 @@ class ItemFilter(pydantic.BaseModel):
     bbox_crs: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+            serialization_alias="bbox-crs",
+            description="CRS of the bbox coordinates, as a URI.",
         ),
     ] = None
     cql_text: typing.Annotated[
@@ -305,14 +306,14 @@ class ItemFilter(pydantic.BaseModel):
     datetime_: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="datetime",
+            serialization_alias="datetime",
             description="Temporal filter as RFC 3339 instant or interval ('/' separated).",
         ),
     ] = None
     vendor_specific_parameters: typing.Annotated[
         dict[str, str] | None,
         pydantic.Field(
-            alias="vendorSpecificParameters",
+            serialization_alias="vendorSpecificParameters",
             description="Additional query properties to pass through.",
         ),
         pydantic.WithJsonSchema(
@@ -320,12 +321,13 @@ class ItemFilter(pydantic.BaseModel):
         ),
     ] = None
     filter_: typing.Annotated[
-        str | None, pydantic.Field(alias="filter", description="Filter expression.")
+        str | None,
+        pydantic.Field(serialization_alias="filter", description="Filter expression."),
     ] = None
     filter_lang: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="filter-lang",
+            serialization_alias="filter-lang",
             description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
         ),
     ] = None
@@ -365,14 +367,15 @@ class ItemFilter(pydantic.BaseModel):
     skip_geometry: typing.Annotated[
         bool | None,
         pydantic.Field(
-            alias="skipGeometry",
+            serialization_alias="skipGeometry",
             description="If true, geometry is omitted from the response.",
         ),
     ] = None
     sort_by: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="sortby", description="Sort expression, e.g. '+name,-date'."
+            serialization_alias="sortby",
+            description="Sort expression, e.g. '+name,-date'.",
         ),
     ] = None
 
@@ -415,7 +418,8 @@ class PottoFeatureFilter(pydantic.BaseModel):
     bbox_crs: typing.Annotated[
         str,
         pydantic.Field(
-            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+            serialization_alias="bbox-crs",
+            description="CRS of the bbox coordinates, as a URI.",
         ),
     ] = constants.CRS_84
     crs: str = constants.CRS_84

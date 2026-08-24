@@ -9,7 +9,7 @@ from fastapi import (
     Response,
 )
 
-from ....schemas.base import FeatureFilter
+from ....schemas.base import PottoFeatureFilter
 from ....schemas.web.items import (
     GeoJsonItem,
     GeoJsonItemCollection,
@@ -45,7 +45,7 @@ async def list_collection_items(
     request: Request,
     response: Response,
     collection_id: CollectionIdPath,
-    filter_: Annotated[FeatureFilter, Query()],
+    filter_: Annotated[PottoFeatureFilter, Query()],
     potto: PottoDependency,
     user: UserDependency,
     locale: LocaleDependency,
@@ -62,16 +62,21 @@ async def list_collection_items(
             collection_id, user=user, filter_=filter_, session=session
         )
     result = GeoJsonItemCollection.from_potto(collection_items, request.url_for)
-    response_headers: dict[str, str] = {
-        "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
-    }
-    if crs_header := (
-        collection_items.metadata.get("Content-Crs")
-        if collection_items.metadata
-        else None
-    ):
-        response_headers["Content-Crs"] = crs_header
-    response.headers.update(response_headers)
+    response.headers.update(
+        {
+            "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
+            "Content-Crs": (
+                [i.crs for i in collection_items.features][0]
+                if len(collection_items.features) > 0
+                else collection_items.storage_crs
+            ),
+            **(
+                {str(k): str(v) for k, v in collection_items.metadata}
+                if collection_items.metadata
+                else {}
+            ),
+        }
+    )
     return result
 
 
@@ -107,14 +112,15 @@ async def get_item_details(
             session=session,
         )
     result = GeoJsonItem.from_potto(collection_item, request.url_for)
-    response_headers: dict[str, str] = {
-        "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
-    }
-    if crs_header := (
-        collection_item.metadata.get("Content-Crs")
-        if collection_item.metadata
-        else None
-    ):
-        response_headers["Content-Crs"] = crs_header
-    response.headers.update(response_headers)
+    response.headers.update(
+        {
+            "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
+            "Content-Crs": collection_item.feature.crs,
+            **(
+                {str(k): str(v) for k, v in collection_item.metadata}
+                if collection_item.metadata
+                else {}
+            ),
+        }
+    )
     return result

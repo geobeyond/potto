@@ -151,14 +151,10 @@ class Potto:
         collection_id: str,
         *,
         user: auth.PottoUser | None = None,
-        filter_: base.FeatureFilter | None = None,
+        filter_: base.PottoFeatureFilter | None = None,
         session: AsyncSession,
     ) -> potto_schemas.FeatureListResponse:
-        feature_filter = (
-            base.PottoFeatureFilter.from_feature_filter(filter_)
-            if filter_
-            else base.PottoFeatureFilter()
-        )
+        feature_filter = filter_ or base.PottoFeatureFilter()
         if (
             collection := await self.get_collection(
                 collection_id, user=user, session=session
