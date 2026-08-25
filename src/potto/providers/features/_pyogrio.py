@@ -202,10 +202,10 @@ def _build_features_from_geodataframe(
 def _build_where_clause(item_filter: PottoFeatureFilter) -> str | None:
     """Return an OGR SQL WHERE clause string, or None when there is nothing to filter.
 
-    bbox is passed to pyogrio natively; limit/offset are pagination; properties
-    is column selection — none of those belong here.  This function exists as
-    the single place to compose future filter conditions (datetime, CQL2 text,
-    property-value pairs, etc.) into an AND-joined expression.
+    bbox is passed to pyogrio natively; limit/offset are pagination — neither
+    belongs here.  This function exists as the single place to compose future
+    filter conditions (datetime, CQL2 text, property-value pairs, etc.) into an
+    AND-joined expression.
     """
     parts: list[str] = []
     # future conditions: append to `parts`, e.g.

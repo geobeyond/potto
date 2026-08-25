@@ -188,9 +188,7 @@ class PostgisFeatureProvider:
             return geometry_column
         return func.ST_Transform(geometry_column, target_srid)
 
-    def _build_select(
-        self, *, target_srid: int, projection: list[str] | None = None
-    ) -> Any:
+    def _build_select(self, *, target_srid: int) -> Any:
         assert self._table is not None and self._id_column is not None
         geometry_column_name = self.config.geometry_column
         geometry_expression = self._transform_geom_to_srid(target_srid).label(
@@ -199,11 +197,6 @@ class PostgisFeatureProvider:
         non_geometry_columns = [
             c for c in self._table.columns if c.name != geometry_column_name
         ]
-        if projection is not None:
-            required_columns = set(projection) | {self._id_column}
-            non_geometry_columns = [
-                c for c in non_geometry_columns if c.name in required_columns
-            ]
         return select(*non_geometry_columns, geometry_expression)
 
     def _apply_filter(self, stmt: Any, ff: PottoFeatureFilter) -> Any:
@@ -237,17 +230,10 @@ class PostgisFeatureProvider:
                 f"Cannot coerce {raw_id!r} to {python_type.__name__}"
             ) from exc
 
-    def _build_feature_from_row(
-        self,
-        row_data: dict[str, Any],
-        *,
-        projection: list[str] | None = None,
-    ) -> Feature:
+    def _build_feature_from_row(self, row_data: dict[str, Any]) -> Feature:
         assert self._id_column is not None
         raw_geometry = row_data.pop(self.config.geometry_column, None)
         feature_id = row_data.pop(self._id_column, None)
-        if projection is not None:
-            row_data = {k: v for k, v in row_data.items() if k in projection}
         return Feature(
             id_=str(feature_id),
             properties=row_data,
@@ -261,18 +247,12 @@ class PostgisFeatureProvider:
         effective_filter = feature_filter or PottoFeatureFilter()
         stmt = self._build_select(
             target_srid=_parse_srid_from_crs_uri(effective_filter.crs),
-            projection=effective_filter.properties,
         )
         stmt = self._apply_filter(stmt, effective_filter)
         stmt = stmt.limit(effective_filter.limit).offset(effective_filter.offset)
         async with self._engine.connect() as conn:
             result = await conn.execute(stmt)
-        return [
-            self._build_feature_from_row(
-                dict(row), projection=effective_filter.properties
-            )
-            for row in result.mappings()
-        ]
+        return [self._build_feature_from_row(dict(row)) for row in result.mappings()]
 
     async def count_items(
         self, feature_filter: PottoFeatureFilter | None = None

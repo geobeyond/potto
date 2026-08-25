@@ -357,13 +357,6 @@ class ItemFilter(pydantic.BaseModel):
             description="Response type: 'results' returns items, 'hits' returns only the count."
         ),
     ] = "results"
-    select_properties: typing.Annotated[
-        list[str] | None,
-        pydantic.Field(
-            alias="properties",
-            description="List of item properties to include in the response.",
-        ),
-    ] = None
     skip_geometry: typing.Annotated[
         bool | None,
         pydantic.Field(
@@ -471,7 +464,10 @@ class PottoFeatureFilter(pydantic.BaseModel):
             description="CRS of the bbox coordinates, as a URI.",
         ),
     ] = constants.CRS_84
-    crs: str = constants.CRS_84
+    crs: typing.Annotated[
+        str,
+        pydantic.Field(description="CRS URI for the response geometry coordinates."),
+    ] = constants.CRS_84
     datetime_: typing.Annotated[
         str | None,
         pydantic.Field(
@@ -492,7 +488,6 @@ class PottoFeatureFilter(pydantic.BaseModel):
             description="Number of items to skip before returning results.", ge=0
         ),
     ] = 0
-    properties: list[str] | None = None
     filter_: typing.Annotated[
         str | None,
         pydantic.Field(alias="filter", description="Filter expression."),
@@ -540,7 +535,6 @@ class PottoFeatureFilter(pydantic.BaseModel):
             crs=feature_filter.crs or constants.CRS_84,
             limit=feature_filter.limit,
             offset=feature_filter.offset,
-            properties=feature_filter.select_properties,
             filter_=feature_filter.filter_,
             filter_lang=feature_filter.filter_lang,
         )
