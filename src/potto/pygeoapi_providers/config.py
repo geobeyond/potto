@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 from typing import Literal, TYPE_CHECKING
@@ -60,6 +61,7 @@ class PygeoapiConfigWktFeatureProvider:
         self.storage_crs = provider_definition["data"].get(
             "crs", "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
         )
+        self.time_field = provider_definition.get("time_field")
         try:
             first_feature = next(iter(self._data.values()))
         except StopIteration:
@@ -100,6 +102,10 @@ class PygeoapiConfigWktFeatureProvider:
         if bbox:
             bbox_geom = _bbox_to_geometry(bbox)
             features = _perform_bbox_filtering(bbox_geom, features)
+        if datetime_:
+            features = _perform_datetime_filtering(
+                self.time_field, _parse_datetime_range(datetime_), features
+            )
         # we can't enable this, as pygeoapi does not support cql2-text yet, as per:
         # https://github.com/geopython/pygeoapi/issues/2297
         # alternatively, we could convert the filter from cql2-text to cql2-json
@@ -155,6 +161,7 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         self.storage_crs = provider_definition["data"].get(
             "crs", "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
         )
+        self.time_field = provider_definition.get("time_field")
         try:
             first_feature = next(iter(self._data.values()))
         except StopIteration:
@@ -194,6 +201,10 @@ class PygeoapiConfigGeoJsonFeatureProvider:
         if bbox:
             bbox_geom = _bbox_to_geometry(bbox)
             features = _perform_bbox_filtering(bbox_geom, features)
+        if datetime_:
+            features = _perform_datetime_filtering(
+                self.time_field, _parse_datetime_range(datetime_), features
+            )
         num_matched = len(features)
         features = _perform_offset_limit_filtering(limit, offset, features)
         return GeoJsonFeatureCollection(
@@ -233,6 +244,47 @@ def _bbox_to_geometry(bbox: RawBbox) -> shapely.Geometry:
             ]
         )
     return shapely.box(minx, miny, maxx, maxy)
+
+
+def _parse_datetime_range(
+    value: str,
+) -> tuple[datetime.datetime | None, datetime.datetime | None]:
+    """Parse an RFC 3339 instant or interval into a (start, end) pair.
+
+    Per OGC API - Features, an interval is two RFC 3339 datetimes separated by
+    '/', where either side may be '..' for an open end; a bare value is a single
+    instant, i.e. both ends of the range are that same instant.
+    """
+    if "/" in value:
+        raw_start, raw_end = value.split("/", 1)
+    else:
+        raw_start = raw_end = value
+    start = None if raw_start == ".." else datetime.datetime.fromisoformat(raw_start)
+    end = None if raw_end == ".." else datetime.datetime.fromisoformat(raw_end)
+    return start, end
+
+
+def _perform_datetime_filtering(
+    time_field: str | None,
+    datetime_range: tuple[datetime.datetime | None, datetime.datetime | None],
+    features: list[GeoJsonFeature],
+) -> list[GeoJsonFeature]:
+    """Filter input features by a (start, end) instant/interval, either side optional."""
+    if time_field is None:
+        return features
+    start, end = datetime_range
+    result = []
+    for feat in features:
+        raw_value = feat["properties"].get(time_field)
+        if raw_value is None:
+            continue
+        value = datetime.datetime.fromisoformat(str(raw_value))
+        if start is not None and value < start:
+            continue
+        if end is not None and value > end:
+            continue
+        result.append(feat)
+    return result
 
 
 def _perform_offset_limit_filtering(

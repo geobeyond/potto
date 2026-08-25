@@ -1031,7 +1031,7 @@ wheels = [
 
 [[package]]
 name = "ogc-cite-runner"
-version = "0.3.1"
+version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1043,9 +1043,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/6e/0d5518ae5ef0734dd32249718f7847504789abcbe5f05416ecff1ba90918/ogc_cite_runner-0.3.1.tar.gz", hash = "sha256:5b1dab8695ee87e3d600af4f24cf7208f8274099217e0883debb575ceb3d64ec", size = 632297, upload-time = "2025-11-20T11:12:24.395Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/cd/1adb0f428be7aeafe5b5d70804dbe6554eaf39ae49e6b72f4fdff63a886f/ogc_cite_runner-0.3.2.tar.gz", hash = "sha256:e34e6a1a6db41ef599d9881cc49680f8f287e5cbb9dd8ea3dcb273b6ff62c66a", size = 633433, upload-time = "2026-05-08T17:31:32.654Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/96/2dc3026edc025ad4296675a1c811fcce84bff812cf622a6152089cedde41/ogc_cite_runner-0.3.1-py3-none-any.whl", hash = "sha256:3da7dbb0836d52b293145750177223c0b8eeff5251dbf1f00a26c303557cc06f", size = 15655, upload-time = "2025-11-20T11:12:22.764Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/42/953d338c0f471817142d2896ead0fe8cbbee6d8ef81d8a74b2ffa990ab8b/ogc_cite_runner-0.3.2-py3-none-any.whl", hash = "sha256:ed689be7f12f1d640abb74b98e8ab41f70237f33ef2679e29264385bac33d99f", size = 15692, upload-time = "2026-05-08T17:31:31.194Z" },
 ]
 
 [[package]]
@@ -1245,7 +1245,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "ogc-cite-runner", specifier = ">=0.3.1" },
+    { name = "ogc-cite-runner", specifier = ">=0.3.2" },
     { name = "playwright", specifier = ">=1.62.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },

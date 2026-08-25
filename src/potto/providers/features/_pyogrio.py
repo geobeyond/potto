@@ -202,10 +202,10 @@ def _build_features_from_geodataframe(
 def _build_where_clause(item_filter: PottoFeatureFilter) -> str | None:
     """Return an OGR SQL WHERE clause string, or None when there is nothing to filter.
 
-    bbox is passed to pyogrio natively; limit/offset are pagination; properties
-    is column selection — none of those belong here.  This function exists as
-    the single place to compose future filter conditions (datetime, CQL2 text,
-    property-value pairs, etc.) into an AND-joined expression.
+    bbox is passed to pyogrio natively; limit/offset are pagination — neither
+    belongs here.  This function exists as the single place to compose future
+    filter conditions (datetime, CQL2 text, property-value pairs, etc.) into an
+    AND-joined expression.
     """
     parts: list[str] = []
     # future conditions: append to `parts`, e.g.
@@ -226,7 +226,7 @@ def _list_features(
         skip_features=item_filter.offset,
         fid_as_index=id_column is None,
         where=_build_where_clause(item_filter),
-        bbox=item_filter.bbox,
+        bbox=item_filter.bbox_2d,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     target_crs = pyproj.CRS(item_filter.crs)
@@ -251,7 +251,7 @@ def _count_features(
         fid_as_index=True,
         columns=[],
         where=where_clause,
-        bbox=feature_filter.bbox,
+        bbox=feature_filter.bbox_2d,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     return CountedItems(matched=len(matched_gdf), total=total)

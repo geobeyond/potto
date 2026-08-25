@@ -52,6 +52,7 @@ class Feature:
     id_: str
     properties: dict[str, str | int | float | bool | dt.datetime | None]
     geometry: shapely.Geometry
+    crs: str = CRS_84
 
 
 @dataclasses.dataclass(frozen=True)
@@ -97,6 +98,7 @@ class FeatureListResponse:
     collection: Collection
     features: list[Feature]
     pagination: base.PaginationContext
+    storage_crs: str = CRS_84
     filter_: base.FeatureFilter | base.PottoFeatureFilter | None = None
     metadata: dict[str, str] | None = None
 
@@ -105,4 +107,5 @@ class FeatureListResponse:
 class FeatureResponse:
     collection: Collection
     feature: Feature
+    storage_crs: str = CRS_84
     metadata: dict[str, str] | None = None

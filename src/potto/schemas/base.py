@@ -296,7 +296,8 @@ class ItemFilter(pydantic.BaseModel):
     bbox_crs: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+            serialization_alias="bbox-crs",
+            description="CRS of the bbox coordinates, as a URI.",
         ),
     ] = None
     cql_text: typing.Annotated[
@@ -305,14 +306,14 @@ class ItemFilter(pydantic.BaseModel):
     datetime_: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="datetime",
+            serialization_alias="datetime",
             description="Temporal filter as RFC 3339 instant or interval ('/' separated).",
         ),
     ] = None
     vendor_specific_parameters: typing.Annotated[
         dict[str, str] | None,
         pydantic.Field(
-            alias="vendorSpecificParameters",
+            serialization_alias="vendorSpecificParameters",
             description="Additional query properties to pass through.",
         ),
         pydantic.WithJsonSchema(
@@ -320,12 +321,13 @@ class ItemFilter(pydantic.BaseModel):
         ),
     ] = None
     filter_: typing.Annotated[
-        str | None, pydantic.Field(alias="filter", description="Filter expression.")
+        str | None,
+        pydantic.Field(serialization_alias="filter", description="Filter expression."),
     ] = None
     filter_lang: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="filter-lang",
+            serialization_alias="filter-lang",
             description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
         ),
     ] = None
@@ -355,24 +357,18 @@ class ItemFilter(pydantic.BaseModel):
             description="Response type: 'results' returns items, 'hits' returns only the count."
         ),
     ] = "results"
-    select_properties: typing.Annotated[
-        list[str] | None,
-        pydantic.Field(
-            alias="properties",
-            description="List of item properties to include in the response.",
-        ),
-    ] = None
     skip_geometry: typing.Annotated[
         bool | None,
         pydantic.Field(
-            alias="skipGeometry",
+            serialization_alias="skipGeometry",
             description="If true, geometry is omitted from the response.",
         ),
     ] = None
     sort_by: typing.Annotated[
         str | None,
         pydantic.Field(
-            alias="sortby", description="Sort expression, e.g. '+name,-date'."
+            serialization_alias="sortby",
+            description="Sort expression, e.g. '+name,-date'.",
         ),
     ] = None
 
@@ -410,15 +406,79 @@ class FeatureFilter(ItemFilter):
         )
 
 
+def _parse_bbox(
+    value: str | typing.Sequence[str | float] | None,
+) -> tuple[float, ...] | None:
+    """Parse a bbox query value into a 4- or 6-element tuple of floats.
+
+    FastAPI feeds this whatever ``request.query_params.getlist("bbox")`` returned:
+    a single comma-separated string wrapped in a one-element list for the
+    OGC-required ``bbox=minx,miny,maxx,maxy`` form (``explode: false``), or one raw
+    string per element when a client instead repeats the key (``bbox=minx&bbox=miny``).
+    """
+    if value is None:
+        return None
+    parts: typing.Sequence[str | float]
+    if isinstance(value, str):
+        parts = value.split(",")
+    elif len(value) == 1 and isinstance(value[0], str) and "," in value[0]:
+        parts = value[0].split(",")
+    else:
+        parts = value
+    try:
+        coordinates = tuple(float(part) for part in parts)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "bbox must be a comma-separated list of 4 or 6 numbers"
+        ) from exc
+    if len(coordinates) not in (4, 6):
+        raise ValueError("bbox must have exactly 4 or 6 numbers")
+    return coordinates
+
+
 class PottoFeatureFilter(pydantic.BaseModel):
-    bbox: tuple[float, float, float, float] | None = None
+    model_config = pydantic.ConfigDict(serialize_by_alias=True, extra="allow")
+    bbox: typing.Annotated[
+        tuple[float, ...] | None,
+        pydantic.BeforeValidator(_parse_bbox),
+        pydantic.Field(
+            description=(
+                "Bounding box filter as 'minx,miny,maxx,maxy' or, for a 3D bbox, "
+                "'minx,miny,minz,maxx,maxy,maxz'."
+            ),
+        ),
+        pydantic.WithJsonSchema(
+            {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 4,
+                "maxItems": 6,
+                "nullable": True,
+            }
+        ),
+    ] = None
     bbox_crs: typing.Annotated[
         str,
         pydantic.Field(
-            alias="bbox-crs", description="CRS of the bbox coordinates, as a URI."
+            alias="bbox-crs",
+            description="CRS of the bbox coordinates, as a URI.",
         ),
     ] = constants.CRS_84
-    crs: str = constants.CRS_84
+    crs: typing.Annotated[
+        str,
+        pydantic.Field(description="CRS URI for the response geometry coordinates."),
+    ] = constants.CRS_84
+    datetime_: typing.Annotated[
+        str | None,
+        pydantic.Field(
+            alias="datetime",
+            description=(
+                "Temporal filter as an RFC 3339 instant, or an interval of two "
+                "instants separated by '/' where either side may be '..' for an "
+                "open end."
+            ),
+        ),
+    ] = None
     limit: typing.Annotated[
         int, pydantic.Field(description="Maximum number of items to return.", ge=1)
     ] = 20
@@ -428,18 +488,33 @@ class PottoFeatureFilter(pydantic.BaseModel):
             description="Number of items to skip before returning results.", ge=0
         ),
     ] = 0
-    properties: list[str] | None = None
     filter_: typing.Annotated[
         str | None,
-        pydantic.Field(serialization_alias="filter", description="Filter expression."),
+        pydantic.Field(alias="filter", description="Filter expression."),
     ] = None
     filter_lang: typing.Annotated[
         str | None,
         pydantic.Field(
-            serialization_alias="filter-lang",
+            alias="filter-lang",
             description="Filter language identifier (e.g. 'cql2-text', 'cql2-json').",
         ),
     ] = None
+
+    @property
+    def bbox_2d(self) -> tuple[float, float, float, float] | None:
+        """The horizontal (x/y) extent of ``bbox``, dropping any z-min/z-max.
+
+        OGC API - Features allows a 6-element 3D bbox (minx,miny,minz,maxx,maxy,maxz);
+        none of potto's feature providers filter on the z axis, so this is the 2D
+        extent they actually use.
+        """
+        if self.bbox is None:
+            return None
+        if len(self.bbox) == 6:
+            minx, miny, _minz, maxx, maxy, _maxz = self.bbox
+        else:
+            minx, miny, maxx, maxy = self.bbox
+        return (minx, miny, maxx, maxy)
 
     @classmethod
     def from_feature_filter(cls, feature_filter: FeatureFilter) -> "PottoFeatureFilter":
@@ -460,7 +535,6 @@ class PottoFeatureFilter(pydantic.BaseModel):
             crs=feature_filter.crs or constants.CRS_84,
             limit=feature_filter.limit,
             offset=feature_filter.offset,
-            properties=feature_filter.select_properties,
             filter_=feature_filter.filter_,
             filter_lang=feature_filter.filter_lang,
         )

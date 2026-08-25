@@ -110,48 +110,136 @@ given OGC API standard.
     contains newer versions of the OGC test suites. This also means the TeamEngine URL ends with `/te2` instead of
     `/teamengine`.
 
-To run it yourself, launch TeamEngine and a suitably-configured potto process by hand:
+The dev stack (see [Installation]) has a dedicated `cite` [docker compose profile] with everything wired up: a
+`cite-db` isolated from the regular `db`/`test-db` data, a `potto-cite-bootstrap` one-shot service that migrates
+`cite-db` and seeds it via `potto cite-testing bootstrap-ogcapi-features-1`, a `potto-cite` server configured for
+CITE testing, and `ogc-teamengine` itself. Bring it up with:
 
 ```shell
-# pull TeamEngine docker image
-docker pull ogccite/teamengine-beta:1.0-SNAPSHOT
-
-# launch it
-docker run \
-    --rm \
-    --detach \
-    --name=teamengine \
-    --add-host=host.docker.internal:host-gateway \
-    --publish=9080:8080 \
-    ogccite/teamengine-beta:1.0-SNAPSHOT
-
-# have at least one public collection
-uv run potto cite-testing bootstrap-ogcapi-features-1
-
-# launch potto with a suitable configuration
-POTTO__DATABASE_DSN="postgresql+psycopg://potto:pottopass@localhost:55432/potto" \
-    POTTO__BIND_HOST=0.0.0.0 \
-    POTTO__PUBLIC_URL=http://host.docker.internal:3001 \
-    POTTO__USE_OAS30_FIXES=true \
-    uv run potto run-server
-
-# use ogc-cite-runner
-# in this example we are testing OGC API - Features
-uv run ogc-cite-runner execute-test-suite http://localhost:9080/te2 \
-    ogcapi-features-1.0 \
-    --suite-input iut http://host.docker.internal:3001/api \
-    --with-failed
+CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+    docker compose \
+    --env-file docker/local.env \
+    -f docker/compose.dev.yaml \
+    --profile cite \
+    up --watch --build potto-cite ogc-teamengine
 ```
 
-??? info "Networking between the TeamEngine container and the host network"
+!!! note "Naming `potto-cite` and `ogc-teamengine` explicitly"
 
-    In the example above, the URL of the implementation under test (the `iut` suite input) is
-    `http://host.docker.internal:3001/api`.
+    `--profile cite` alone would also start the regular `potto`/`db`/`test-db` services from the default dev
+    stack, since services without a `profiles` entry always start regardless of which profile is passed - naming
+    `potto-cite` (which pulls in its own dependencies, `cite-db` and the one-shot `potto-cite-bootstrap`) and
+    `ogc-teamengine` avoids that. It also keeps `--watch` scoped to a service that actually has a `develop.watch`
+    block: `potto-cite-runner` doesn't, so naming *it* instead makes compose report `Watch disabled` the moment
+    its one-off run finishes.
 
+This stays attached and, just like the regular dev stack, syncs local `src/potto` changes into `potto-cite` -
+picked up automatically by uvicorn's `--reload`, since `potto-cite` runs with `POTTO__DEBUG=true`. Press Ctrl-C
+when you're done; that only stops `potto-cite` and `ogc-teamengine` - `cite-db` keeps running (tear the whole
+profile down as shown below).
+
+With that up, run the CITE test suite against it from another terminal, whenever you want a report:
+
+```shell
+CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+    docker compose \
+    --env-file docker/local.env \
+    -f docker/compose.dev.yaml \
+    --profile cite \
+    run --rm --no-deps potto-cite-runner
+```
+
+This prints the CITE run's pass/fail report (`--with-failed` is passed to `ogc-cite-runner` so failure detail is
+included) and exits with a non-zero status if any test failed - that's `ogc-cite-runner` reporting genuine
+conformance findings, not a sign that the setup itself is broken. Re-run it as often as you like while you
+iterate on the code; `--no-deps` skips re-checking the already-running dependencies (including re-running the
+one-shot `potto-cite-bootstrap` job) and just re-executes the test suite against your latest changes.
+
+Tear the whole `cite` profile down with:
+
+```shell
+docker compose --env-file docker/local.env -f docker/compose.dev.yaml --profile cite down
+```
+
+!!! warning "Don't add `-v` to the command above"
+
+    `docker compose down -v` removes **every** named volume declared in `compose.dev.yaml`, not just the ones
+    belonging to the `cite` profile - `--profile` only scopes which containers get torn down, not which volumes
+    get removed. Running it here would also wipe your regular `db`/`test-db` data. To drop only `cite-db`'s data,
+    remove that one volume by name instead:
+
+    ```shell
+    docker volume rm potto_cite-db
+    ```
+
+??? tip "Poking at things manually"
+
+    `potto-cite` and `ogc-teamengine` also publish host ports, in case you want to inspect either directly while
+    the `cite` profile is up (e.g. right before `potto-cite-runner` would run, or after it exits since neither
+    `potto-cite` nor `ogc-teamengine` are `--rm`):
+
+    - potto's CITE-testing instance: <http://localhost:3002/api>
+    - TeamEngine's own web UI: <http://localhost:59080/te2>
+
+    You can also swap `--with-failed` for other `ogc-cite-runner` report flags - `--output-format json|markdown`,
+    `--with-summary`, `--with-passed` - by overriding the `potto-cite-runner` command, e.g.:
+
+    ```shell
+    CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+        docker compose \
+        --env-file docker/local.env \
+        -f docker/compose.dev.yaml \
+        --profile cite \
+        run --rm --no-deps potto-cite-runner \
+        uv run ogc-cite-runner execute-test-suite http://ogc-teamengine:8080/te2 \
+        ogcapi-features-1.0 --suite-input iut http://potto-cite:3001/api \
+        --with-summary --output-format markdown
+    ```
+
+[docker compose profile]: https://docs.docker.com/reference/compose-file/profiles/
+
+??? info "Running it by hand, outside the dev compose stack"
+
+    If you're not using the dev compose stack, or want to point `ogc-cite-runner` at some other running instance,
+    you can still launch TeamEngine and a suitably-configured potto process yourself:
+
+    ```shell
+    # pull TeamEngine docker image
+    docker pull ogccite/teamengine-beta:1.0-SNAPSHOT
+
+    # launch it
+    docker run \
+        --rm \
+        --detach \
+        --name=teamengine \
+        --add-host=host.docker.internal:host-gateway \
+        --publish=9080:8080 \
+        ogccite/teamengine-beta:1.0-SNAPSHOT
+
+    # have at least one public collection
+    uv run potto cite-testing bootstrap-ogcapi-features-1
+
+    # launch potto with a suitable configuration
+    POTTO__DATABASE_DSN="postgresql+psycopg://potto:pottopass@localhost:55432/potto" \
+        POTTO__BIND_HOST=0.0.0.0 \
+        POTTO__PUBLIC_URL=http://host.docker.internal:3001 \
+        POTTO__USE_OAS30_FIXES=true \
+        uv run potto run-server
+
+    # use ogc-cite-runner
+    # in this example we are testing OGC API - Features
+    uv run ogc-cite-runner execute-test-suite http://localhost:9080/te2 \
+        ogcapi-features-1.0 \
+        --suite-input iut http://host.docker.internal:3001/api \
+        --with-failed
+    ```
+
+    The URL of the implementation under test (the `iut` suite input) is `http://host.docker.internal:3001/api`.
     Together with the `--add-host=host.docker.internal:host-gateway` flag used when starting the TeamEngine
-    container, this lets the running TeamEngine instance see services running on the docker host's network.
-
-    Check the [docker engine docs](https://docs.docker.com/reference/cli/docker/container/run/#add-host) for more
-    detail.
+    container, this lets the running TeamEngine instance see services running on the docker host's network. Check
+    the [docker engine docs](https://docs.docker.com/reference/cli/docker/container/run/#add-host) for more
+    detail. This networking dance isn't needed with the dev compose `cite` profile above, since `potto-cite` and
+    `ogc-teamengine` are both plain services on the same compose network and can just address each other by
+    service name.
 
 [ogc-cite-runner]: https://osgeo.github.io/ogc-cite-runner/

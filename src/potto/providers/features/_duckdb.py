@@ -507,7 +507,7 @@ class DuckdbFeatureProvider:
         where_clauses: list[str] = []
         params: list[Any] = []
 
-        if feature_filter.bbox is not None:
+        if feature_filter.bbox_2d is not None:
             bbox_srid = _parse_srid_from_crs_uri(feature_filter.bbox_crs)
             quoted_geom_col = _quote_ident(self.config.geometry_column)
             # DuckDB spatial: ST_MakeEnvelope(xmin, ymin, xmax, ymax) — no SRID arg.
@@ -525,7 +525,7 @@ class DuckdbFeatureProvider:
                 )
                 envelope_expr = f"ST_Transform(ST_MakeEnvelope(?, ?, ?, ?), {source_crs}, {target_crs}, always_xy := true)"
             where_clauses.append(f"ST_Intersects({quoted_geom_col}, {envelope_expr})")
-            params.extend(feature_filter.bbox)
+            params.extend(feature_filter.bbox_2d)
 
         return where_clauses, params
 
@@ -605,20 +605,12 @@ class DuckdbFeatureProvider:
         # UUID, VARCHAR, and most other types accept the string directly.
         return raw
 
-    def _convert_row_to_feature(
-        self,
-        row: dict[str, Any],
-        *,
-        projection: list[str] | None = None,
-    ) -> Feature:
+    def _convert_row_to_feature(self, row: dict[str, Any]) -> Feature:
         geom_str: str | None = row.pop(self.config.geometry_column, None)
         feature_id = row.pop(self.config.id_column, None)
 
         # ST_AsGeoJSON returns a JSON string; parse it into a shapely geometry.
         geometry = shapely.from_geojson(geom_str) if geom_str else None
-
-        if projection is not None:
-            row = {key: value for key, value in row.items() if key in projection}
 
         return Feature(
             id_=str(feature_id) if feature_id is not None else "",
@@ -675,10 +667,7 @@ class DuckdbFeatureProvider:
             with_paging=True,
         )
         rows = await self._execute(sql, params)
-        return [
-            self._convert_row_to_feature(row, projection=effective_filter.properties)
-            for row in rows
-        ]
+        return [self._convert_row_to_feature(row) for row in rows]
 
     async def count_items(
         self, feature_filter: PottoFeatureFilter | None = None
