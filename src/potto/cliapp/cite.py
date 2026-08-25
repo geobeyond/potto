@@ -103,7 +103,7 @@ async def bootstrap_for_cite_ogcapi_features(
                     provider_name="pygeoapi",
                     config={
                         "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                        "options": {},
+                        "options": {"time_field": "datetime"},
                         "data": {
                             "features": [
                                 {

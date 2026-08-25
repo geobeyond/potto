@@ -133,11 +133,10 @@ def _list_features(
     pygeoapi_api: _API,
     feature_filter: base.PottoFeatureFilter | None,
 ):
-    filter_ = (feature_filter or base.PottoFeatureFilter()).model_dump(
-        by_alias=True, exclude_none=True
-    )
-    if bbox := filter_.get("bbox"):
-        filter_["bbox"] = ",".join(str(v) for v in bbox)
+    effective_filter = feature_filter or base.PottoFeatureFilter()
+    filter_ = effective_filter.model_dump(by_alias=True, exclude_none=True)
+    if bbox_2d := effective_filter.bbox_2d:
+        filter_["bbox"] = ",".join(str(v) for v in bbox_2d)
     else:
         del filter_["bbox-crs"]
     pygeoapi_response = _itemtypes.get_collection_items(
@@ -167,10 +166,9 @@ def _count_items(
         else {}
     )
     filter_.pop("bbox-crs", None)
-    if bbox := filter_.get("bbox"):
-        filter_["bbox"] = ",".join(str(v) for v in bbox)
-    else:
-        filter_.pop("bbox", None)
+    filter_.pop("bbox", None)
+    if feature_filter and (bbox_2d := feature_filter.bbox_2d):
+        filter_["bbox"] = ",".join(str(v) for v in bbox_2d)
     pygeoapi_response = _itemtypes.get_collection_items(
         pygeoapi_api,
         PottoRequest(

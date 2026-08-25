@@ -209,9 +209,9 @@ class PostgisFeatureProvider:
     def _apply_filter(self, stmt: Any, ff: PottoFeatureFilter) -> Any:
         assert self._table is not None and self._native_srid is not None
         where_clauses = []
-        if ff.bbox is not None:
+        if ff.bbox_2d is not None:
             bbox_srid = _parse_srid_from_crs_uri(ff.bbox_crs)
-            bbox_envelope = func.ST_MakeEnvelope(*ff.bbox, bbox_srid)
+            bbox_envelope = func.ST_MakeEnvelope(*ff.bbox_2d, bbox_srid)
             if bbox_srid != self._native_srid:
                 bbox_envelope = func.ST_Transform(bbox_envelope, self._native_srid)
             where_clauses.append(

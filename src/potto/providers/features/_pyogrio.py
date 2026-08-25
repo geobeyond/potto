@@ -226,7 +226,7 @@ def _list_features(
         skip_features=item_filter.offset,
         fid_as_index=id_column is None,
         where=_build_where_clause(item_filter),
-        bbox=item_filter.bbox,
+        bbox=item_filter.bbox_2d,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     target_crs = pyproj.CRS(item_filter.crs)
@@ -251,7 +251,7 @@ def _count_features(
         fid_as_index=True,
         columns=[],
         where=where_clause,
-        bbox=feature_filter.bbox,
+        bbox=feature_filter.bbox_2d,
         **(gdal_open_options.as_read_dataframe_kwargs() if gdal_open_options else {}),
     )
     return CountedItems(matched=len(matched_gdf), total=total)

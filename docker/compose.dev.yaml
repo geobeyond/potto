@@ -156,6 +156,18 @@ services:
       dockerfile: docker/Dockerfile
       args:
         GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+    develop:
+      watch:
+        - path: ../src/potto
+          action: sync
+          target: /home/appuser/app/src/potto
+        - path: ../tests
+          action: sync
+          target: /home/appuser/app/tests
+        - path: ../pyproject.toml
+          action: rebuild
+        - path: ../uv.lock
+          action: rebuild
     environment:
       POTTO__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@cite-db:5432/potto_cite"
       POTTO__PUBLIC_URL: "http://potto-cite:3001"

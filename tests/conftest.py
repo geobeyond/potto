@@ -202,7 +202,7 @@ async def obs_feature_collection(db, db_session_maker, admin_user, settings):
                         provider_name="pygeoapi",
                         config={
                             "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                            "options": {},
+                            "options": {"time_field": "datetime"},
                             "data": {
                                 "features": [
                                     {

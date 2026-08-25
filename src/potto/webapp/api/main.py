@@ -164,7 +164,18 @@ def _handle_request_validation_error(
     request: Request, err: RequestValidationError
 ) -> JSONResponse:
     # OGC API requires 400 for invalid/unknown query parameters; FastAPI defaults to 422
-    return JSONResponse(status_code=400, content={"detail": err.errors()})
+    errors = []
+    for error in err.errors():
+        error = dict(error)
+        # pydantic puts the raised exception object itself in ctx.error, which
+        # plain json.dumps (used by JSONResponse) can't serialize.
+        if "ctx" in error:
+            error["ctx"] = {
+                k: (str(v) if isinstance(v, Exception) else v)
+                for k, v in error["ctx"].items()
+            }
+        errors.append(error)
+    return JSONResponse(status_code=400, content={"detail": errors})
 
 
 def create_api_app() -> FastAPI:

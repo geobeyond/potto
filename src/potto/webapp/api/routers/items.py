@@ -66,7 +66,7 @@ async def list_collection_items(
         {
             "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
             "Content-Crs": (
-                [i.crs for i in collection_items.features][0]
+                f"<{[i.crs for i in collection_items.features][0]}>"
                 if len(collection_items.features) > 0
                 else collection_items.storage_crs
             ),
@@ -115,7 +115,7 @@ async def get_item_details(
     response.headers.update(
         {
             "Link": ",".join((li.serialize_as_http_header() for li in result.links)),
-            "Content-Crs": collection_item.feature.crs,
+            "Content-Crs": f"<{collection_item.feature.crs}>",
             **(
                 {str(k): str(v) for k, v in collection_item.metadata}
                 if collection_item.metadata

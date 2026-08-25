@@ -507,7 +507,7 @@ class DuckdbFeatureProvider:
         where_clauses: list[str] = []
         params: list[Any] = []
 
-        if feature_filter.bbox is not None:
+        if feature_filter.bbox_2d is not None:
             bbox_srid = _parse_srid_from_crs_uri(feature_filter.bbox_crs)
             quoted_geom_col = _quote_ident(self.config.geometry_column)
             # DuckDB spatial: ST_MakeEnvelope(xmin, ymin, xmax, ymax) — no SRID arg.
@@ -525,7 +525,7 @@ class DuckdbFeatureProvider:
                 )
                 envelope_expr = f"ST_Transform(ST_MakeEnvelope(?, ?, ?, ?), {source_crs}, {target_crs}, always_xy := true)"
             where_clauses.append(f"ST_Intersects({quoted_geom_col}, {envelope_expr})")
-            params.extend(feature_filter.bbox)
+            params.extend(feature_filter.bbox_2d)
 
         return where_clauses, params
 
