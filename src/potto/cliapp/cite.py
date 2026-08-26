@@ -100,109 +100,106 @@ async def bootstrap_for_cite_ogcapi_features(
             spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
             providers={
                 "feature": base_schemas.PottoProvider(
-                    provider_name="pygeoapi",
+                    provider_name="collection-config",
                     config={
-                        "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                        "options": {"time_field": "datetime"},
-                        "data": {
-                            "features": [
-                                {
-                                    "id": 371,
-                                    "geometry": "POINT (-75 45)",
-                                    "properties": {
-                                        "stn_id": 35,
-                                        "datetime": "2001-10-30T14:24:55Z",
-                                        "value": 89.9,
-                                    },
+                        "datetime_field": "datetime",
+                        "raw_features": [
+                            {
+                                "id": "371",
+                                "geometry": "POINT (-75 45)",
+                                "properties": {
+                                    "stn_id": 35,
+                                    "datetime": "2001-10-30T14:24:55Z",
+                                    "value": 89.9,
                                 },
-                                {
-                                    "id": 377,
-                                    "geometry": "POINT (-75 45)",
-                                    "properties": {
-                                        "stn_id": 35,
-                                        "datetime": "2002-10-30T18:31:38Z",
-                                        "value": 93.9,
-                                    },
+                            },
+                            {
+                                "id": "377",
+                                "geometry": "POINT (-75 45)",
+                                "properties": {
+                                    "stn_id": 35,
+                                    "datetime": "2002-10-30T18:31:38Z",
+                                    "value": 93.9,
                                 },
-                                {
-                                    "id": 238,
-                                    "geometry": "POINT (-79 43)",
-                                    "properties": {
-                                        "stn_id": 2147,
-                                        "datetime": "2007-10-30T08:57:29Z",
-                                        "value": 103.5,
-                                    },
+                            },
+                            {
+                                "id": "238",
+                                "geometry": "POINT (-79 43)",
+                                "properties": {
+                                    "stn_id": 2147,
+                                    "datetime": "2007-10-30T08:57:29Z",
+                                    "value": 103.5,
                                 },
-                                {
-                                    "id": 297,
-                                    "geometry": "POINT (-79 43)",
-                                    "properties": {
-                                        "stn_id": 2147,
-                                        "datetime": "2003-10-30T07:37:29Z",
-                                        "value": 93.5,
-                                    },
+                            },
+                            {
+                                "id": "297",
+                                "geometry": "POINT (-79 43)",
+                                "properties": {
+                                    "stn_id": 2147,
+                                    "datetime": "2003-10-30T07:37:29Z",
+                                    "value": 93.5,
                                 },
-                                {
-                                    "id": 964,
-                                    "geometry": "POINT (-122 49)",
-                                    "properties": {
-                                        "stn_id": 604,
-                                        "datetime": "2000-10-30T18:24:39Z",
-                                        "value": 99.9,
-                                    },
+                            },
+                            {
+                                "id": "964",
+                                "geometry": "POINT (-122 49)",
+                                "properties": {
+                                    "stn_id": 604,
+                                    "datetime": "2000-10-30T18:24:39Z",
+                                    "value": 99.9,
                                 },
-                                # Feature near prime meridian (CITE bbox: -1.5,50,1.5,53)
-                                {
-                                    "id": 1001,
-                                    "geometry": "POINT (0 51.5)",
-                                    "properties": {
-                                        "stn_id": 1001,
-                                        "datetime": "2010-06-15T12:00:00Z",
-                                        "value": 42.1,
-                                    },
+                            },
+                            # Feature near prime meridian (CITE bbox: -1.5,50,1.5,53)
+                            {
+                                "id": "1001",
+                                "geometry": "POINT (0 51.5)",
+                                "properties": {
+                                    "stn_id": 1001,
+                                    "datetime": "2010-06-15T12:00:00Z",
+                                    "value": 42.1,
                                 },
-                                # Feature near equator (CITE bbox: -80,-5,-70,5)
-                                {
-                                    "id": 1002,
-                                    "geometry": "POINT (-75 0)",
-                                    "properties": {
-                                        "stn_id": 1002,
-                                        "datetime": "2010-06-15T12:00:00Z",
-                                        "value": 38.7,
-                                    },
+                            },
+                            # Feature near equator (CITE bbox: -80,-5,-70,5)
+                            {
+                                "id": "1002",
+                                "geometry": "POINT (-75 0)",
+                                "properties": {
+                                    "stn_id": 1002,
+                                    "datetime": "2010-06-15T12:00:00Z",
+                                    "value": 38.7,
                                 },
-                                # Feature near antimeridian (CITE bbox: 177,65,-177,70)
-                                {
-                                    "id": 1003,
-                                    "geometry": "POINT (178.5 67.5)",
-                                    "properties": {
-                                        "stn_id": 1003,
-                                        "datetime": "2010-06-15T12:00:00Z",
-                                        "value": 55.2,
-                                    },
+                            },
+                            # Feature near antimeridian (CITE bbox: 177,65,-177,70)
+                            {
+                                "id": "1003",
+                                "geometry": "POINT (178.5 67.5)",
+                                "properties": {
+                                    "stn_id": 1003,
+                                    "datetime": "2010-06-15T12:00:00Z",
+                                    "value": 55.2,
                                 },
-                                # Feature in north polar region (CITE bbox: -180,85,180,90)
-                                {
-                                    "id": 1004,
-                                    "geometry": "POINT (0 87.5)",
-                                    "properties": {
-                                        "stn_id": 1004,
-                                        "datetime": "2010-06-15T12:00:00Z",
-                                        "value": 31.4,
-                                    },
+                            },
+                            # Feature in north polar region (CITE bbox: -180,85,180,90)
+                            {
+                                "id": "1004",
+                                "geometry": "POINT (0 87.5)",
+                                "properties": {
+                                    "stn_id": 1004,
+                                    "datetime": "2010-06-15T12:00:00Z",
+                                    "value": 31.4,
                                 },
-                                # Feature in south polar region (CITE bbox: -180,-90,180,-85)
-                                {
-                                    "id": 1005,
-                                    "geometry": "POINT (0 -87.5)",
-                                    "properties": {
-                                        "stn_id": 1005,
-                                        "datetime": "2010-06-15T12:00:00Z",
-                                        "value": 28.9,
-                                    },
+                            },
+                            # Feature in south polar region (CITE bbox: -180,-90,180,-85)
+                            {
+                                "id": "1005",
+                                "geometry": "POINT (0 -87.5)",
+                                "properties": {
+                                    "stn_id": 1005,
+                                    "datetime": "2010-06-15T12:00:00Z",
+                                    "value": 28.9,
                                 },
-                            ]
-                        },
+                            },
+                        ],
                     },
                 )
             },

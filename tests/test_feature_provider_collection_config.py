@@ -1,3 +1,5 @@
+import datetime as dt
+
 import pydantic
 import pytest
 
@@ -5,7 +7,9 @@ from potto.config import PottoSettings
 from potto.constants import CRS_84
 from potto.providers.features import _collectionconfig
 from potto.providers.features.protocol import FeatureProviderProtocol
+from potto.schemas import auth, base
 from potto.schemas.base import PottoFeatureFilter
+from potto.schemas.potto import Collection
 
 _EPSG3857 = "http://www.opengis.net/def/crs/EPSG/0/3857"
 
@@ -23,11 +27,50 @@ _RAW_FEATURES = [
 
 
 @pytest.fixture
-def provider():
+def collection():
+    return Collection(
+        type_=base.CollectionType.FEATURE_COLLECTION,
+        identifier="test-collection",
+        title="Test Collection",
+        owner=auth.PottoUser(id="user-1", username="testuser", is_active=True),
+        crs=[CRS_84],
+    )
+
+
+@pytest.fixture
+def provider(collection):
     config = _collectionconfig.CollectionConfigFeatureProviderConfiguration(
         raw_features=_RAW_FEATURES
     )
-    return _collectionconfig.CollectionConfigFeatureProvider(config)
+    return _collectionconfig.CollectionConfigFeatureProvider(collection, config)
+
+
+_DATETIME_RAW_FEATURES = [
+    _collectionconfig.WktFeatureItem(
+        id_="dt-1",
+        properties={"observed_at": "2001-01-01T00:00:00Z"},
+        geometry="POINT (1 1)",
+    ),
+    _collectionconfig.WktFeatureItem(
+        id_="dt-2",
+        properties={"observed_at": "2002-06-15T00:00:00Z"},
+        geometry="POINT (2 2)",
+    ),
+    _collectionconfig.WktFeatureItem(
+        id_="dt-3",
+        properties={"observed_at": "2003-01-01T00:00:00Z"},
+        geometry="POINT (3 3)",
+    ),
+    _collectionconfig.WktFeatureItem(id_="dt-4", properties={}, geometry="POINT (4 4)"),
+]
+
+
+@pytest.fixture
+def datetime_provider(collection):
+    config = _collectionconfig.CollectionConfigFeatureProviderConfiguration(
+        raw_features=_DATETIME_RAW_FEATURES, datetime_field="observed_at"
+    )
+    return _collectionconfig.CollectionConfigFeatureProvider(collection, config)
 
 
 def test_provider_conforms_to_protocol(provider):
@@ -49,14 +92,14 @@ def test_config_provider_name_defaults_to_collection_config():
 
 
 @pytest.mark.asyncio
-async def test_provider_factory_returns_configured_provider():
+async def test_provider_factory_returns_configured_provider(collection):
     raw_config = {
         "raw_features": [
             {"id": "1", "properties": {"name": "alpha"}, "geometry": "POINT (10 20)"}
         ]
     }
     provider = await _collectionconfig.collection_config_provider_factory(
-        collection=None,
+        collection=collection,
         raw_config=raw_config,
         potto_config=PottoSettings(),
     )
@@ -179,11 +222,11 @@ async def test_get_storage_crs_defaults_to_crs84(provider):
 
 
 @pytest.mark.asyncio
-async def test_get_storage_crs_returns_configured_crs():
+async def test_get_storage_crs_returns_configured_crs(collection):
     config = _collectionconfig.CollectionConfigFeatureProviderConfiguration(
         raw_features=_RAW_FEATURES, storage_crs=_EPSG3857
     )
-    provider = _collectionconfig.CollectionConfigFeatureProvider(config)
+    provider = _collectionconfig.CollectionConfigFeatureProvider(collection, config)
     result = await provider.get_storage_crs()
     assert result is not None
     assert result.crs == _EPSG3857
@@ -197,11 +240,11 @@ async def test_get_spatial_extent_computed_from_feature_geometries(provider):
 
 
 @pytest.mark.asyncio
-async def test_get_spatial_extent_returns_none_when_no_features():
+async def test_get_spatial_extent_returns_none_when_no_features(collection):
     config = _collectionconfig.CollectionConfigFeatureProviderConfiguration(
         raw_features=[]
     )
-    provider = _collectionconfig.CollectionConfigFeatureProvider(config)
+    provider = _collectionconfig.CollectionConfigFeatureProvider(collection, config)
     assert await provider.get_spatial_extent() is None
 
 
@@ -213,3 +256,65 @@ async def test_get_temporal_extent_returns_none(provider):
 @pytest.mark.asyncio
 async def test_get_additional_extents_returns_none(provider):
     assert await provider.get_additional_extents() is None
+
+
+@pytest.mark.asyncio
+async def test_list_features_datetime_filter_interval(datetime_provider):
+    feature_filter = PottoFeatureFilter(
+        datetime="2001-06-01T00:00:00Z/2002-12-31T23:59:59Z"
+    )
+    features = await datetime_provider.list_features(feature_filter)
+    assert [f.id_ for f in features] == ["dt-2"]
+
+
+@pytest.mark.asyncio
+async def test_list_features_datetime_filter_open_start(datetime_provider):
+    feature_filter = PottoFeatureFilter(datetime="../2001-06-01T00:00:00Z")
+    features = await datetime_provider.list_features(feature_filter)
+    assert [f.id_ for f in features] == ["dt-1"]
+
+
+@pytest.mark.asyncio
+async def test_list_features_datetime_filter_open_end(datetime_provider):
+    feature_filter = PottoFeatureFilter(datetime="2002-06-01T00:00:00Z/..")
+    features = await datetime_provider.list_features(feature_filter)
+    assert [f.id_ for f in features] == ["dt-2", "dt-3"]
+
+
+@pytest.mark.asyncio
+async def test_list_features_datetime_filter_single_instant(datetime_provider):
+    feature_filter = PottoFeatureFilter(datetime="2003-01-01T00:00:00Z")
+    features = await datetime_provider.list_features(feature_filter)
+    assert [f.id_ for f in features] == ["dt-3"]
+
+
+@pytest.mark.asyncio
+async def test_list_features_datetime_filter_excludes_feature_missing_property(
+    datetime_provider,
+):
+    # A fully open interval matches any feature that has the datetime property at
+    # all, so this isolates the "missing property" exclusion from any bound check.
+    feature_filter = PottoFeatureFilter(datetime="../..")
+    features = await datetime_provider.list_features(feature_filter)
+    assert {f.id_ for f in features} == {"dt-1", "dt-2", "dt-3"}
+
+
+@pytest.mark.asyncio
+async def test_count_items_datetime_filter_affects_matched_but_not_total(
+    datetime_provider,
+):
+    feature_filter = PottoFeatureFilter(
+        datetime="2001-06-01T00:00:00Z/2002-12-31T23:59:59Z"
+    )
+    result = await datetime_provider.count_items(feature_filter)
+    assert result.matched == 1
+    assert result.total == 4
+
+
+@pytest.mark.asyncio
+async def test_get_temporal_extent_returns_min_and_max(datetime_provider):
+    extent = await datetime_provider.get_temporal_extent()
+    assert extent is not None
+    begin, end = extent.interval[0]
+    assert begin == dt.datetime.fromisoformat("2001-01-01T00:00:00Z").isoformat()
+    assert end == dt.datetime.fromisoformat("2003-01-01T00:00:00Z").isoformat()

@@ -195,8 +195,7 @@ def test_api_collection_get_queryables_body(
     assert payload["properties"]["datetime"]["type"] == "string"
     assert payload["properties"]["stn_id"]["type"] == "integer"
     assert payload["properties"]["value"]["type"] == "number"
-    assert payload["properties"]["geometry"]["format"] == "geometry-any"
-    assert payload["properties"]["geometry"]["x-ogc-role"] == "primary-geometry"
+    assert "geometry" not in payload["properties"]
 
 
 def test_api_collection_get_queryables_headers(

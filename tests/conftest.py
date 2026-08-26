@@ -199,59 +199,56 @@ async def obs_feature_collection(db, db_session_maker, admin_user, settings):
                 spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",
                 providers={
                     "feature": base_schemas.PottoProvider(
-                        provider_name="pygeoapi",
+                        provider_name="collection-config",
                         config={
-                            "python_callable": "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider",
-                            "options": {"time_field": "datetime"},
-                            "data": {
-                                "features": [
-                                    {
-                                        "id": 371,
-                                        "geometry": "POINT (-75 45)",
-                                        "properties": {
-                                            "stn_id": 35,
-                                            "datetime": "2001-10-30T14:24:55Z",
-                                            "value": 89.9,
-                                        },
+                            "datetime_field": "datetime",
+                            "raw_features": [
+                                {
+                                    "id": "371",
+                                    "geometry": "POINT (-75 45)",
+                                    "properties": {
+                                        "stn_id": 35,
+                                        "datetime": "2001-10-30T14:24:55Z",
+                                        "value": 89.9,
                                     },
-                                    {
-                                        "id": 377,
-                                        "geometry": "POINT (-75 45)",
-                                        "properties": {
-                                            "stn_id": 35,
-                                            "datetime": "2002-10-30T18:31:38Z",
-                                            "value": 93.9,
-                                        },
+                                },
+                                {
+                                    "id": "377",
+                                    "geometry": "POINT (-75 45)",
+                                    "properties": {
+                                        "stn_id": 35,
+                                        "datetime": "2002-10-30T18:31:38Z",
+                                        "value": 93.9,
                                     },
-                                    {
-                                        "id": 238,
-                                        "geometry": "POINT (-79 43)",
-                                        "properties": {
-                                            "stn_id": 2147,
-                                            "datetime": "2007-10-30T08:57:29Z",
-                                            "value": 103.5,
-                                        },
+                                },
+                                {
+                                    "id": "238",
+                                    "geometry": "POINT (-79 43)",
+                                    "properties": {
+                                        "stn_id": 2147,
+                                        "datetime": "2007-10-30T08:57:29Z",
+                                        "value": 103.5,
                                     },
-                                    {
-                                        "id": 297,
-                                        "geometry": "POINT (-79 43)",
-                                        "properties": {
-                                            "stn_id": 2147,
-                                            "datetime": "2003-10-30T07:37:29Z",
-                                            "value": 93.5,
-                                        },
+                                },
+                                {
+                                    "id": "297",
+                                    "geometry": "POINT (-79 43)",
+                                    "properties": {
+                                        "stn_id": 2147,
+                                        "datetime": "2003-10-30T07:37:29Z",
+                                        "value": 93.5,
                                     },
-                                    {
-                                        "id": 964,
-                                        "geometry": "POINT (-122 49)",
-                                        "properties": {
-                                            "stn_id": 604,
-                                            "datetime": "2000-10-30T18:24:39Z",
-                                            "value": 99.9,
-                                        },
+                                },
+                                {
+                                    "id": "964",
+                                    "geometry": "POINT (-122 49)",
+                                    "properties": {
+                                        "stn_id": 604,
+                                        "datetime": "2000-10-30T18:24:39Z",
+                                        "value": 99.9,
                                     },
-                                ]
-                            },
+                                },
+                            ],
                         },
                     )
                 },
