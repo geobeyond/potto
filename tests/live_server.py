@@ -190,21 +190,15 @@ def e2e_collection(api_client):
         "title": "E2E test collection",
         "providers": {
             "feature": {
-                "provider_name": "pygeoapi",
+                "provider_name": "collection-config",
                 "config": {
-                    "python_callable": (
-                        "potto.pygeoapi_providers.PygeoapiConfigWktFeatureProvider"
-                    ),
-                    "options": {},
-                    "data": {
-                        "features": [
-                            {
-                                "id": 1,
-                                "geometry": "POINT (-75 45)",
-                                "properties": {"value": 1},
-                            }
-                        ]
-                    },
+                    "raw_features": [
+                        {
+                            "id": "1",
+                            "geometry": "POINT (-75 45)",
+                            "properties": {"value": 1},
+                        }
+                    ]
                 },
             }
         },

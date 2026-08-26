@@ -17,7 +17,7 @@ def test_api_collection_item_list_body(
     assert payload["type"] == "FeatureCollection"
     features = payload["features"]
     assert len(features) == len(
-        obs_feature_collection.providers["feature"]["config"]["data"]["features"]
+        obs_feature_collection.providers["feature"]["config"]["raw_features"]
     )
 
 
@@ -67,8 +67,8 @@ def test_api_collection_item_get_body(
     obs_feature_collection,
     webapp_test_client_as_admin,
 ):
-    first_feature = obs_feature_collection.providers["feature"]["config"]["data"][
-        "features"
+    first_feature = obs_feature_collection.providers["feature"]["config"][
+        "raw_features"
     ][0]
     response = webapp_test_client_as_admin.get(
         f"/api/collections/{obs_feature_collection.resource_identifier}/items/{first_feature['id']}"
@@ -84,8 +84,8 @@ def test_api_collection_item_get_headers(
     obs_feature_collection,
     webapp_test_client_as_admin,
 ):
-    first_feature = obs_feature_collection.providers["feature"]["config"]["data"][
-        "features"
+    first_feature = obs_feature_collection.providers["feature"]["config"][
+        "raw_features"
     ][0]
     response = webapp_test_client_as_admin.get(
         f"/api/collections/{obs_feature_collection.resource_identifier}/items/{first_feature['id']}"
@@ -101,8 +101,8 @@ def test_api_collection_item_get_links(
     obs_feature_collection,
     webapp_test_client_as_admin,
 ):
-    first_feature = obs_feature_collection.providers["feature"]["config"]["data"][
-        "features"
+    first_feature = obs_feature_collection.providers["feature"]["config"][
+        "raw_features"
     ][0]
     response = webapp_test_client_as_admin.get(
         f"/api/collections/{obs_feature_collection.resource_identifier}/items/{first_feature['id']}"

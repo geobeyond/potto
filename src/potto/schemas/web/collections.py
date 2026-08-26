@@ -35,7 +35,7 @@ class JsonCollection(pydantic.BaseModel):
         cls, item: models.Collection, url_resolver: UrlResolver
     ) -> "JsonCollection":
         spatial_extent = (
-            base.TwoDimensionalSpatialExtent(bbox=item.spatial_extent.bounds)
+            base.TwoDimensionalSpatialExtent(bbox=[item.spatial_extent.bounds])
             if item.spatial_extent
             else None
         )
