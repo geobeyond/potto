@@ -2219,16 +2219,16 @@ wheels = [
 
 [[package]]
 name = "starlette-admin"
-version = "0.16.0"
+version = "0.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
     { name = "python-multipart" },
     { name = "starlette" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/5e/2487c92a3239d01cf1cb7db5d8455454b231c49a7576c06f3241050e8813/starlette_admin-0.16.0.tar.gz", hash = "sha256:e706a1582a22a69202d3165d8c626d5868822c229353a81e1d189666d8418f64", size = 2104304, upload-time = "2025-12-13T21:49:40.087Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/36/a566ba401ba9cbf5da74a7697e0ae3d1294a8ab7211bb1d7d18f0ce42b3f/starlette_admin-0.16.1.tar.gz", hash = "sha256:f34bdba033f0a2a4b39188e8e70a684956ef6b774db01762f44d022cde418b3a", size = 2104666, upload-time = "2026-06-06T20:10:40.307Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/85/f3950e95771e92079ad2c6f8d52ce4c04a0e2e47cedc989ae465d9cfbd9c/starlette_admin-0.16.0-py3-none-any.whl", hash = "sha256:9b7ee51cc275684ba75dda5eafc650e0c8afa1d2b7e99e4d1c83fe7d1e83de9e", size = 2175927, upload-time = "2025-12-13T21:49:42.272Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/7c/add7d4be6690fb61f4d30b672e544b1ac541c824f05a7de50ff5d8985db5/starlette_admin-0.16.1-py3-none-any.whl", hash = "sha256:a5e6cb0beb2e9bdc65b07dbb4bd01726aaad34764595e3bc3ff8578e698ff98a", size = 2176514, upload-time = "2026-06-06T20:10:42.308Z" },
 ]
 
 [[package]]
