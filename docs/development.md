@@ -6,9 +6,8 @@ icon: lucide/hammer
 
 ## Quickstart
 
-potto's recommended dev workflow is fully container-based: `docker compose` builds the potto image, starts
-PostgreSQL/PostGIS (the `db` and `test-db` services) and the potto server itself, and syncs local source code
-changes live into the running container.
+potto's recommended dev workflow is fully container-based: `docker compose` builds the potto image, starts it
+and its dependencies , and syncs local source code changes live into the running container.
 
 !!! note
 
@@ -48,12 +47,9 @@ Read the contribution guidelines, to be added...
 
 ## Setup
 
-Contributing to potto requires a couple of pre-requisites to be met:
-
-You should be running a linux distribution. Development might also be possible on other OS, but you'll be mostly
-on your own with regard to how to set up your working environment.
-
-Additionally, the following tools need to be installed on your machine:
+Contributing to potto requires a couple of pre-requisites to be met. You should be running a linux distribution.
+Development might also be possible on other OS, but you'll be mostly on your own with regard to how to set up your
+working environment. Additionally, the following tools need to be installed on your machine:
 
 -  [git]
 -  [pre-commit]
@@ -87,13 +83,22 @@ a chance to offer some feedback. If you don't do this, there is a risk that your
 
 potto's code is developed by following the [forking workflow] collaboration strategy. In short:
 
-1. Fork potto's repo
-2. Clone your fork locally
-3. Create a new branch
-4. Make changes to the code
-5. Open a Pull Request (PR) to get the changes integrated into the main potto repository
-6. Follow the PR review process, responding to any comments or change requests
-7. Rejoice when your PR is merged :smile: :tada:
+1. As mentioned above, start by opening an issue describing the problem. Ideally, you'd get some feedback from
+   the potto devs before you start working on it
+2. Fork potto's repo
+3. Clone your fork locally
+4. Create a new branch
+5. Make changes to the code and add relevant tests
+6. Open a Pull Request (PR) to get the changes integrated into the main potto repository
+7. Monitor the status of the CI workflow and ensure it passes
+
+    !!! warning
+
+        There is a high likelyhood that potto team will not consider your PR if its associated CI workflow is not
+        passing.
+
+8. Follow the PR review process, responding to any comments or change requests
+9. Rejoice when your PR is finally merged :smile: :tada:
 
 [forking workflow]: https://www.atlassian.com/git/tutorials/comparing-workflows/forking-workflow
 
@@ -151,6 +156,33 @@ remotes:
         find the `potto` service.
 
 You are now ready to start working on the code. potto is available at <http://localhost:3001>.
+
+
+## Using the potto CLI
+
+Since the development workflow happens inside a running docker compose stack, you need to prefix commands that are
+targeting the potto CLI with the appropriate docker-related incantation. Moreover, because potto also uses uv, it
+also needs to be part of the incantation:
+
+```shell
+docker compose \
+    --env-file docker/local.env \
+    -f docker/compose.dev.yaml \
+    exec -ti potto \
+    uv run \
+    potto <cli-command>
+```
+
+The benefit of this is being able to enjoy a fully isolated local development setup.
+
+You can also just get a shell inside the running container:
+
+```shell
+docker compose \
+    --env-file docker/local.env \
+    -f docker/compose.dev.yaml \
+    exec -ti potto bash
+```
 
 
 ## Rebuilding the docker image
