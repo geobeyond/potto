@@ -6,6 +6,16 @@
 
 {% block body %}
 
+{% if not contents %}
+<div class="alert alert-{{ 'warning' if health.database == 'outdated' else 'danger' }} my-4" role="alert">
+    {% if health.database == 'outdated' %}
+        The database schema is out of date. An administrator needs to run pending migrations.
+    {% else %}
+        The system is currently unavailable due to a database problem. Please try again later.
+    {% endif %}
+</div>
+{% else %}
+
 {# ── Hero ─────────────────────────────────────────────────────────────── #}
 <div class="py-4 mb-4 border-bottom">
     <h1 class="display-5 fw-bold">{{ contents.metadata.title }}</h1>
@@ -101,6 +111,8 @@
 </div>
 {% else %}
     <p class="text-muted">No collections available.</p>
+{% endif %}
+
 {% endif %}
 
 {% endblock %}

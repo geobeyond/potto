@@ -542,4 +542,4 @@ class PottoFeatureFilter(pydantic.BaseModel):
 
 class PottoHealthCheck(pydantic.BaseModel):
     status: typing.Literal["ok", "error"]
-    database: typing.Literal["ok", "error"]
+    database: typing.Literal["ok", "outdated", "error"]

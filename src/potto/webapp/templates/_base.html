@@ -5,10 +5,10 @@
 
 <head>
     <meta charset="utf-8">
-    <title>{% block page_title %}{{ contents.metadata.title }}{% endblock %}</title>
+    <title>{% block page_title %}{% if contents is defined and contents.metadata is defined %}{{ contents.metadata.title }}{% else %}Potto{% endif %}{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="language" content="{{ request.state.language }}">
-    <meta name="description" content="{% block page_description %}{{ contents.metadata.description }}{% endblock %}">
+    <meta name="description" content="{% block page_description %}{% if contents is defined and contents.metadata is defined %}{{ contents.metadata.description }}{% endif %}{% endblock %}">
     <meta name="keywords" content="{% block page_keywords %}{% if contents is defined and contents.metadata is defined %}{{ contents.metadata.keywords | default([], true) | join(',') }}{% endif %}{% endblock %}">
     <link rel="icon" href="{{ url_for('static', path='/img/potto-favicon.png') }}" type="image/png">
 
