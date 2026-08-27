@@ -14,8 +14,10 @@ from . import (
     exceptions as potto_exceptions,
 )
 from .config import PottoSettings
+from .db.alembic_utils import build_alembic_config
 from .operations import (
     collections as collection_ops,
+    health as health_ops,
     metadata as metadata_ops,
 )
 from .providers.features import get_feature_provider
@@ -71,6 +73,10 @@ class Potto:
                 ),
             ),
         )
+
+    async def get_health_status(self) -> base.PottoHealthCheck:
+        """Check DB connectivity and whether its schema is up to date."""
+        return await health_ops.check_health(build_alembic_config(self._settings))
 
     async def get_conformance_details(self) -> potto_schemas.ConformanceDetail:
         return potto_schemas.ConformanceDetail(

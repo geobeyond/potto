@@ -31,25 +31,19 @@ from .admin.main import create_admin_app_from_settings
 logger = logging.getLogger(__name__)
 
 
-_default_app_state: AppState | None = None
-
-
 @contextlib.asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
-    settings = config.get_settings()
+    settings: config.PottoSettings = app.state.settings
     oidc_provider = settings.get_oidc_provider()
     if oidc_provider is not None:
         await oidc_provider.get_discovery()
-    global _default_app_state
-    _default_app_state = AppState(
+    yield AppState(
         settings=settings,
         templates=Jinja2Templates(env=settings.get_jinja_env()),
         potto=Potto(settings),
         oidc_provider=oidc_provider,
         authorization_backend=settings.get_authorization_backend(),
     )
-    yield _default_app_state
-    _default_app_state = None
 
 
 def create_app() -> Starlette:
@@ -134,6 +128,7 @@ def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
         ],
         lifespan=lifespan,
     )
+    app.state.settings = settings
     admin_app = create_admin_app_from_settings(settings)
     admin_app.mount_to(app)
     return app

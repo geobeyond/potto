@@ -1,5 +1,7 @@
+import alembic.command
 import pytest
 import pytest_asyncio
+import sqlalchemy
 import sqlmodel
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -8,6 +10,7 @@ from starlette.routing import Mount
 from playwright.sync_api import expect
 from potto import config
 from potto.authz.backend import LocalAuthorizationBackend
+from potto.db.alembic_utils import build_alembic_config
 from potto.db.commands.auth import create_user
 from potto.operations.collections import create_collection
 from potto.schemas import (
@@ -44,11 +47,21 @@ def db_session_maker(settings: config.PottoSettings):
 
 
 @pytest.fixture
-def db(sync_db_engine):
-    """Provides a clean database."""
+def db(sync_db_engine, settings):
+    """Provides a clean database.
+
+    Also stamps the alembic version table at ``head`` - the tables are
+    created directly from the current models rather than by running actual
+    migrations, but this keeps alembic's own bookkeeping consistent with
+    that, which the health check relies on.
+    """
     sqlmodel.SQLModel.metadata.create_all(sync_db_engine)
+    alembic.command.stamp(build_alembic_config(settings), "head")
     yield
     sqlmodel.SQLModel.metadata.drop_all(sync_db_engine)
+    with sync_db_engine.connect() as connection:
+        connection.execute(sqlalchemy.text("DROP TABLE IF EXISTS alembic_version"))
+        connection.commit()
 
 
 @pytest.fixture

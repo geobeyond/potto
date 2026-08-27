@@ -1,6 +1,7 @@
 import logging
 
 import babel
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import (
@@ -11,6 +12,7 @@ from starlette.responses import (
 from ...config import PottoSettings
 from ...wrapper import Potto
 from ...schemas import auth as auth_schemas
+from ...schemas.base import PottoHealthCheck
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,20 @@ async def get_landing_page(request: Request) -> Response:
         else None
     )
     potto: Potto = request.state.potto
+    health = await potto.get_health_status()
+    contents = None
+    if health.status == "ok":
+        try:
+            contents = await potto.get_overview(user=user)
+        except SQLAlchemyError:
+            # health check just passed, but the DB dropped before this next
+            # query - fall back to the same banner rendering rather than
+            # letting this 500.
+            health = PottoHealthCheck(status="error", database="error")
     return request.state.templates.TemplateResponse(
         request,
         "landing-page.html",
-        context={"contents": await potto.get_overview(user=user)},
+        context={"contents": contents, "health": health},
     )
 
 

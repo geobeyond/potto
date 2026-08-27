@@ -11,14 +11,11 @@ from geoalchemy2 import (
 )
 from sqlmodel import SQLModel
 
-from potto import config as potto_config
 from potto.db.models import ShapelyGeometryAdapter
 
 # this import is crucial for SQLModel.metadata to be populated
 # with our models, do not remove!
 from potto.db import models  # noqa
-
-potto_settings = potto_config.get_settings()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -79,7 +76,7 @@ def run_migrations_offline() -> None:
 
     """
     context.configure(
-        url=potto_settings.database_dsn.unicode_string(),
+        url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -100,7 +97,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = create_engine(potto_settings.database_dsn.unicode_string())
+    connectable = create_engine(config.get_main_option("sqlalchemy.url"))
     with connectable.connect() as connection:
         context.configure(
             connection=connection,

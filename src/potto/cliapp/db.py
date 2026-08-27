@@ -5,6 +5,9 @@ import alembic.config
 import alembic.util.exc
 import cyclopts
 
+from ..config import get_settings
+from ..db.alembic_utils import build_alembic_config
+
 db_app = cyclopts.App(name="db")
 
 
@@ -20,15 +23,8 @@ def launcher(
     command, bound, ignored = db_app.parse_args(tokens)
     additional_kwargs = {}
     if "alembic_config" in ignored:
-        alembic_config = alembic.config.Config()
-        alembic_config.set_main_option("script_location", "potto.db:migrations")
-        alembic_config.set_main_option(
-            "file_template",
-            "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s",
-        )
-
         additional_kwargs = {
-            "alembic_config": alembic_config,
+            "alembic_config": build_alembic_config(get_settings()),
         }
     return command(*bound.args, **bound.kwargs, **additional_kwargs)
 
