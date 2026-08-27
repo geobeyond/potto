@@ -154,26 +154,26 @@
         <div>
             <p class="small fw-medium mb-1">Collection metadata (JSON)</p>
             <pre class="bg-light border rounded p-3 small mb-0"><code>curl -H "Accept: application/json" \
-     "{{ base }}/collections/{{ cid }}"</code></pre>
+     "{{ url_for("api:collection-get", collection_id=cid) }}"</code></pre>
         </div>
 
         {% if type_val in ('feature', 'record') %}
         <div>
             <p class="small fw-medium mb-1">List items</p>
             <pre class="bg-light border rounded p-3 small mb-0"><code>curl -H "Accept: application/geo+json" \
-     "{{ base }}/collections/{{ cid }}/items"</code></pre>
+     "{{ url_for("api:collection-item-list", collection_id=cid) }}"</code></pre>
         </div>
 
         <div>
             <p class="small fw-medium mb-1">Get a single item</p>
             <pre class="bg-light border rounded p-3 small mb-0"><code>curl -H "Accept: application/geo+json" \
-     "{{ base }}/collections/{{ cid }}/items/{item_id}"</code></pre>
+     "{{ url_for("api:collection-item-list", collection_id=cid) }}/{item-id}"</code></pre>
         </div>
 
         <div>
             <p class="small fw-medium mb-1">Filter by bounding box</p>
             <pre class="bg-light border rounded p-3 small mb-0"><code>curl -H "Accept: application/geo+json" \
-     "{{ base }}/collections/{{ cid }}/items?bbox=-180,-90,180,90"</code></pre>
+     "{{ url_for("api:collection-item-list", collection_id=cid) }}?bbox=-180,-90,180,90"</code></pre>
         </div>
         {% endif %}
 
