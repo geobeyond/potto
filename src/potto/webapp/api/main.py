@@ -224,10 +224,7 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         openapi_tags=tags.OPENAPI_TAGS,
         summary="OGC API server",
         docs_url=None,
-        # trailing slash matters: the local login flow's tokenUrl ("login") is
-        # relative, and Swagger UI resolves it against this server URL per
-        # standard RFC 3986 rules, which drop the "/api" segment without it.
-        servers=[{"url": f"{str(settings.public_url).rstrip('/')}/api/"}],
+        servers=[{"url": f"{settings.public_url}/api"}],
         root_path_in_servers=False,
     )
     app.add_exception_handler(
