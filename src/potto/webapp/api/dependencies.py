@@ -20,7 +20,14 @@ from ...wrapper import Potto
 # Local-auth default. In OIDC mode, get_current_user is replaced via
 # dependency_overrides in create_api_app_from_settings so that both the
 # runtime path and the OpenAPI security scheme are correct.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
+#
+# tokenUrl is root-relative ("/api/login", not "login"): Swagger UI resolves
+# it against the OpenAPI document's servers[0].url, and a root-relative path
+# resolves against the server's authority only, ignoring its path segment
+# ("/api") entirely - this stays correct regardless of a trailing slash on
+# that server URL. The "/api" here mirrors the fixed mount prefix used in
+# webapp/main.py.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login", auto_error=False)
 
 
 def get_settings() -> Iterator[config.PottoSettings]:
