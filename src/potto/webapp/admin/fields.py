@@ -68,11 +68,4 @@ class SpatialExtentField(BaseField):
     def additional_css_links(
         self, request: Request, action: RequestAction
     ) -> list[str]:
-        return ["https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css"]
-
-    def additional_js_links(self, request: Request, action: RequestAction) -> list[str]:
-        return [
-            "https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js",
-            "https://unpkg.com/terra-draw@1.0.0/dist/terra-draw.umd.js",
-            "https://unpkg.com/terra-draw-maplibre-gl-adapter@1.0.0/dist/terra-draw-maplibre-gl-adapter.umd.js",
-        ]
+        return ["https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css"]
