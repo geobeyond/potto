@@ -19,6 +19,7 @@ from fastapi import (
     FastAPI,
     Request,
 )
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2AuthorizationCodeBearer
@@ -223,7 +224,10 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
         openapi_tags=tags.OPENAPI_TAGS,
         summary="OGC API server",
         docs_url=None,
-        servers=[{"url": f"{settings.public_url}/api"}],
+        # trailing slash matters: the local login flow's tokenUrl ("login") is
+        # relative, and Swagger UI resolves it against this server URL per
+        # standard RFC 3986 rules, which drop the "/api" segment without it.
+        servers=[{"url": f"{str(settings.public_url).rstrip('/')}/api/"}],
         root_path_in_servers=False,
     )
     app.add_exception_handler(
@@ -250,10 +254,10 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     if settings.oidc is None:
         app.include_router(auth.router)
     else:
-        # Replace get_current_user with an OIDC-scheme variant so both the
-        # runtime dependency and the OpenAPI security scheme are correct.
-        # Auth itself is handled by AuthenticationMiddleware; the scheme here
-        # exists for OpenAPI docs and Swagger UI bearer-token support.
+        # Replace get_current_user with an OIDC-scheme variant so the runtime
+        # dependency is correct. Auth itself is handled by
+        # AuthenticationMiddleware; the scheme here exists for OpenAPI docs
+        # and Swagger UI bearer-token support.
         oidc = settings.oidc
         oidc_scheme = OAuth2AuthorizationCodeBearer(
             authorizationUrl=f"{oidc.issuer}/authorize",
@@ -268,6 +272,40 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
             return request.user if isinstance(request.user, PottoUser) else None
 
         app.dependency_overrides[dependencies.get_current_user] = get_current_user_oidc
+
+        # dependency_overrides above has no effect on the generated OpenAPI
+        # schema: FastAPI derives each route's security scheme from its
+        # dependency tree as captured at route-declaration time
+        # (dependencies.oauth2_scheme, a local-only OAuth2PasswordBearer), well
+        # before this function ever runs. Patch the generated schema instead,
+        # swapping that scheme for the OIDC one everywhere it's referenced, so
+        # /docs shows the real authorization-code flow against the IdP rather
+        # than a local password flow pointing at a /login route that doesn't
+        # even exist in OIDC mode.
+        local_scheme_name = type(dependencies.oauth2_scheme).__name__
+        oidc_scheme_name = type(oidc_scheme).__name__
+        default_openapi = app.openapi
+
+        def oidc_openapi() -> dict[str, Any]:
+            schema = default_openapi()
+            security_schemes = schema.get("components", {}).get("securitySchemes", {})
+            if local_scheme_name in security_schemes:
+                security_schemes[oidc_scheme_name] = jsonable_encoder(
+                    oidc_scheme.model, by_alias=True, exclude_none=True
+                )
+                del security_schemes[local_scheme_name]
+            for path_item in schema.get("paths", {}).values():
+                for operation in path_item.values():
+                    if not isinstance(operation, dict):
+                        continue
+                    for requirement in operation.get("security") or []:
+                        if local_scheme_name in requirement:
+                            requirement[oidc_scheme_name] = requirement.pop(
+                                local_scheme_name
+                            )
+            return schema
+
+        app.openapi = oidc_openapi  # ty: ignore[invalid-assignment]
 
     app.include_router(collections.router)
     app.include_router(items.router)
