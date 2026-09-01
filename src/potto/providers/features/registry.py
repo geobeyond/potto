@@ -11,13 +11,13 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from ...constants import ProvidedDataType
+from ...util import interpolate_configuration_value
 from .._registry import ProviderRegistry
 from .protocol import FeatureProviderProtocol
-from ...schemas.base import ProvidedDataType
-from ...util import interpolate_configuration_value
 
 if TYPE_CHECKING:
-    from ...schemas.potto import Collection
+    from ...schemas.collections import Collection
     from ...config import PottoSettings
 
 logger = logging.getLogger(__name__)

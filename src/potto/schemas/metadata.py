@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 
 import pydantic
@@ -82,3 +83,16 @@ class ServerMetadataFlattenedUpdate(pydantic.BaseModel):
     point_of_contact_url: str | None = None
     point_of_contact_contact_hours: str | None = None
     point_of_contact_contact_instructions: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ServerMetadata:
+    title: Title
+    description: MaybeDescription = None
+    keywords: MaybeKeywords = None
+    keywords_type: str | None = None
+    terms_of_service: MaybeDescription = None
+    url: str | None = None
+    license: LicenseInformation | None = None
+    data_provider: DataProviderInformation | None = None
+    point_of_contact: PointOfContact | None = None

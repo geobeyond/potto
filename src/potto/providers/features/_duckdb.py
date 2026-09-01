@@ -38,17 +38,19 @@ from ...constants import CRS_84
 from ...schemas.base import (
     AdditionalExtent,
     CountedItems,
-    PottoFeatureFilter,
     StorageCrs,
     TemporalExtent,
     ThreeDimensionSpatialExtent,
     TwoDimensionalSpatialExtent,
 )
-from ...schemas.potto import Feature
+from ...schemas.features import (
+    Feature,
+    PottoFeatureFilter,
+)
 
 if TYPE_CHECKING:
     from ...config import PottoSettings
-    from ...schemas.potto import Collection
+    from ...schemas.collections import Collection
 
 logger = logging.getLogger(__name__)
 

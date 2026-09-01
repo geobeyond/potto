@@ -4,12 +4,15 @@ import pydantic
 import pytest
 
 from potto.config import PottoSettings
-from potto.constants import CRS_84
+from potto.constants import (
+    CollectionType,
+    CRS_84,
+)
 from potto.providers.features import _collectionconfig
 from potto.providers.features.protocol import FeatureProviderProtocol
-from potto.schemas import auth, base
-from potto.schemas.base import PottoFeatureFilter
-from potto.schemas.potto import Collection
+from potto.schemas import auth
+from potto.schemas.features import PottoFeatureFilter
+from potto.schemas.collections import Collection
 
 _EPSG3857 = "http://www.opengis.net/def/crs/EPSG/0/3857"
 
@@ -29,7 +32,7 @@ _RAW_FEATURES = [
 @pytest.fixture
 def collection():
     return Collection(
-        type_=base.CollectionType.FEATURE_COLLECTION,
+        type_=CollectionType.FEATURE_COLLECTION,
         identifier="test-collection",
         title="Test Collection",
         owner=auth.PottoUser(id="user-1", username="testuser", is_active=True),

@@ -12,6 +12,7 @@ from .. import (
 )
 from ..authz.base import AuthorizationBackendProtocol
 from ..config import PottoSettings
+from ..constants import CollectionType
 from ..db.models import Collection
 from ..db.commands import (
     auth as auth_commands,
@@ -34,10 +35,7 @@ from ..schemas.auth import (
     PottoScope,
     PottoUser,
 )
-from ..schemas.base import (
-    PottoProvider,
-    CollectionType,
-)
+from ..schemas.base import PottoProvider
 from ..schemas.auth import UserUpdate
 from ..schemas.collections import (
     CollectionCreate,

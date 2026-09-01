@@ -10,9 +10,10 @@ from starlette.responses import Response
 
 from ...config import PottoSettings
 from ...exceptions import PottoCollectionNotFoundException
-from ...schemas import (
-    auth as auth_schemas,
-    base as base_schemas,
+from ...schemas.auth import PottoUser
+from ...schemas.features import (
+    FeatureFilter,
+    PottoFeatureFilter,
 )
 
 from ...wrapper import Potto
@@ -23,11 +24,7 @@ _PYGMENTS_FORMATTER = HtmlFormatter(style="friendly")
 
 
 async def list_collections(request: Request) -> Response:
-    user = (
-        potto_user
-        if isinstance((potto_user := request.user), auth_schemas.PottoUser)
-        else None
-    )
+    user = potto_user if isinstance((potto_user := request.user), PottoUser) else None
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
     async with settings.get_db_session_maker()() as session:
@@ -47,11 +44,7 @@ async def list_collections(request: Request) -> Response:
 
 
 async def get_collection_details(request: Request) -> Response:
-    user = (
-        potto_user
-        if isinstance((potto_user := request.user), auth_schemas.PottoUser)
-        else None
-    )
+    user = potto_user if isinstance((potto_user := request.user), PottoUser) else None
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
     async with settings.get_db_session_maker()() as session:
@@ -95,16 +88,12 @@ async def get_collection_details(request: Request) -> Response:
 
 
 async def list_collection_items(request: Request) -> Response:
-    user = (
-        potto_user
-        if isinstance((potto_user := request.user), auth_schemas.PottoUser)
-        else None
-    )
+    user = potto_user if isinstance((potto_user := request.user), PottoUser) else None
     settings: PottoSettings = request.state.settings
     potto: Potto = request.state.potto
     # FIXME
-    feature_filter = base_schemas.PottoFeatureFilter.from_feature_filter(
-        base_schemas.FeatureFilter.from_query_parameters(request.query_params)
+    feature_filter = PottoFeatureFilter.from_feature_filter(
+        FeatureFilter.from_query_parameters(request.query_params)
     )
     try:
         async with settings.get_db_session_maker()() as session:

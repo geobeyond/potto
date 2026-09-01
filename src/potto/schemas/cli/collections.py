@@ -2,6 +2,7 @@ import datetime as dt
 
 import pydantic
 
+from ...constants import CollectionType
 from ...db.models import (
     Collection,
     User,
@@ -21,7 +22,7 @@ class SimplifiedFeatureCollectionCreate(pydantic.BaseModel):
 
 class CollectionListItem(pydantic.BaseModel):
     resource_identifier: str
-    collection_type: base.CollectionType
+    collection_type: CollectionType
     owner: str
     is_public: bool
 

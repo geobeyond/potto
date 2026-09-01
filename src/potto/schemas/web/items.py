@@ -11,7 +11,10 @@ import shapely
 from ... import constants
 from ...webapp.protocols import UrlResolver
 from ...webapp.util import get_base_links
-from .. import potto as potto_schemas
+from ..features import (
+    AugmentedFeature,
+    FeatureList,
+)
 from ..base import Link
 
 
@@ -28,7 +31,7 @@ class GeoJsonItem(pydantic.BaseModel):
     @classmethod
     def from_potto(
         cls,
-        potto_response: potto_schemas.FeatureResponse,
+        potto_response: AugmentedFeature,
         url_resolver: UrlResolver,
         exclude_link_relations: Sequence[str] | None = None,
     ) -> "GeoJsonItem":
@@ -81,7 +84,7 @@ class GeoJsonItemCollection(pydantic.BaseModel):
     @classmethod
     def from_potto(
         cls,
-        potto_response: potto_schemas.FeatureListResponse,
+        potto_response: FeatureList,
         url_resolver: UrlResolver,
     ) -> "GeoJsonItemCollection":
         now = dt.datetime.now(tz=dt.timezone.utc).isoformat()
@@ -89,7 +92,7 @@ class GeoJsonItemCollection(pydantic.BaseModel):
             type="FeatureCollection",
             features=[
                 GeoJsonItem.from_potto(
-                    potto_schemas.FeatureResponse(potto_response.collection, feat),
+                    AugmentedFeature(potto_response.collection, feat),
                     url_resolver,
                     exclude_link_relations=("collection",),
                 )
@@ -109,7 +112,7 @@ class GeoJsonItemCollection(pydantic.BaseModel):
     def get_links(
         cls,
         url_resolver: UrlResolver,
-        potto_response: potto_schemas.FeatureListResponse,
+        potto_response: FeatureList,
     ) -> list[Link]:
         pagination_links = potto_response.pagination.get_links(
             str(

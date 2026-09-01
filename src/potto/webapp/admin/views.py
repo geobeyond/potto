@@ -28,6 +28,7 @@ from starlette_admin.fields import (
 )
 
 from ...config import PottoSettings
+from ...constants import ProvidedDataType
 from ...exceptions import (
     PottoCannotChangeCollectionOwnerException,
     PottoCannotCreateCollectionException,
@@ -49,7 +50,6 @@ from ...db.queries import (
     auth as auth_queries,
     collections as collection_queries,
 )
-from ...schemas.base import ProvidedDataType
 from ...schemas.collections import (
     CollectionCreate,
     CollectionUpdate,

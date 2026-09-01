@@ -9,7 +9,10 @@ from ...webapp.protocols import UrlResolver
 from ...webapp.util import get_base_links
 from .. import (
     base,
-    potto as potto_schemas,
+)
+from ..collections import (
+    Collection,
+    CollectionList,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,7 +72,7 @@ class JsonCollection(pydantic.BaseModel):
     @classmethod
     def from_potto(
         cls,
-        potto_collection: potto_schemas.Collection,
+        potto_collection: Collection,
         url_resolver: UrlResolver,
     ) -> "JsonCollection":
         spatial_extent = (
@@ -203,7 +206,7 @@ class JsonCollectionList(pydantic.BaseModel):
 
     @classmethod
     def from_potto(
-        cls, potto_result: potto_schemas.CollectionList, url_resolver: UrlResolver
+        cls, potto_result: CollectionList, url_resolver: UrlResolver
     ) -> "JsonCollectionList":
         return cls(
             collections=[

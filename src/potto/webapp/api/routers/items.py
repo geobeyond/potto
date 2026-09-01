@@ -9,7 +9,7 @@ from fastapi import (
     Response,
 )
 
-from ....schemas.base import PottoFeatureFilter
+from ....schemas.features import PottoFeatureFilter
 from ....schemas.web.items import (
     GeoJsonItem,
     GeoJsonItemCollection,

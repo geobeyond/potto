@@ -6,7 +6,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
-from ..schemas.base import PottoHealthCheck
+from ..schemas.system import HealthCheck
 
 
 def _get_current_and_head_revisions(
@@ -28,7 +28,7 @@ def _get_current_and_head_revisions(
     return current_revisions, head_revisions
 
 
-async def check_health(alembic_config: alembic.config.Config) -> PottoHealthCheck:
+async def check_health(alembic_config: alembic.config.Config) -> HealthCheck:
     """Check DB connectivity and whether it's stamped at the migrations head.
 
     Connects to the DB and compares its current alembic revision(s) against
@@ -55,8 +55,8 @@ async def check_health(alembic_config: alembic.config.Config) -> PottoHealthChec
             _get_current_and_head_revisions, alembic_config
         )
     except Exception:
-        return PottoHealthCheck(status="error", database="error")
+        return HealthCheck(status="error", database="error")
 
     if current_revisions == head_revisions:
-        return PottoHealthCheck(status="ok", database="ok")
-    return PottoHealthCheck(status="error", database="outdated")
+        return HealthCheck(status="ok", database="ok")
+    return HealthCheck(status="error", database="outdated")

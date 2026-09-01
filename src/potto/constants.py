@@ -1,4 +1,22 @@
+import enum
 import typing
+
+
+class CollectionType(str, enum.Enum):
+    COVERAGE = "coverage"
+    FEATURE_COLLECTION = "feature"
+    RECORD_COLLECTION = "record"
+
+
+class ProvidedDataType(str, enum.Enum):
+    COVERAGE = "coverage"
+    EDR = "edr"
+    FEATURE = "feature"
+    MAP = "map"
+    RECORD = "record"
+    STAC = "stac"
+    TILE = "tile"
+
 
 CRS_84: typing.Final[str] = "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
 CRS_84h: typing.Final[str] = "http://www.opengis.net/def/crs/OGC/0/CRS84h"

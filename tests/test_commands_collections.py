@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from potto.constants import CollectionType
 from potto.db.commands import collections as collection_commands
 from potto.schemas import (
     base as base_schemas,
@@ -16,7 +17,7 @@ async def test_bare_collection_create(db_session_maker, admin_user):
         resource_identifier="res1",
         owner_id=admin_user.id,
         is_public=False,
-        collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+        collection_type=CollectionType.FEATURE_COLLECTION,
         title="Fake collection title",
     )
     async with db_session_maker() as session:
@@ -32,14 +33,14 @@ async def test_collection_create_fails_on_duplicate_identifier(
         resource_identifier="res1",
         owner_id=admin_user.id,
         is_public=False,
-        collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+        collection_type=CollectionType.FEATURE_COLLECTION,
         title="Fake collection title",
     )
     second_to_create = collection_schemas.CollectionCreate(
         resource_identifier="res1",
         owner_id=admin_user.id,
         is_public=False,
-        collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+        collection_type=CollectionType.FEATURE_COLLECTION,
         title="Another fake collection title",
     )
     async with db_session_maker() as session:
@@ -54,7 +55,7 @@ async def test_collection_create_no_temporal_extent(db_session_maker, admin_user
         resource_identifier="res1",
         owner_id=admin_user.id,
         is_public=False,
-        collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+        collection_type=CollectionType.FEATURE_COLLECTION,
         title="Fake collection title",
         spatial_extent="POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))",
         spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",

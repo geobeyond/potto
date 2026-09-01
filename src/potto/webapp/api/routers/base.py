@@ -9,7 +9,7 @@ from fastapi.responses import (
 )
 
 from ....schemas.web import base
-from ....schemas.base import PottoHealthCheck
+from ....schemas.web.system import WebHealthCheck
 
 from .. import responses
 from ..dependencies import (
@@ -35,13 +35,13 @@ async def swagger_ui_html(request: Request) -> HTMLResponse:
 
 @router.get(
     "/health",
-    response_model=PottoHealthCheck,
+    response_model=WebHealthCheck,
     responses={
         **responses.ERROR_RESPONSES,
-        503: {"model": PottoHealthCheck, "description": "Service Unavailable"},
+        503: {"model": WebHealthCheck, "description": "Service Unavailable"},
     },
 )
-async def health_check(response: Response, potto: PottoDependency) -> PottoHealthCheck:
+async def health_check(response: Response, potto: PottoDependency):
     """Liveness and readiness probe for deployment tooling and CI."""
     result = await potto.get_health_status()
     response.status_code = 200 if result.status == "ok" else 503
