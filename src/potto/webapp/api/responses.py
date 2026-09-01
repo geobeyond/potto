@@ -2,11 +2,11 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
-from ... import constants
+from ...constants import MediaType
 
 
 class GeoJsonResponse(JSONResponse):
-    media_type = constants.MEDIA_TYPE_GEO_JSON
+    media_type = MediaType.GEO_JSON
 
 
 _ERROR_CONTENT: dict[str, Any] = {

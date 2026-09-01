@@ -3,7 +3,11 @@ from typing import Annotated
 
 import pydantic
 
-from ... import constants
+from ...constants import (
+    FEATURE_COLLECTION_ITEM_TYPE,
+    LinkRelation,
+    MediaType,
+)
 from ...db import models
 from ...webapp.protocols import UrlResolver
 from ...webapp.util import get_base_links
@@ -25,7 +29,7 @@ class JsonCollection(pydantic.BaseModel):
     links: list[base.Link]
     extent: base.Extent | None = None
     item_type: Annotated[str | None, pydantic.Field(serialization_alias="itemType")] = (
-        constants.FEATURE_COLLECTION_ITEM_TYPE
+        FEATURE_COLLECTION_ITEM_TYPE
     )
     crs: list[str]
     storage_crs: Annotated[
@@ -136,8 +140,8 @@ class JsonCollection(pydantic.BaseModel):
         return [
             *get_base_links(url_resolver),
             base.Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_SELF,
+                type=MediaType.JSON,
+                rel=LinkRelation.SELF,
                 href=str(
                     url_resolver(
                         "api:collection-get",
@@ -147,8 +151,8 @@ class JsonCollection(pydantic.BaseModel):
                 title="Collection details",
             ),
             base.Link(
-                type=constants.MEDIA_TYPE_HTML,
-                rel=constants.REL_ALTERNATE,
+                type=MediaType.HTML,
+                rel=LinkRelation.ALTERNATE,
                 href=str(
                     url_resolver(
                         "collection-get",
@@ -158,8 +162,8 @@ class JsonCollection(pydantic.BaseModel):
                 title="Collection details",
             ),
             base.Link(
-                type=constants.MEDIA_TYPE_GEO_JSON,
-                rel=constants.REL_COLLECTION_ITEMS,
+                type=MediaType.GEO_JSON,
+                rel=LinkRelation.COLLECTION_ITEMS,
                 href=str(
                     url_resolver(
                         "api:collection-item-list",
@@ -168,8 +172,8 @@ class JsonCollection(pydantic.BaseModel):
                 ),
             ),
             base.Link(
-                type=constants.MEDIA_TYPE_JSON_SCHEMA,
-                rel=constants.REL_COLLECTION_SCHEMA,
+                type=MediaType.JSON_SCHEMA,
+                rel=LinkRelation.COLLECTION_SCHEMA,
                 href=str(
                     url_resolver(
                         "api:collection-get-schema",
@@ -178,8 +182,8 @@ class JsonCollection(pydantic.BaseModel):
                 ),
             ),
             base.Link(
-                type=constants.MEDIA_TYPE_JSON_SCHEMA,
-                rel=constants.REL_COLLECTION_QUERYABLES,
+                type=MediaType.JSON_SCHEMA,
+                rel=LinkRelation.COLLECTION_QUERYABLES,
                 href=str(
                     url_resolver(
                         "api:collection-get-queryables",
@@ -221,8 +225,8 @@ class JsonCollectionList(pydantic.BaseModel):
         return [
             *get_base_links(url_resolver),
             base.Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_SELF,
+                type=MediaType.JSON,
+                rel=LinkRelation.SELF,
                 href=str(
                     url_resolver(
                         "api:collection-list",
@@ -231,8 +235,8 @@ class JsonCollectionList(pydantic.BaseModel):
                 title="Collection list",
             ),
             base.Link(
-                type=constants.MEDIA_TYPE_HTML,
-                rel=constants.REL_ALTERNATE,
+                type=MediaType.HTML,
+                rel=LinkRelation.ALTERNATE,
                 href=str(
                     url_resolver(
                         "collection-list",
