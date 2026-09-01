@@ -3,7 +3,7 @@
 import dataclasses
 import logging
 
-from .. import constants
+from ..constants import MediaType
 from .base import Link
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class PaginationContext:
     def get_links(
         self,
         base_url: str,
-        target_media_type: str = constants.MEDIA_TYPE_JSON,
+        target_media_type: str = MediaType.JSON,
         additional_query_params: dict[str, str] | None = None,
     ) -> list[Link]:
         additional = (

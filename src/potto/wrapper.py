@@ -9,9 +9,10 @@ from typing import (
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from . import (
-    constants,
-    exceptions as potto_exceptions,
+from . import exceptions as potto_exceptions
+from .constants import (
+    ConformanceClass,
+    CRS_84,
 )
 from .config import PottoSettings
 from .db.alembic_utils import build_alembic_config
@@ -95,10 +96,10 @@ class Potto:
     async def get_conformance_details(self) -> ConformanceDetail:
         return ConformanceDetail(
             conforms_to=[
-                constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_CORE,
-                constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_GEOJSON,
-                constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_OPENAPI3,
-                constants.CONFORMANCE_CLASS_OGCAPI_FEATURES_PART2_CRS,
+                ConformanceClass.OGCAPI_FEATURES_CORE,
+                ConformanceClass.OGCAPI_FEATURES_GEOJSON,
+                ConformanceClass.OGCAPI_FEATURES_OPENAPI3,
+                ConformanceClass.OGCAPI_FEATURES_PART2_CRS,
             ]
         )
 
@@ -237,9 +238,7 @@ class Potto:
             raise potto_exceptions.PottoException(
                 f"Collection {collection_id!r} does not have a feature provider"
             )
-        if (
-            feat := await feature_provider.get_feature(item_id, crs or constants.CRS_84)
-        ) is None:
+        if (feat := await feature_provider.get_feature(item_id, crs or CRS_84)) is None:
             raise potto_exceptions.PottoCollectionItemNotFoundException(
                 f"Item {item_id} not found"
             )

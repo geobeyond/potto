@@ -10,7 +10,10 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
-from .... import constants
+from ....constants import (
+    LinkRelation,
+    MediaType,
+)
 from ....exceptions import PottoException
 from ....operations import collections as collection_operations
 from ....schemas import (
@@ -153,13 +156,13 @@ async def get_collection_queryables(
     )
     links = [
         base_schemas.Link(
-            type=constants.MEDIA_TYPE_JSON,
-            rel=constants.REL_HOME,
+            type=MediaType.JSON,
+            rel=LinkRelation.HOME,
             href=str(request.url_for("api:landing-page")),
         ),
         base_schemas.Link(
-            type=constants.MEDIA_TYPE_JSON,
-            rel=constants.REL_COLLECTION,
+            type=MediaType.JSON,
+            rel=LinkRelation.COLLECTION,
             href=str(
                 request.url_for("api:collection-get", collection_id=collection_id)
             ),
@@ -167,7 +170,7 @@ async def get_collection_queryables(
     ]
     return JSONResponse(
         headers={
-            "Content-Type": constants.MEDIA_TYPE_JSON_SCHEMA,
+            "Content-Type": MediaType.JSON_SCHEMA,
             "Link": ",".join((li.serialize_as_http_header() for li in links)),
         },
         content=queryables,
@@ -208,13 +211,13 @@ async def get_collection_schema(
     )
     links = [
         base_schemas.Link(
-            type=constants.MEDIA_TYPE_JSON,
-            rel=constants.REL_HOME,
+            type=MediaType.JSON,
+            rel=LinkRelation.HOME,
             href=str(request.url_for("api:landing-page")),
         ),
         base_schemas.Link(
-            type=constants.MEDIA_TYPE_JSON,
-            rel=constants.REL_COLLECTION,
+            type=MediaType.JSON,
+            rel=LinkRelation.COLLECTION,
             href=str(
                 request.url_for("api:collection-get", collection_id=collection_id)
             ),
@@ -222,7 +225,7 @@ async def get_collection_schema(
     ]
     return JSONResponse(
         headers={
-            "Content-Type": constants.MEDIA_TYPE_JSON_SCHEMA,
+            "Content-Type": MediaType.JSON_SCHEMA,
             "Link": ",".join((li.serialize_as_http_header() for li in links)),
         },
         content=schema,

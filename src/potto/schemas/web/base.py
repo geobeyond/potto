@@ -3,7 +3,10 @@ from typing import Annotated
 
 import pydantic
 
-from ... import constants
+from ...constants import (
+    LinkRelation,
+    MediaType,
+)
 from ...webapp.protocols import UrlResolver
 from ..base import Link
 from ..system import SystemOverview
@@ -26,46 +29,44 @@ class JsonLanding(pydantic.BaseModel):
     ) -> "JsonLanding":
         links = [
             Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_SELF,
+                type=MediaType.JSON,
+                rel=LinkRelation.SELF,
                 href=str(url_resolver("api:landing-page")),
                 title="This resource",
             ),
             Link(
-                type=constants.MEDIA_TYPE_HTML,
-                rel=constants.REL_ALTERNATE,
+                type=MediaType.HTML,
+                rel=LinkRelation.ALTERNATE,
                 href=str(url_resolver("landing-page")),
                 title="HTML landing page",
             ),
             Link(
-                type=constants.MEDIA_TYPE_OAS30,
-                rel=constants.REL_SERVICE_DESC,
+                type=MediaType.OAS30,
+                rel=LinkRelation.SERVICE_DESC,
                 href=str(url_resolver("api:openapi")),
                 title="OpenAPI document",
             ),
             Link(
-                type=constants.MEDIA_TYPE_HTML,
-                rel=constants.REL_SERVICE_DOC,
+                type=MediaType.HTML,
+                rel=LinkRelation.SERVICE_DOC,
                 href=str(url_resolver("api:swagger_ui_html")),
                 title="API documentation",
             ),
             Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_CONFORMANCE,
+                type=MediaType.JSON,
+                rel=LinkRelation.CONFORMANCE,
                 href=str(url_resolver("api:conformance-page")),
                 title="API conformance declaration",
             ),
             Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_COLLECTIONS,
+                type=MediaType.JSON,
+                rel=LinkRelation.COLLECTIONS,
                 href=str(url_resolver("api:collection-list")),
                 title="Collections exposed by this server",
             ),
             Link(
-                type=constants.MEDIA_TYPE_HTML
-                if oidc_configured
-                else constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_LOGIN,
+                type=MediaType.HTML if oidc_configured else MediaType.JSON,
+                rel=LinkRelation.LOGIN,
                 href=str(
                     url_resolver("oidc-login")
                     if oidc_configured

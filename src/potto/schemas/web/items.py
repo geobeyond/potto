@@ -8,7 +8,10 @@ from typing import (
 import pydantic
 import shapely
 
-from ... import constants
+from ...constants import (
+    LinkRelation,
+    MediaType,
+)
 from ...webapp.protocols import UrlResolver
 from ...webapp.util import get_base_links
 from ..features import (
@@ -37,8 +40,8 @@ class GeoJsonItem(pydantic.BaseModel):
     ) -> "GeoJsonItem":
         all_links = [
             Link(
-                type=constants.MEDIA_TYPE_GEO_JSON,
-                rel=constants.REL_SELF,
+                type=MediaType.GEO_JSON,
+                rel=LinkRelation.SELF,
                 href=str(
                     url_resolver(
                         "api:collection-item-get",
@@ -49,8 +52,8 @@ class GeoJsonItem(pydantic.BaseModel):
                 title="Details about this feature",
             ),
             Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_COLLECTION,
+                type=MediaType.JSON,
+                rel=LinkRelation.COLLECTION,
                 href=str(
                     url_resolver(
                         "api:collection-get",
@@ -132,8 +135,8 @@ class GeoJsonItemCollection(pydantic.BaseModel):
         return [
             *get_base_links(url_resolver),
             Link(
-                type=constants.MEDIA_TYPE_GEO_JSON,
-                rel=constants.REL_SELF,
+                type=MediaType.GEO_JSON,
+                rel=LinkRelation.SELF,
                 href=str(
                     url_resolver(
                         "api:collection-item-list",
@@ -143,8 +146,8 @@ class GeoJsonItemCollection(pydantic.BaseModel):
                 title="This document",
             ),
             Link(
-                type=constants.MEDIA_TYPE_JSON,
-                rel=constants.REL_COLLECTION,
+                type=MediaType.JSON,
+                rel=LinkRelation.COLLECTION,
                 href=str(
                     url_resolver(
                         "api:collection-get",
