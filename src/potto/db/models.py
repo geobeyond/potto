@@ -21,18 +21,22 @@ from sqlmodel import (
 )
 from starlette.requests import Request
 
-from .. import constants
+from ..constants import (
+    CRS_84,
+    CollectionType,
+    ProvidedDataType,
+)
 from ..schemas.auth import PottoUser
-from ..schemas import potto as potto_schemas
-from ..schemas import metadata as metadata_schemas
+from ..schemas import (
+    collections as collection_schemas,
+    metadata as metadata_schemas,
+)
 from ..schemas.base import (
     PottoProvider,
-    CollectionType,
     Title,
     MaybeDescription,
     MaybeKeywords,
     MaybeShapelyGeometry,
-    ProvidedDataType,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +101,7 @@ class Collection(SQLModel, table=True):
     )
     spatial_extent_crs: str | None = None  # part 1 - CRS of the spatial extent
     crs: list[str] = Field(
-        default_factory=lambda: [constants.CRS_84], sa_type=JSONB, nullable=False
+        default_factory=lambda: [CRS_84], sa_type=JSONB, nullable=False
     )  # part 2 - list of supported CRS
     storage_crs: str | None = Field(
         default=None, nullable=True
@@ -127,8 +131,8 @@ class Collection(SQLModel, table=True):
 
     owner: "User" = Relationship(back_populates="owned_collections")
 
-    def to_potto(self) -> potto_schemas.Collection:
-        return potto_schemas.Collection(
+    def to_potto(self) -> collection_schemas.Collection:
+        return collection_schemas.Collection(
             type_=self.collection_type,
             identifier=self.resource_identifier,
             title=self.title,
@@ -210,8 +214,8 @@ class ServerMetadata(SQLModel, table=True):
     data_provider: dict[str, Any] = Field(default=None, sa_type=JSONB, nullable=True)
     point_of_contact: dict[str, Any] = Field(default=None, sa_type=JSONB, nullable=True)
 
-    def to_potto(self) -> potto_schemas.ServerMetadata:
-        return potto_schemas.ServerMetadata(
+    def to_potto(self) -> metadata_schemas.ServerMetadata:
+        return metadata_schemas.ServerMetadata(
             title=self.title,
             description=self.description,
             keywords=self.keywords,

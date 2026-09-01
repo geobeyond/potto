@@ -1,10 +1,15 @@
 import pytest
 
 from potto.config import PottoSettings
-from potto.constants import CRS_84
+from potto.constants import (
+    CollectionType,
+    CRS_84,
+    ProvidedDataType,
+)
 from potto.providers.features import _pygeoapi
 from potto.schemas import auth, base
-from potto.schemas.potto import Collection
+from potto.schemas.features import PottoFeatureFilter
+from potto.schemas.collections import Collection
 
 _EPSG3857 = "http://www.opengis.net/def/crs/EPSG/0/3857"
 
@@ -27,13 +32,13 @@ def provider_config():
 @pytest.fixture
 def collection():
     return Collection(
-        type_=base.CollectionType.FEATURE_COLLECTION,
+        type_=CollectionType.FEATURE_COLLECTION,
         identifier="test-collection",
         title="Test Collection",
         owner=auth.PottoUser(id="user-1", username="testuser", is_active=True),
         crs=[CRS_84],
         providers={
-            base.ProvidedDataType.FEATURE.value: base.PottoProvider(
+            ProvidedDataType.FEATURE.value: base.PottoProvider(
                 provider_name="pygeoapi",
                 config={},
             )
@@ -97,14 +102,14 @@ def test_list_features_returns_all_features(collection, pygeoapi_api):
 
 
 def test_list_features_limit_is_respected(collection, pygeoapi_api):
-    feature_filter = base.PottoFeatureFilter(limit=2, offset=0)
+    feature_filter = PottoFeatureFilter(limit=2, offset=0)
     features = _pygeoapi._list_features(collection, pygeoapi_api, feature_filter)
     assert len(features) == 2
 
 
 def test_list_features_bbox_excludes_out_of_range_points(collection, pygeoapi_api):
     # Points at [10,20], [30,40], [50,60] — bbox covers only the first two
-    feature_filter = base.PottoFeatureFilter(
+    feature_filter = PottoFeatureFilter(
         limit=10, offset=0, bbox=(5.0, 15.0, 35.0, 45.0)
     )
     features = _pygeoapi._list_features(collection, pygeoapi_api, feature_filter)
@@ -117,7 +122,7 @@ def test_count_items_returns_total_matched(collection, pygeoapi_api):
 
 
 def test_count_items_bbox_affects_matched_count(collection, pygeoapi_api):
-    feature_filter = base.PottoFeatureFilter(
+    feature_filter = PottoFeatureFilter(
         limit=10, offset=0, bbox=(5.0, 15.0, 35.0, 45.0)
     )
     result = _pygeoapi._count_items(collection, pygeoapi_api, feature_filter)
@@ -136,7 +141,7 @@ def test_get_feature_returns_none_for_nonexistent_id(collection, pygeoapi_api):
 
 def test_list_features_reprojects_to_requested_crs(collection, pygeoapi_api_with_crs):
     # Point(10, 20) in CRS84 → approx (1113194.9, 2273030.9) in EPSG:3857
-    feature_filter = base.PottoFeatureFilter(limit=10, offset=0, crs=_EPSG3857)
+    feature_filter = PottoFeatureFilter(limit=10, offset=0, crs=_EPSG3857)
     features = _pygeoapi._list_features(
         collection, pygeoapi_api_with_crs, feature_filter
     )

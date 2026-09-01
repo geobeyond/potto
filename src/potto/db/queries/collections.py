@@ -13,9 +13,9 @@ from sqlmodel import (
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from ...constants import CollectionType
 from ..models import (
     Collection,
-    CollectionType,
     User,
 )
 from .common import _get_total_num_records

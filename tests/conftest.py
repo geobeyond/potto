@@ -10,6 +10,7 @@ from starlette.routing import Mount
 from playwright.sync_api import expect
 from potto import config
 from potto.authz.backend import LocalAuthorizationBackend
+from potto.constants import CollectionType
 from potto.db.alembic_utils import build_alembic_config
 from potto.db.commands.auth import create_user
 from potto.operations.collections import create_collection
@@ -206,7 +207,7 @@ async def obs_feature_collection(db, db_session_maker, admin_user, settings):
                 resource_identifier="obs-test",
                 owner_id=admin_user.id,
                 is_public=False,
-                collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+                collection_type=CollectionType.FEATURE_COLLECTION,
                 title="Testing obs feature collection",
                 spatial_extent="POLYGON ((-122 43, -122 49, -75 49, -75 43, -122 43))",
                 spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",

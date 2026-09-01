@@ -31,7 +31,7 @@ from ... import (
 )
 from ...operations.metadata import get_server_metadata
 from ...schemas.auth import PottoUser
-from ...schemas.potto import ServerMetadata
+from ...schemas.metadata import ServerMetadata
 from . import (
     dependencies,
     tags,

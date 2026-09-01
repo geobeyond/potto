@@ -10,13 +10,15 @@ if TYPE_CHECKING:
     from ...schemas.base import (
         AdditionalExtent,
         CountedItems,
-        PottoFeatureFilter,
         StorageCrs,
         TemporalExtent,
         ThreeDimensionSpatialExtent,
         TwoDimensionalSpatialExtent,
     )
-    from ...schemas.potto import Feature
+    from ...schemas.features import (
+        Feature,
+        PottoFeatureFilter,
+    )
 
 
 @runtime_checkable

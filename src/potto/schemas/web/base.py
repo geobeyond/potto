@@ -6,7 +6,7 @@ import pydantic
 from ... import constants
 from ...webapp.protocols import UrlResolver
 from ..base import Link
-from ..potto import LandingPage
+from ..system import SystemOverview
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class JsonLanding(pydantic.BaseModel):
     @classmethod
     def from_potto(
         cls,
-        potto_response: LandingPage,
+        potto_response: SystemOverview,
         url_resolver: UrlResolver,
         oidc_configured: bool = False,
     ) -> "JsonLanding":

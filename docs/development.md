@@ -239,14 +239,18 @@ Non-e2e tests (unit and integration) run via the `potto-test` service (profile `
 picked up without a rebuild:
 
 ```shell
-docker compose \
+CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') \
+    CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+    docker compose \
     --env-file docker/local.env \
     -f docker/compose.dev.yaml \
     --profile test \
     run --rm potto-test
 
 # only run the integration tests
-docker compose \
+CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') \
+    CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+    docker compose \
     --env-file docker/local.env \
     -f docker/compose.dev.yaml \
     --profile test run --rm \

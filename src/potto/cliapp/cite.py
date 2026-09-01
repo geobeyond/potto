@@ -17,6 +17,7 @@ from ..schemas import (
     base as base_schemas,
     collections as collection_schemas,
 )
+from ..constants import CollectionType
 
 cite_app = cyclopts.App(help_format="rich")
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ async def bootstrap_for_cite_ogcapi_features(
             _,
         ) = await collection_queries.paginated_list_public_collections(
             session,
-            collection_type_filter=[base_schemas.CollectionType.FEATURE_COLLECTION],
+            collection_type_filter=[CollectionType.FEATURE_COLLECTION],
         )
         logger.debug(f"{len(paginated_collections)=}")
         logger.debug(f"{paginated_collections=}")
@@ -94,7 +95,7 @@ async def bootstrap_for_cite_ogcapi_features(
             resource_identifier="obs-cite",
             owner_id=admin_user.id,
             is_public=True,
-            collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+            collection_type=CollectionType.FEATURE_COLLECTION,
             title="Testing obs feature collection",
             spatial_extent="POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))",
             spatial_extent_crs="http://www.opengis.net/def/crs/OGC/1.3/CRS84",

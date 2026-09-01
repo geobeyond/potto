@@ -4,13 +4,13 @@ import re
 import typing
 
 from .exceptions import PottoException
-from .schemas.base import CollectionType
+from .constants import CollectionType
 
 logger = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
     from .config import PottoSettings
-    from .schemas.potto import Collection
+    from .schemas.collections import Collection
 
 
 def get_collection_type(pygeoapi_collection: dict) -> CollectionType:

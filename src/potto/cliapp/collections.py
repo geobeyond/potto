@@ -14,6 +14,10 @@ import yaml
 from cyclopts.types import NonNegativeInt
 from rich.table import Table
 
+from ..constants import (
+    CollectionType,
+    ProvidedDataType,
+)
 from ..config import (
     get_settings,
     PottoSettings,
@@ -245,11 +249,11 @@ async def create_feature_collection(
                 },
             ),
             title=collection.english_title,
-            collection_type=base_schemas.CollectionType.FEATURE_COLLECTION,
+            collection_type=CollectionType.FEATURE_COLLECTION,
             owner_id=collection_owner.id,
             spatial_extent=collection.spatial_extent,
             providers={
-                base_schemas.ProvidedDataType.FEATURE.value: base_schemas.PottoProvider(
+                ProvidedDataType.FEATURE.value: base_schemas.PottoProvider(
                     **collection.provider.model_dump(exclude_none=True)
                 )
             },

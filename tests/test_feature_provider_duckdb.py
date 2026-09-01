@@ -3,7 +3,7 @@ import pytest
 from potto.config import PottoSettings
 from potto.constants import CRS_84
 from potto.providers.features import _duckdb
-from potto.schemas.base import PottoFeatureFilter
+from potto.schemas.features import PottoFeatureFilter
 
 _EPSG3857 = "http://www.opengis.net/def/crs/EPSG/0/3857"
 

@@ -17,12 +17,14 @@ from pygeoapi.api import get_collection_schema as _get_collection_schema
 import shapely
 
 from ... import exceptions as potto_exceptions
-from ...schemas.potto import (
-    Collection,
-    Feature,
-)
+from ...constants import ProvidedDataType
 from ...schemas import base
 from ...schemas.base import CountedItems
+from ...schemas.collections import Collection
+from ...schemas.features import (
+    Feature,
+    PottoFeatureFilter,
+)
 from ...webapp.requests import PottoRequest
 
 if TYPE_CHECKING:
@@ -61,7 +63,7 @@ class PygeoapiFeatureProvider:
 
     async def list_features(
         self,
-        feature_filter: base.PottoFeatureFilter | None = None,
+        feature_filter: PottoFeatureFilter | None = None,
     ) -> list[Feature]:
         return await asyncio.to_thread(
             _list_features,
@@ -71,7 +73,7 @@ class PygeoapiFeatureProvider:
         )
 
     async def count_items(
-        self, feature_filter: base.PottoFeatureFilter | None = None
+        self, feature_filter: PottoFeatureFilter | None = None
     ) -> "CountedItems":
         return await asyncio.to_thread(
             _count_items,
@@ -131,9 +133,9 @@ class PygeoapiFeatureProvider:
 def _list_features(
     collection: Collection,
     pygeoapi_api: _API,
-    feature_filter: base.PottoFeatureFilter | None,
+    feature_filter: PottoFeatureFilter | None,
 ):
-    effective_filter = feature_filter or base.PottoFeatureFilter()
+    effective_filter = feature_filter or PottoFeatureFilter()
     filter_ = effective_filter.model_dump(by_alias=True, exclude_none=True)
     if bbox_2d := effective_filter.bbox_2d:
         filter_["bbox"] = ",".join(str(v) for v in bbox_2d)
@@ -158,7 +160,7 @@ def _list_features(
 def _count_items(
     collection: Collection,
     pygeoapi_api: _API,
-    feature_filter: base.PottoFeatureFilter | None,
+    feature_filter: PottoFeatureFilter | None,
 ) -> CountedItems:
     filter_ = (
         feature_filter.model_dump(by_alias=True, exclude_none=True)
@@ -342,9 +344,7 @@ def _convert_collection_to_pygeoapi_resource(
             f"collection {collection.identifier!r} does not have a feature provider"
         )
     try:
-        naive_provider_config = collection.providers[
-            base.ProvidedDataType.FEATURE.value
-        ]
+        naive_provider_config = collection.providers[ProvidedDataType.FEATURE.value]
     except KeyError as err:
         raise potto_exceptions.PottoException(
             f"collection {collection.identifier!r} does not have a feature provider"
@@ -388,7 +388,7 @@ def _convert_collection_to_pygeoapi_resource(
         "extents": extents,
         "providers": [
             {
-                "type": base.ProvidedDataType.FEATURE.value,
+                "type": ProvidedDataType.FEATURE.value,
                 "name": provider_config.python_callable,
                 "data": provider_config.data,
                 **provider_config.options,

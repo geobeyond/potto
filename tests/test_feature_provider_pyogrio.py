@@ -10,7 +10,7 @@ from shapely.geometry import Point
 
 from potto.config import PottoSettings
 from potto.providers.features import _pyogrio
-from potto.schemas.base import PottoFeatureFilter
+from potto.schemas.features import PottoFeatureFilter
 
 
 @pytest.fixture

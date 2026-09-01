@@ -16,16 +16,16 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
+from ..constants import (
+    CollectionType,
+    ProvidedDataType,
+)
 from ..operations import (
     auth as auth_ops,
     collections as collection_ops,
 )
 from ..schemas.collections import CollectionCreate
-from ..schemas.base import (
-    CollectionType,
-    ProvidedDataType,
-    PottoProvider,
-)
+from ..schemas.base import PottoProvider
 from ..schemas.cli import CollectionDetail
 
 dev_app = cyclopts.App(help_format="rich")

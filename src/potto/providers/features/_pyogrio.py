@@ -19,18 +19,18 @@ import pyproj
 from pydantic.json_schema import JsonSchemaValue
 
 from ...config import PottoSettings
-from ...schemas.potto import (
-    Collection,
-    Feature,
-)
 from ...schemas.base import (
     AdditionalExtent,
     CountedItems,
-    PottoFeatureFilter,
     StorageCrs,
     TemporalExtent,
     ThreeDimensionSpatialExtent,
     TwoDimensionalSpatialExtent,
+)
+from ...schemas.collections import Collection
+from ...schemas.features import (
+    Feature,
+    PottoFeatureFilter,
 )
 
 logger = logging.getLogger(__name__)

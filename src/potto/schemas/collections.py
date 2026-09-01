@@ -1,15 +1,17 @@
+import dataclasses
 import datetime as dt
 import logging
 from typing import (
     Annotated,
+    Any,
     Literal,
 )
 
 import pydantic
 
+from .auth import PottoUser
 from .base import (
     AdditionalExtent,
-    CollectionType,
     CollectionIdentifier,
     MaybeDescription,
     MaybeKeywords,
@@ -17,8 +19,49 @@ from .base import (
     PottoProvider,
     Title,
 )
+from .pagination import Pagination
+
+from ..constants import (
+    CollectionType,
+    CRS_84,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# TODO: Add support for additional extents
+@dataclasses.dataclass(frozen=True)
+class Collection:
+    type_: CollectionType
+    identifier: str
+    title: Title
+    owner: PottoUser
+    crs: list[str]
+    description: MaybeDescription = None
+    keywords: MaybeKeywords = None
+    spatial_extent: MaybeShapelyGeometry = None
+    storage_crs: str | None = CRS_84
+    storage_crs_coordinate_epoch: float | None = None
+    custom_page_size: int | None = None
+    custom_page_size_max: int | None = None
+    temporal_extent_begin: dt.datetime | None = None
+    temporal_extent_end: dt.datetime | None = None
+    additional_links: list[dict[str, str | dict[str, str]]] | None = None
+    providers: dict[str, PottoProvider] | None = None
+    queryables: dict[str, Any] | None = None
+    schema: dict[str, Any] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class AugmentedCollection:
+    collection: Collection
+    metadata: dict[str, str] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class CollectionList:
+    collections: list[Collection]
+    pagination: Pagination
 
 
 class CollectionCreate(pydantic.BaseModel):
