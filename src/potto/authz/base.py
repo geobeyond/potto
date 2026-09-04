@@ -1,7 +1,7 @@
 from typing import Protocol
 
-from ..db.models import Collection
 from ..schemas.auth import PottoUser
+from ..schemas.collections import Collection
 
 
 class AuthorizationBackendProtocol(Protocol):

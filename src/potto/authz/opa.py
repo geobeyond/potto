@@ -3,8 +3,8 @@ from typing import cast
 
 import httpx
 
-from ..db.models import Collection
 from ..schemas.auth import PottoUser
+from ..schemas.collections import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,9 @@ class OPAAuthorizationBackend:
 
     def _collection_input(self, collection: Collection) -> dict:
         return {
-            "id": collection.id,
-            "resource_identifier": collection.resource_identifier,
+            "identifier": collection.identifier,
             "is_public": collection.is_public,
-            "owner_id": collection.owner_id,
+            "owner_id": collection.owner.id,
         }
 
     async def can_view_collection(

@@ -1,10 +1,10 @@
 import re
 
-from ..db.models import Collection
 from ..schemas.auth import (
     PottoScope,
     PottoUser,
 )
+from ..schemas.collections import Collection
 
 _COLLECTION_SCOPE_RE = re.compile(r"^collection-(.+):(editor|viewer)$")
 
@@ -21,11 +21,11 @@ class LocalAuthorizationBackend:
             return False
         if PottoScope.ADMIN.value in user.scopes:
             return True
-        if user.id == collection.owner_id:
+        if user.id == collection.owner.id:
             return True
-        if PottoScope.collection_editor(collection.resource_identifier) in user.scopes:
+        if PottoScope.collection_editor(collection.identifier) in user.scopes:
             return True
-        if PottoScope.collection_viewer(collection.resource_identifier) in user.scopes:
+        if PottoScope.collection_viewer(collection.identifier) in user.scopes:
             return True
         return False
 
@@ -36,9 +36,9 @@ class LocalAuthorizationBackend:
             return False
         if PottoScope.ADMIN.value in user.scopes:
             return True
-        if user.id == collection.owner_id:
+        if user.id == collection.owner.id:
             return True
-        if PottoScope.collection_editor(collection.resource_identifier) in user.scopes:
+        if PottoScope.collection_editor(collection.identifier) in user.scopes:
             return True
         return False
 
@@ -87,7 +87,7 @@ class LocalAuthorizationBackend:
             return False
         if PottoScope.ADMIN.value in user.scopes:
             return True
-        return user.id == collection.owner_id
+        return user.id == collection.owner.id
 
     async def can_create_collection(self, user: PottoUser | None) -> bool:
         return user is not None

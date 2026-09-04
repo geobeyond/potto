@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass(frozen=True)
 class HealthCheck:
     status: Literal["ok", "error"]
-    database: Literal["ok", "outdated", "error"]
+    collection_manager: Literal["ok", "not-ready", "error"]
 
 
 @dataclasses.dataclass(frozen=True)

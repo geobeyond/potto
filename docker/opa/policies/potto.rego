@@ -13,11 +13,11 @@
 #
 # The user object has: id, username, scopes (list of strings).
 # For anonymous (unauthenticated) visitors, user is null.
-# The collection object has: id, resource_identifier, is_public, owner_id.
+# The collection object has: identifier, is_public, owner_id.
 #
 # accessible_collection_identifiers must return null when the user should see all
 # collections (e.g. admin), an empty list for anonymous visitors (only public
-# collections are shown via the query layer), or a list of resource_identifier
+# collections are shown via the query layer), or a list of identifier
 # strings for authenticated users with explicit access.
 
 package potto.authz
@@ -42,11 +42,11 @@ can_view_collection if {
 }
 
 can_view_collection if {
-    concat("", ["collection-", input.collection.resource_identifier, ":editor"]) in input.user.scopes
+    concat("", ["collection-", input.collection.identifier, ":editor"]) in input.user.scopes
 }
 
 can_view_collection if {
-    concat("", ["collection-", input.collection.resource_identifier, ":viewer"]) in input.user.scopes
+    concat("", ["collection-", input.collection.identifier, ":viewer"]) in input.user.scopes
 }
 
 # --- can_edit_collection ---
@@ -60,14 +60,14 @@ can_edit_collection if {
 }
 
 can_edit_collection if {
-    concat("", ["collection-", input.collection.resource_identifier, ":editor"]) in input.user.scopes
+    concat("", ["collection-", input.collection.identifier, ":editor"]) in input.user.scopes
 }
 
 # --- accessible_collection_identifiers ---
 #
 # Returns null for admins (unrestricted access), [] for anonymous visitors
 # (the query layer will then filter by is_public=true), or the list of
-# collection resource identifiers the user has explicit editor/viewer scope for.
+# collection identifiers the user has explicit editor/viewer scope for.
 
 accessible_collection_identifiers := [] if {
     input.user == null

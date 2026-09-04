@@ -22,6 +22,8 @@ from .authn.oidc import OIDCProvider
 from .authz.base import AuthorizationBackendProtocol
 from .authz.backend import LocalAuthorizationBackend
 from .authz.opa import OPAAuthorizationBackend
+from .collections.protocols import CollectionManagerProtocol
+from .collections._postgis.manager import get_collection_manager
 
 warnings.filterwarnings(
     "ignore",
@@ -101,6 +103,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
         ),
     )
 
+    _collection_manager: CollectionManagerProtocol | None = None
     _jinja_env: jinja2.Environment | None = None
     _db_engine: AsyncEngine | None = None
     _sync_db_engine: Engine | None = None
@@ -159,6 +162,17 @@ class PottoSettings(pydantic_settings.BaseSettings):
                 class_=AsyncSession,
             )
         return self._db_session_maker
+
+    def get_collection_manager(self) -> CollectionManagerProtocol:
+        # TODO: allow swapping with another implementation
+        if self._collection_manager is None:
+            self._collection_manager = get_collection_manager(
+                raw_config={
+                    "database_dsn": self.database_dsn,
+                },
+                settings=self
+            )
+        return self._collection_manager
 
 
 def get_settings() -> PottoSettings:
