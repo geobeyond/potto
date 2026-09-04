@@ -34,8 +34,11 @@ logger = logging.getLogger(__name__)
 class Collection:
     type_: CollectionType
     identifier: str
+    created_at: dt.datetime
+    updated_at: dt.datetime
     title: Title
     owner: PottoUser
+    is_public: bool
     crs: list[str]
     description: MaybeDescription = None
     keywords: MaybeKeywords = None

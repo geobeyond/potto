@@ -58,7 +58,6 @@ async def list_collections(
     response: Response,
     potto: PottoDependency,
     user: UserDependency,
-    settings: SettingsDependency,
     locale: LocaleDependency,
     limit: PaginationLimitDependency,
 ):
@@ -71,11 +70,10 @@ async def list_collections(
     - Private collections are visible to their owner and to any users that
       have the 'collection-{collection_identifier}:{editor|viewer}' scope
     """
-    async with settings.get_db_session_maker()() as session:
-        potto_collections = await potto.list_collections(
-            user=user, page_size=limit, session=session
-        )
-    result = JsonCollectionList.from_potto(potto_collections, request.url_for)
+    collections = await potto.list_collections(
+        user=user, page_size=limit
+    )
+    result = JsonCollectionList.from_potto(collections, request.url_for)
     response.headers.update(
         {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
     )
@@ -109,14 +107,11 @@ async def get_collection_details(
     - Private collections are visible to their owner and to any users that
       have the 'collection-{collection_identifier}:{editor|viewer}' scope
     """
-    async with settings.get_db_session_maker()() as session:
-        if (
-            potto_collection := await potto.get_collection(
-                collection_id, user=user, session=session
-            )
-        ) is None:
-            raise HTTPException(status_code=404, detail="Collection not found.")
-    result = JsonCollection.from_potto(potto_collection, request.url_for)
+    if (
+        collection := await potto.get_collection(collection_id, user=user)
+    ) is None:
+        raise HTTPException(status_code=404, detail="Collection not found.")
+    result = JsonCollection.from_potto(collection, request.url_for)
     response.headers.update(
         {"Link": ",".join((li.serialize_as_http_header() for li in result.links))}
     )
@@ -134,23 +129,21 @@ async def get_collection_queryables(
     collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
-    settings: SettingsDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
     """
     Get a list of properties that can be used to query a collection's contents.
     """
-    async with settings.get_db_session_maker()() as session:
-        potto_collection = await potto.get_collection(
-            collection_id,
-            user=user,
-            include_queryables=True,
-            session=session,
-        )
-    if potto_collection is None:
+    if (
+            collection := await potto.get_collection(
+                collection_id,
+                user=user,
+                include_queryables=True,
+            )
+    ) is None:
         raise HTTPException(status_code=404, detail="Collection not found.")
-    assert potto_collection.queryables is not None
-    queryables = copy.deepcopy(potto_collection.queryables)
+    assert collection.queryables is not None
+    queryables = copy.deepcopy(collection.queryables)
     queryables["$id"] = str(
         request.url_for("api:collection-get", collection_id=collection_id)
     )
@@ -188,24 +181,23 @@ async def get_collection_schema(
     collection_id: CollectionIdPath,
     potto: PottoDependency,
     user: UserDependency,
-    settings: SettingsDependency,
     locale: LocaleDependency,
 ) -> JSONResponse:
     """Get the schema of a collection."""
-    async with settings.get_db_session_maker()() as session:
-        potto_collection = await potto.get_collection(
-            collection_id,
-            user=user,
-            include_schema=True,
-            session=session,
-        )
-    if potto_collection is None:
+
+    if (
+            collection := await potto.get_collection(
+                collection_id,
+                user=user,
+                include_schema=True,
+            )
+    ) is None:
         raise HTTPException(
             status_code=404, detail=f"Collection {collection_id} not found"
         )
 
-    assert potto_collection.schema is not None
-    schema = copy.deepcopy(potto_collection.schema)
+    assert collection.schema is not None
+    schema = copy.deepcopy(collection.schema)
     schema["$id"] = str(
         request.url_for("api:collection-get", collection_id=collection_id)
     )
