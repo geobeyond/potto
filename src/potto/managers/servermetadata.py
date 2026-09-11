@@ -1,4 +1,3 @@
-import dataclasses
 from typing import (
     Any,
     Callable,
@@ -12,14 +11,13 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
-    from .config import PottoSettings
-    from .schemas.auth import PottoUser
-    from .schemas.metadata import ServerMetadata, ServerMetadataUpdate
-
-
-@dataclasses.dataclass(frozen=True)
-class ServerMetadataManagerCapabilities:
-    supports_modification: bool = False
+    from ..config import PottoSettings
+    from ..schemas.auth import PottoUser
+    from ..schemas.metadata import (
+        ServerMetadata,
+        ServerMetadataManagerCapabilities,
+        ServerMetadataUpdate,
+    )
 
 
 class ServerMetadataProtocol(Protocol):
@@ -40,7 +38,7 @@ class ServerMetadataProtocol(Protocol):
 
     async def get_server_metadata_capabilities(
         self,
-    ) -> ServerMetadataManagerCapabilities:
+    ) -> "ServerMetadataManagerCapabilities":
         """Return the manager's capabilities."""
 
     async def get_server_metadata(self) -> "ServerMetadata":

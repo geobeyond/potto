@@ -12,29 +12,25 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
 from ...authz.protocols import AuthorizationBackendProtocol
-from ...collectionmanager import (
-    CollectionFilter,
-    CollectionManagerCapabilities,
-)
-from ...servermetadatamanager import ServerMetadataManagerCapabilities
-from ...useraccountmanager import (
-    UserAccountManagerCapabilities,
-    UserFilter,
-)
 from ...schemas.auth import (
     PottoUser,
     UserCreate,
     UserCreateFromOidc,
     UserUpdate,
+    UserFilter,
+    UserAccountManagerCapabilities,
 )
 from ...schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionUpdate,
+    CollectionFilter,
+    CollectionManagerCapabilities,
 )
 from ...schemas.metadata import (
     ServerMetadata,
     ServerMetadataUpdate,
+    ServerMetadataManagerCapabilities,
 )
 from . import operations
 from .admin.collections import CollectionView

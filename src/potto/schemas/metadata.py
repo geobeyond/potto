@@ -169,3 +169,8 @@ def unflatten_server_metadata_update(
             contact_instructions=_poc("contact_instructions"),
         )
     return ServerMetadataUpdate.model_validate(update_kwargs)
+
+
+@dataclasses.dataclass(frozen=True)
+class ServerMetadataManagerCapabilities:
+    supports_modification: bool = False

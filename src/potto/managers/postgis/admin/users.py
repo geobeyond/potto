@@ -18,8 +18,8 @@ from ....schemas.auth import (
     PottoUser,
     UserCreate,
     UserUpdate,
+    UserFilter,
 )
-from ....useraccountmanager import UserFilter
 from ....webapp.admin.views import _PottoAdminModelView
 
 if TYPE_CHECKING:

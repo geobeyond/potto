@@ -9,12 +9,12 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
-from ....collectionmanager import CollectionManagerCapabilities
 from ....constants import (
     LinkRelation,
     MediaType,
 )
 from ....exceptions import PottoException
+from ....schemas.collections import CollectionManagerCapabilities
 from ....schemas import (
     base as base_schemas,
     collections as collections_schemas,

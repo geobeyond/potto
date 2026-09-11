@@ -27,7 +27,7 @@ from ... import (
     config,
     exceptions as potto_exceptions,
 )
-from ...collectionmanager import CollectionManagerCapabilities
+from ...schemas.collections import CollectionManagerCapabilities
 from ...util import run_sync
 from ...schemas.auth import PottoUser
 from ...schemas.metadata import ServerMetadata

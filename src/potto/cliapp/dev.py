@@ -23,7 +23,7 @@ from ..constants import (
 from ..schemas.collections import CollectionCreate
 from ..schemas.base import PottoProvider
 from ..schemas.cli import CollectionDetail
-from ..useraccountmanager import UserFilter
+from ..schemas.auth import UserFilter
 from ._shared import get_cli_system_user
 
 dev_app = cyclopts.App(help_format="rich")

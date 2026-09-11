@@ -1,43 +1,25 @@
-import dataclasses
 from typing import (
     Any,
     Callable,
     Literal,
     Protocol,
-    Sequence,
     TypeAlias,
     TYPE_CHECKING,
 )
 
 if TYPE_CHECKING:
     import cyclopts
-    import shapely
     from starlette_admin.views import BaseModelView
 
-    from .config import PottoSettings
-    from .schemas.auth import PottoUser
-    from .schemas.collections import (
+    from ..config import PottoSettings
+    from ..schemas.auth import PottoUser
+    from ..schemas.collections import (
         Collection,
         CollectionCreate,
+        CollectionFilter,
+        CollectionManagerCapabilities,
         CollectionUpdate,
     )
-    from .constants import CollectionType
-
-
-@dataclasses.dataclass(frozen=True)
-class CollectionFilter:
-    identifiers: Sequence[str] | None = None
-    type_: "CollectionType | None" = None
-    spatial_intersect: "shapely.Geometry | None" = None
-
-
-@dataclasses.dataclass(frozen=True)
-class CollectionManagerCapabilities:
-    supports_creation: bool = False
-    supports_modification: bool = False
-    supports_deletion: bool = False
-    supports_granting_access: bool = False
-    supports_revoking_access: bool = False
 
 
 class CollectionManagerProtocol(Protocol):
@@ -56,7 +38,7 @@ class CollectionManagerProtocol(Protocol):
     async def get_collection_admin_view(self) -> "BaseModelView | None":
         """Return a starlette_admin view suitable for use in potto's admin ui."""
 
-    async def get_collection_capabilities(self) -> CollectionManagerCapabilities:
+    async def get_collection_capabilities(self) -> "CollectionManagerCapabilities":
         """Return the manager's capabilities."""
 
     async def get_collection(
@@ -73,7 +55,7 @@ class CollectionManagerProtocol(Protocol):
         page: int = 1,
         page_size: int = 20,
         include_total: bool = False,
-        filter_: CollectionFilter | None = None,
+        filter_: "CollectionFilter | None" = None,
     ) -> tuple[list["Collection"], int | None]:
         """Retrieve a list of collections"""
 

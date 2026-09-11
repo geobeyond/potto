@@ -1,4 +1,3 @@
-import dataclasses
 from typing import (
     Any,
     Callable,
@@ -12,21 +11,15 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
-    from .config import PottoSettings
-    from .schemas.auth import PottoUser, UserCreate, UserCreateFromOidc, UserUpdate
-
-
-@dataclasses.dataclass(frozen=True)
-class UserFilter:
-    username: str | None = None
-    is_admin: bool | None = None
-
-
-@dataclasses.dataclass(frozen=True)
-class UserAccountManagerCapabilities:
-    supports_creation: bool = False
-    supports_modification: bool = False
-    supports_deletion: bool = False
+    from ..config import PottoSettings
+    from ..schemas.auth import (
+        PottoUser,
+        UserAccountManagerCapabilities,
+        UserCreate,
+        UserCreateFromOidc,
+        UserFilter,
+        UserUpdate,
+    )
 
 
 class UserAccountProtocol(Protocol):
@@ -45,7 +38,7 @@ class UserAccountProtocol(Protocol):
     async def get_user_account_admin_view(self) -> "BaseModelView | None":
         """Return a starlette_admin view suitable for use in potto's admin ui."""
 
-    async def get_user_account_capabilities(self) -> UserAccountManagerCapabilities:
+    async def get_user_account_capabilities(self) -> "UserAccountManagerCapabilities":
         """Return the manager's capabilities."""
 
     async def get_user(
@@ -68,7 +61,7 @@ class UserAccountProtocol(Protocol):
         page: int = 1,
         page_size: int = 20,
         include_total: bool = False,
-        filter_: UserFilter | None = None,
+        filter_: "UserFilter | None" = None,
         requesting_user: "PottoUser | None",
     ) -> tuple[list["PottoUser"], int | None]:
         """Retrieve a list of users."""

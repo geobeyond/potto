@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import re
 import typing
@@ -87,3 +88,16 @@ class UserUpdate(pydantic.BaseModel):
     email: str | None = None
     is_active: bool | None = None
     scopes: list[ValidScope] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class UserFilter:
+    username: str | None = None
+    is_admin: bool | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class UserAccountManagerCapabilities:
+    supports_creation: bool = False
+    supports_modification: bool = False
+    supports_deletion: bool = False

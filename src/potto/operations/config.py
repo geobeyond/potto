@@ -2,10 +2,9 @@ import logging
 
 import shapely
 
-from ..collectionmanager import CollectionFilter
 from ..config import PottoSettings
 from ..schemas.auth import PottoUser
-from ..schemas.collections import Collection
+from ..schemas.collections import Collection, CollectionFilter
 from ..util import interpolate_configuration_value
 
 logger = logging.getLogger(__name__)

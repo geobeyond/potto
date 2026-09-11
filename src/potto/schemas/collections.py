@@ -5,9 +5,11 @@ from typing import (
     Annotated,
     Any,
     Literal,
+    Sequence,
 )
 
 import pydantic
+import shapely
 
 from .auth import PottoUser
 from .base import (
@@ -28,6 +30,22 @@ from ..constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class CollectionFilter:
+    identifiers: Sequence[str] | None = None
+    type_: "CollectionType | None" = None
+    spatial_intersect: "shapely.Geometry | None" = None
+
+
+@dataclasses.dataclass(frozen=True)
+class CollectionManagerCapabilities:
+    supports_creation: bool = False
+    supports_modification: bool = False
+    supports_deletion: bool = False
+    supports_granting_access: bool = False
+    supports_revoking_access: bool = False
 
 
 # TODO: Add support for additional extents

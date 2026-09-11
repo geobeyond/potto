@@ -11,8 +11,7 @@ from starlette_admin.fields import (
     StringField,
 )
 
-from ....schemas.auth import PottoUser
-from ....useraccountmanager import UserFilter
+from ....schemas.auth import PottoUser, UserFilter
 from ....webapp.admin.views import _PottoAdminModelView
 
 if TYPE_CHECKING:

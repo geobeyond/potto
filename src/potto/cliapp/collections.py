@@ -26,7 +26,7 @@ from ..schemas import (
     cli as cli_schemas,
 )
 from ..schemas.collections import CollectionCreate
-from ..useraccountmanager import UserFilter
+from ..schemas.auth import UserFilter
 from ..util import run_sync
 
 

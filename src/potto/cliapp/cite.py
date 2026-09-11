@@ -5,13 +5,13 @@ from typing import Annotated
 
 import cyclopts
 
-from ..collectionmanager import CollectionFilter
+from ..schemas.collections import CollectionFilter
 from ..config import (
     get_settings,
     PottoSettings,
 )
 from ._shared import get_cli_system_user
-from ..useraccountmanager import UserFilter
+from ..schemas.auth import UserFilter
 
 from ..schemas import (
     base as base_schemas,

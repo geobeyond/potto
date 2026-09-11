@@ -15,7 +15,6 @@ import pytest
 import shapely
 from pydantic import SecretStr
 
-from potto.collectionmanager import CollectionFilter
 from potto.constants import CollectionType
 from potto.exceptions import (
     CapabilityNotSupported,
@@ -23,10 +22,17 @@ from potto.exceptions import (
     PottoCannotEditUserException,
     PottoCannotViewUserException,
 )
-from potto.schemas.auth import UserCreate, UserUpdate
-from potto.schemas.collections import CollectionCreate, CollectionUpdate
+from potto.schemas.auth import (
+    UserCreate,
+    UserFilter,
+    UserUpdate,
+)
+from potto.schemas.collections import (
+    CollectionCreate,
+    CollectionFilter,
+    CollectionUpdate,
+)
 from potto.schemas.metadata import ServerMetadataUpdate
-from potto.useraccountmanager import UserFilter
 
 # Matches manager_contract.py's SPATIAL_EXTENT_WKT: x in [-10, 5], y in [40, 50].
 _POINT_INSIDE_SPATIAL_EXTENT = shapely.Point(0, 45)

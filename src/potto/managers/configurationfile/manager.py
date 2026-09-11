@@ -15,18 +15,18 @@ from ...exceptions import (
     CapabilityNotSupported,
     PottoCannotViewUserException,
 )
-from ...collectionmanager import (
-    CollectionManagerCapabilities,
-    CollectionFilter,
-)
-from ...servermetadatamanager import ServerMetadataManagerCapabilities
-from ...useraccountmanager import (
-    UserAccountManagerCapabilities,
+from ...schemas.auth import (
+    PottoScope,
+    PottoUser,
     UserFilter,
+    UserAccountManagerCapabilities,
 )
-from ...schemas.auth import PottoScope, PottoUser
-from ...schemas.collections import Collection
-from ...schemas.metadata import ServerMetadata
+from ...schemas.collections import (
+    Collection,
+    CollectionFilter,
+    CollectionManagerCapabilities,
+)
+from ...schemas.metadata import ServerMetadata, ServerMetadataManagerCapabilities
 from . import parsing
 
 if TYPE_CHECKING:

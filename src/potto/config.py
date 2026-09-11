@@ -14,15 +14,15 @@ from .authn.oidc import OIDCProvider
 from .authz.protocols import AuthorizationBackendProtocol
 from .authz.backend import LocalAuthorizationBackend
 from .authz.opa import OPAAuthorizationBackend
-from .collectionmanager import (
+from .managers.collections import (
     CollectionManagerProtocol,
     CollectionManagerFactoryProtocol,
 )
-from .servermetadatamanager import (
+from .managers.servermetadata import (
     ServerMetadataProtocol,
     ServerMetadataManagerFactoryProtocol,
 )
-from .useraccountmanager import (
+from .managers.useraccounts import (
     UserAccountProtocol,
     UserAccountManagerFactoryProtocol,
 )
