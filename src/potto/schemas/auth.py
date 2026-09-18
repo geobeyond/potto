@@ -14,7 +14,8 @@ _DYNAMIC_SCOPE_PATTERN = re.compile(r"^collection-.+:(editor|viewer)$")
 class PottoScope(str, enum.Enum):
     ADMIN = "admin"
     SERVER_METADATA_EDITOR = "server-metadata:editor"
-    COLLECTIONS_CREATOR = "collections:creator"
+    COLLECTION_CREATOR = "collection:creator"
+    PROCESS_CREATOR = "process:creator"
 
     @staticmethod
     def collection_editor(identifier: str) -> str:
@@ -23,6 +24,14 @@ class PottoScope(str, enum.Enum):
     @staticmethod
     def collection_viewer(identifier: str) -> str:
         return f"collection-{identifier}:viewer"
+
+    @staticmethod
+    def process_editor(identifier: str) -> str:
+        return f"process-{identifier}:editor"
+
+    @staticmethod
+    def process_viewer(identifier: str) -> str:
+        return f"process-{identifier}:viewer"
 
 
 def _validate_scope(scope: str) -> str:

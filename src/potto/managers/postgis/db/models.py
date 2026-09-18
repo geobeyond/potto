@@ -12,12 +12,13 @@ from jinja2 import Template
 from geoalchemy2.shape import to_shape
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import (
+    func,
     Column,
     DateTime,
     Field,
     Relationship,
     SQLModel,
-    func,
+    UniqueConstraint,
 )
 from starlette.requests import Request
 
@@ -30,6 +31,7 @@ from ....schemas.auth import PottoUser
 from ....schemas import (
     collections as collection_schemas,
     metadata as metadata_schemas,
+    processes as process_schemas,
 )
 from ....schemas.base import (
     PottoProvider,
@@ -160,6 +162,82 @@ class Collection(SQLModel, table=True):
         )
 
 
+class Process(SQLModel, table=True):
+    __table_args__ = (
+        sqlalchemy.Index("idx_process_title_gin", "title", postgresql_using="gin"),
+        UniqueConstraint(
+            "resource_identifier",
+            "version",
+            name="unique_constraint_identifier_version",
+        ),
+    )
+
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+    id: int | None = Field(
+        default=None,
+        primary_key=True,
+    )
+    resource_identifier: str = Field(
+        min_length=3,
+        max_length=100,
+        index=True,
+        unique=True,
+    )
+    owner_id: str = Field(foreign_key="user.id", ondelete="CASCADE")
+    version: str
+    is_public: bool = Field(default=False)
+    title: Title = Field(sa_type=JSONB)
+    description: MaybeDescription = Field(default=None, sa_type=JSONB, nullable=True)
+    keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
+    custom_page_size: int | None = Field(default=None, ge=1)
+    custom_page_size_max: int | None = Field(default=None, ge=1)
+    additional_links: list[dict[str, str | dict[str, str]]] | None = Field(
+        default=None, sa_type=JSONB, nullable=True
+    )
+    created_at: dt.datetime | None = Field(default_factory=now_)
+    updated_at: dt.datetime | None = Field(
+        sa_column=Column(DateTime(), onupdate=func.now())
+    )
+    inputs: list[dict] | None = Field(default=None, sa_type=JSONB, nullable=True)
+    outputs: list[dict] | None = Field(default=None, sa_type=JSONB, nullable=True)
+    deployment: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+
+    owner: "User" = Relationship(back_populates="owned_processes")
+
+    def to_potto(self) -> process_schemas.Process:
+        return process_schemas.Process(
+            identifier=self.resource_identifier,
+            created_at=self.created_at,  # ty: ignore[invalid-argument-type]
+            updated_at=self.updated_at or self.created_at,  # ty: ignore[invalid-argument-type]
+            title=self.title,
+            owner=self.owner.to_potto(),
+            is_public=self.is_public,
+            version=self.version,
+            description=self.description,
+            keywords=self.keywords,
+            custom_page_size=self.custom_page_size,
+            custom_page_size_max=self.custom_page_size_max,
+            additional_links=self.additional_links,
+            inputs=(
+                [process_schemas.ProcessInputDescription(**inp) for inp in self.inputs]
+                if self.inputs
+                else []
+            ),
+            outputs=(
+                [
+                    process_schemas.ProcessOutputDescription(**out)
+                    for out in self.outputs
+                ]
+                if self.outputs
+                else []
+            ),
+            deployment=process_schemas.ProcessDeployment(**self.deployment)
+            if self.deployment is not None
+            else None,
+        )
+
+
 class User(SQLModel, table=True):
     id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
@@ -182,6 +260,11 @@ class User(SQLModel, table=True):
     scopes: list[str] = Field(default_factory=list, sa_type=JSONB)
 
     owned_collections: list[Collection] = Relationship(
+        back_populates="owner",
+        cascade_delete=True,
+    )
+
+    owned_processes: list[Process] = Relationship(
         back_populates="owner",
         cascade_delete=True,
     )

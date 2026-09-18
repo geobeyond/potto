@@ -3,7 +3,11 @@ import logging
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ..... import constants
-from .....exceptions import PottoException
+from .....exceptions import (
+    CannotCreateResourceException,
+    CannotUpdateResourceException,
+    ResourceNotFoundException,
+)
 from .....schemas.collections import (
     CollectionCreate,
     CollectionUpdate,
@@ -30,7 +34,7 @@ async def create_collection(
     await session.refresh(instance)
     assert instance.id is not None
     if (created := await get_collection(session, instance.id)) is None:
-        raise PottoException("error creating collection")
+        raise CannotCreateResourceException("error creating collection")
     return created
 
 
@@ -60,7 +64,9 @@ async def update_collection(
     await session.refresh(db_collection)
     assert db_collection.id is not None
     if (updated := await get_collection(session, db_collection.id)) is None:
-        raise PottoException(f"error updating collection {db_collection.id}")
+        raise CannotUpdateResourceException(
+            f"error updating collection {db_collection.id}"
+        )
     return updated
 
 
@@ -72,4 +78,6 @@ async def delete_collection(
         await session.delete(instance)
         await session.commit()
     else:
-        raise PottoException(f"Collection with id {collection_id} does not exist.")
+        raise ResourceNotFoundException(
+            f"Collection with id {collection_id} does not exist."
+        )

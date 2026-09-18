@@ -3,7 +3,7 @@ import logging
 import bcrypt
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from .....exceptions import PottoException
+from .....exceptions import UserNotFoundException
 from .....schemas.auth import (
     UserCreate,
     UserCreateFromOidc,
@@ -69,4 +69,4 @@ async def delete_user(
         await session.delete(instance)
         await session.commit()
     else:
-        raise PottoException(f"User with id {user_id} does not exist.")
+        raise UserNotFoundException(f"User with id {user_id} does not exist.")

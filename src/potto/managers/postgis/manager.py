@@ -12,27 +12,19 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
 from ...authz.protocols import AuthorizationBackendProtocol
-from ...schemas.auth import (
-    PottoUser,
-    UserCreate,
-    UserCreateFromOidc,
-    UserUpdate,
-    UserFilter,
-    UserAccountManagerCapabilities,
+from ...schemas import (
+    auth as auth_schemas,
+    collections as collection_schemas,
+    metadata as metadata_schemas,
+    processes as process_schemas,
 )
-from ...schemas.collections import (
-    Collection,
-    CollectionCreate,
-    CollectionUpdate,
-    CollectionFilter,
-    CollectionManagerCapabilities,
+
+from .operations import (
+    collections as collection_ops,
+    metadata as metadata_ops,
+    processes as process_ops,
+    users as user_ops,
 )
-from ...schemas.metadata import (
-    ServerMetadata,
-    ServerMetadataUpdate,
-    ServerMetadataManagerCapabilities,
-)
-from . import operations
 from .admin.collections import CollectionView
 from .admin.metadata import ServerMetadataModelView
 from .admin.users import UserView
@@ -47,10 +39,13 @@ if TYPE_CHECKING:
 
 
 class PostgisManager:
-    """A potto manager for collections, server-metadata and user-accounts backed by a PostGIS DB.
+    """A potto manager backed by a PostGIS DB.
 
-    A single instance implements ``CollectionManagerProtocol``, ``ServerMetadataProtocol``
-    and ``UserAccountProtocol`` at once.
+    This implements the following potto manager protocols:
+
+    - ``CollectionManagerProtocol``,
+    - ``ProcessManagerProtocol``,
+    - ``ServerMetadataProtocol``
     """
 
     authorization_backend: AuthorizationBackendProtocol
@@ -77,13 +72,13 @@ class PostgisManager:
 
         return build_cli_group(self)
 
-    # --- collections ---------------------------------------------------------
-
     async def get_collection_admin_view(self) -> "BaseModelView | None":
         return CollectionView()
 
-    async def get_collection_capabilities(self) -> CollectionManagerCapabilities:
-        return CollectionManagerCapabilities(
+    async def get_collection_capabilities(
+        self,
+    ) -> collection_schemas.CollectionManagerCapabilities:
+        return collection_schemas.CollectionManagerCapabilities(
             supports_creation=True,
             supports_modification=True,
             supports_deletion=True,
@@ -94,26 +89,26 @@ class PostgisManager:
     async def get_collection(
         self,
         identifier: str,
-        user: PottoUser | None,
-    ) -> Collection | None:
+        user: auth_schemas.PottoUser | None,
+    ) -> collection_schemas.Collection | None:
         """Retrieve a collection."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.get_collection_by_resource_identifier(
+            return await collection_ops.get_collection_by_resource_identifier(
                 db_session, user, self.authorization_backend, identifier
             )
 
     async def paginated_list_collections(
         self,
-        user: PottoUser | None,
+        user: auth_schemas.PottoUser | None,
         *,
         page: int = 1,
         page_size: int = 20,
         include_total: bool = False,
-        filter_: CollectionFilter | None = None,
-    ) -> tuple[list[Collection], int | None]:
+        filter_: collection_schemas.CollectionFilter | None = None,
+    ) -> tuple[list[collection_schemas.Collection], int | None]:
         """Retrieve a list of collections"""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.paginated_list_collections(
+            return await collection_ops.paginated_list_collections(
                 db_session,
                 user,
                 self.authorization_backend,
@@ -135,49 +130,49 @@ class PostgisManager:
 
     async def create_collection(
         self,
-        to_create: CollectionCreate,
-        user: PottoUser,
-    ) -> Collection:
+        to_create: collection_schemas.CollectionCreate,
+        user: auth_schemas.PottoUser,
+    ) -> collection_schemas.Collection:
         """Create a new collection."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.create_collection(
+            return await collection_ops.create_collection(
                 db_session, user, self.authorization_backend, to_create, self.settings
             )
 
     async def update_collection(
         self,
-        collection: Collection,
-        to_update: CollectionUpdate,
-        user: PottoUser,
-    ) -> Collection:
+        collection: collection_schemas.Collection,
+        to_update: collection_schemas.CollectionUpdate,
+        user: auth_schemas.PottoUser,
+    ) -> collection_schemas.Collection:
         """Update an existing collection."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.update_collection(
+            return await collection_ops.update_collection(
                 db_session, user, self.authorization_backend, collection, to_update
             )
 
     async def delete_collection(
         self,
         identifier: str,
-        user: PottoUser,
+        user: auth_schemas.PottoUser,
     ) -> None:
         """Delete a collection."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.delete_collection(
+            return await collection_ops.delete_collection(
                 db_session, user, self.authorization_backend, identifier
             )
 
     async def grant_collection_access(
         self,
         *,
-        granting_user: PottoUser,
+        granting_user: auth_schemas.PottoUser,
         target_user_id: str,
-        collection: Collection,
+        collection: collection_schemas.Collection,
         role: str,
     ) -> None:
         """Grant a role on the input collection to the target user."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.grant_collection_access(
+            return await user_ops.grant_collection_access(
                 db_session,
                 granting_user,
                 self.authorization_backend,
@@ -189,13 +184,13 @@ class PostgisManager:
     async def revoke_collection_access(
         self,
         *,
-        revoking_user: PottoUser,
+        revoking_user: auth_schemas.PottoUser,
         target_user_id: str,
-        collection: Collection,
+        collection: collection_schemas.Collection,
     ) -> None:
         """Revoke a user's access to a collection."""
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.revoke_collection_access(
+            return await user_ops.revoke_collection_access(
                 db_session,
                 revoking_user,
                 self.authorization_backend,
@@ -203,40 +198,40 @@ class PostgisManager:
                 collection,
             )
 
-    # --- server metadata -------------------------------------------------------
-
     async def get_server_metadata_admin_view(self) -> "BaseModelView | None":
         return ServerMetadataModelView()
 
     async def get_server_metadata_capabilities(
         self,
-    ) -> ServerMetadataManagerCapabilities:
-        return ServerMetadataManagerCapabilities(supports_modification=True)
+    ) -> metadata_schemas.ServerMetadataManagerCapabilities:
+        return metadata_schemas.ServerMetadataManagerCapabilities(
+            supports_modification=True
+        )
 
-    async def get_server_metadata(self) -> ServerMetadata:
+    async def get_server_metadata(self) -> metadata_schemas.ServerMetadata:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.get_server_metadata(db_session)
+            return await metadata_ops.get_server_metadata(db_session)
 
     async def update_server_metadata(
         self,
-        to_update: ServerMetadataUpdate,
-        user: PottoUser | None,
-    ) -> ServerMetadata:
+        to_update: metadata_schemas.ServerMetadataUpdate,
+        user: auth_schemas.PottoUser | None,
+    ) -> metadata_schemas.ServerMetadata:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.update_server_metadata(
+            return await metadata_ops.update_server_metadata(
                 db_session,
                 user,
                 self.authorization_backend,
                 to_update,
             )
 
-    # --- user accounts -----------------------------------------------------------
-
     async def get_user_account_admin_view(self) -> "BaseModelView | None":
         return UserView()
 
-    async def get_user_account_capabilities(self) -> UserAccountManagerCapabilities:
-        return UserAccountManagerCapabilities(
+    async def get_user_account_capabilities(
+        self,
+    ) -> auth_schemas.UserAccountManagerCapabilities:
+        return auth_schemas.UserAccountManagerCapabilities(
             supports_creation=True,
             supports_modification=True,
             supports_deletion=True,
@@ -245,20 +240,20 @@ class PostgisManager:
     async def get_user(
         self,
         user_id: str,
-        requesting_user: PottoUser | None,
-    ) -> PottoUser | None:
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> auth_schemas.PottoUser | None:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.get_user(
+            return await user_ops.get_user(
                 db_session, requesting_user, self.authorization_backend, user_id
             )
 
     async def get_user_by_username(
         self,
         username: str,
-        requesting_user: PottoUser | None,
-    ) -> PottoUser | None:
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> auth_schemas.PottoUser | None:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.get_user_by_username(
+            return await user_ops.get_user_by_username(
                 db_session, requesting_user, self.authorization_backend, username
             )
 
@@ -268,11 +263,11 @@ class PostgisManager:
         page: int = 1,
         page_size: int = 20,
         include_total: bool = False,
-        filter_: UserFilter | None = None,
-        requesting_user: PottoUser | None,
-    ) -> tuple[list[PottoUser], int | None]:
+        filter_: auth_schemas.UserFilter | None = None,
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> tuple[list[auth_schemas.PottoUser], int | None]:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.paginated_list_users(
+            return await user_ops.paginated_list_users(
                 db_session,
                 requesting_user,
                 self.authorization_backend,
@@ -285,11 +280,11 @@ class PostgisManager:
 
     async def create_user(
         self,
-        to_create: UserCreate,
-        requesting_user: PottoUser | None,
-    ) -> PottoUser:
+        to_create: auth_schemas.UserCreate,
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> auth_schemas.PottoUser:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.create_user(
+            return await user_ops.create_user(
                 db_session,
                 requesting_user,
                 self.authorization_backend,
@@ -299,11 +294,11 @@ class PostgisManager:
     async def update_user(
         self,
         user_id: str,
-        to_update: UserUpdate,
-        requesting_user: PottoUser | None,
-    ) -> PottoUser:
+        to_update: auth_schemas.UserUpdate,
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> auth_schemas.PottoUser:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.update_user(
+            return await user_ops.update_user(
                 db_session,
                 requesting_user,
                 self.authorization_backend,
@@ -314,29 +309,33 @@ class PostgisManager:
     async def delete_user(
         self,
         user_id: str,
-        requesting_user: PottoUser | None,
+        requesting_user: auth_schemas.PottoUser | None,
     ) -> None:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.delete_user(
+            return await user_ops.delete_user(
                 db_session, requesting_user, self.authorization_backend, user_id
             )
 
-    async def provision_oidc_user(self, to_create: UserCreateFromOidc) -> PottoUser:
+    async def provision_oidc_user(
+        self, to_create: auth_schemas.UserCreateFromOidc
+    ) -> auth_schemas.PottoUser:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.provision_oidc_user(db_session, to_create)
+            return await user_ops.provision_oidc_user(db_session, to_create)
 
-    async def authenticate(self, username: str, password: str) -> PottoUser | None:
+    async def authenticate(
+        self, username: str, password: str
+    ) -> auth_schemas.PottoUser | None:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.authenticate(db_session, username, password)
+            return await user_ops.authenticate(db_session, username, password)
 
     async def list_resource_editors(
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: PottoUser | None,
-    ) -> list[PottoUser]:
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> list[auth_schemas.PottoUser]:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.list_resource_editors(
+            return await user_ops.list_resource_editors(
                 db_session,
                 requesting_user,
                 self.authorization_backend,
@@ -348,16 +347,139 @@ class PostgisManager:
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: PottoUser | None,
-    ) -> list[PottoUser]:
+        requesting_user: auth_schemas.PottoUser | None,
+    ) -> list[auth_schemas.PottoUser]:
         async with self.config.get_db_session_maker()() as db_session:
-            return await operations.list_resource_viewers(
+            return await user_ops.list_resource_viewers(
                 db_session,
                 requesting_user,
                 self.authorization_backend,
                 resource_type,
                 resource_identifier,
             )
+
+    async def get_process_admin_view(self) -> BaseModelView | None:
+        raise NotImplementedError
+
+    async def get_process_capabilities(
+        self,
+    ) -> process_schemas.ProcessManagerCapabilities:
+        return process_schemas.ProcessManagerCapabilities(
+            supports_creation=True,
+            supports_modification=True,
+            supports_deletion=True,
+            supports_granting_access=True,
+            supports_revoking_access=True,
+        )
+
+    async def get_process(
+        self,
+        identifier: str,
+        user: auth_schemas.PottoUser | None,
+    ) -> process_schemas.Process | None:
+        raise NotImplementedError
+
+    async def paginated_list_processes(
+        self,
+        user: auth_schemas.PottoUser | None,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        include_total: bool = False,
+        filter_: process_schemas.ProcessFilter | None = None,
+    ) -> tuple[list[process_schemas.Process], int | None]:
+        raise NotImplementedError
+
+    async def create_process(
+        self,
+        to_create: process_schemas.ProcessCreate,
+        user: auth_schemas.PottoUser,
+    ) -> process_schemas.Process:
+        """Create a new process.
+
+        When the manager does not support creating processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def update_process(
+        self,
+        process: process_schemas.Process,
+        to_update: process_schemas.ProcessUpdate,
+        user: auth_schemas.PottoUser,
+    ) -> process_schemas.Process:
+        """Update an existing process.
+
+        When the manager does not support updating processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def delete_process(
+        self,
+        identifier: str,
+        user: auth_schemas.PottoUser,
+    ) -> None:
+        """Delete a process.
+
+        When the manager does not support deleting processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def grant_process_access(
+        self,
+        *,
+        granting_user: auth_schemas.PottoUser,
+        target_user_id: str,
+        process: process_schemas.Process,
+        role: str,
+    ) -> None:
+        """Grant a role on the input process to the target user.
+
+        When the manager does not support granting process access this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def revoke_process_access(
+        self,
+        *,
+        revoking_user: auth_schemas.PottoUser,
+        target_user_id: str,
+        process: process_schemas.Process,
+    ) -> None:
+        """Revoke a user's access to a process.
+
+        When the manager does not support revoking process access this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def deploy_process(
+        self,
+        process: process_schemas.Process,
+        to_deploy: process_schemas.ProcessDeploymentCreate,
+        user: auth_schemas.PottoUser,
+    ) -> process_schemas.ProcessDeployment:
+        """(Re)deploy a process.
+
+        When the manager does not support deploying processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
+
+    async def undeploy_process(
+        self,
+        identifier: str,
+        user: auth_schemas.PottoUser,
+    ) -> None:
+        """Undeploy a process.
+
+        When the manager does not support deploying processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
 
 
 _manager_cache: dict[str, PostgisManager] = {}
