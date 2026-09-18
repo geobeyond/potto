@@ -1,6 +1,9 @@
+from pygeoapi.starlette_app import p
 import dataclasses
 import datetime as dt
 from typing import (
+    Annotated,
+    Any,
     Literal,
     Sequence,
 )
@@ -58,10 +61,46 @@ class ProcessOutputDescription:
 
 
 @dataclasses.dataclass(frozen=True)
-class ProcessDeployment: ...
+class ProcessExecutionUnit: ...
 
 
-class ProcessDeploymentCreate(pydantic.BaseModel): ...
+@dataclasses.dataclass(frozen=True)
+class OciInputBinding:
+    prefix: str | None = None
+    position: int | str | None = None
+    value_from: str | None = None
+    item_separator: str | None = None
+    shell_quote: bool = True
+
+
+@dataclasses.dataclass(frozen=True)
+class OciOutputBinding:
+    glob_pattern: str | list[str] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ProcessExecutionUnitOci:
+    image: str
+    bindings_inputs: dict[str, OciInputBinding]
+    bindings_outputs: dict[str, str]
+    config_cpu_min_num: int = 1
+    config_cpu_max_num: int | None = None
+    config_memory_min_gb: int | None = None
+    config_memory_max_gb: int | None = None
+    config_storage_temp_min_gb: int | None = None
+    config_storage_outputs_min_gb: int | None = None
+    config_job_timeout_seconds: int | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ProcessExecutionUnitCwl:
+    definition: dict[str, Any]
+
+
+@dataclasses.dataclass(frozen=True)
+class ProcessDeploymentStatus:
+    value: Literal["deployed", "not-deployed"]
+    detail: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -73,6 +112,8 @@ class Process:
     owner: PottoUser
     is_public: bool
     version: str
+    execution_unit: ProcessExecutionUnitOci | ProcessExecutionUnitCwl
+    deployment_status: ProcessDeploymentStatus
     description: MaybeDescription = None
     keywords: MaybeKeywords = None
     custom_page_size: int | None = None
@@ -80,10 +121,72 @@ class Process:
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
     inputs: list[ProcessInputDescription] = dataclasses.field(default_factory=list)
     outputs: list[ProcessOutputDescription] = dataclasses.field(default_factory=list)
-    deployment: ProcessDeployment | None = None
 
 
-class ProcessCreate(pydantic.BaseModel): ...
+class ProcessDescriptionCreate(pydantic.BaseModel): ...
+
+
+class ExecutionUnitOciConfigCreate(pydantic.BaseModel):
+    cpu_min_num: Annotated[int, pydantic.Field(alias="cpuMin")] = 1
+    cpu_max_num: Annotated[int | None, pydantic.Field(alias="cpuMax")] = None
+    memory_min_gb: Annotated[int | None, pydantic.Field(alias="memoryMin")] = None
+    memory_max_gb: Annotated[int | None, pydantic.Field(alias="memoryMax")] = None
+    storage_temp_min_gb: Annotated[
+        int | None, pydantic.Field(alias="storageTempMin")
+    ] = None
+    storage_outputs_min_gb: Annotated[
+        int | None, pydantic.Field(alias="storageOutputsMin")
+    ] = None
+    job_timeout_seconds: Annotated[int | None, pydantic.Field(alias="jobTimeout")] = (
+        None
+    )
+
+
+class OciInputBindingCreate(pydantic.BaseModel):
+    prefix: str | None = None
+    position: int | str | None = None
+    value_from: Annotated[str | None, pydantic.Field(alias="valueFrom")] = None
+    item_separator: Annotated[str | None, pydantic.Field(alias="itemSeparator")] = None
+    shell_quote: Annotated[bool, pydantic.Field(alias="shellQuote")] = True
+
+
+class OciOutputBindingCreate(pydantic.BaseModel):
+    glob_pattern: Annotated[str | list[str] | None, pydantic.Field(alias="glob")] = None
+
+
+class OciBindingsCreate(pydantic.BaseModel):
+    inputs: dict[str, OciInputBindingCreate]
+    outputs: dict[str, OciOutputBindingCreate]
+
+
+class ExecutionUnitOciCreate(pydantic.BaseModel):
+    type_: Literal["oci"] = "oci"
+    image: str
+    config: ExecutionUnitOciConfigCreate
+    bindings: OciBindingsCreate
+
+
+class ExecutionUnitCwlCreate(pydantic.BaseModel):
+    type_: Literal["cwl"] = "cwl"
+    media_type: Literal["application/cwl"] = "application/cwl"
+    value: dict[str, Any]
+
+
+class ExecutionUnitOtherCreate(pydantic.BaseModel):
+    type_: str
+    value: dict[str, Any]
+
+
+class ProcessCreate(pydantic.BaseModel):
+    # this is an adaptation of the OgcApplicationPackage schema,
+    # as outlined in oaproc-part2
+    description: Annotated[
+        ProcessDescriptionCreate, pydantic.Field(alias="processDescription")
+    ]
+    execution_unit: Annotated[
+        ExecutionUnitOciCreate | ExecutionUnitCwlCreate | ExecutionUnitOtherCreate,
+        pydantic.Field(discriminator="type_"),
+    ]
 
 
 class ProcessUpdate(pydantic.BaseModel):
