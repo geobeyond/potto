@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from ..schemas.processes import (
         Process,
         ProcessCreate,
-        ProcessDeployment,
-        ProcessDeploymentCreate,
         ProcessFilter,
         ProcessManagerCapabilities,
         ProcessUpdate,

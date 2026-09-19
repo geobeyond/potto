@@ -190,8 +190,6 @@ class Process(SQLModel, table=True):
     title: Title = Field(sa_type=JSONB)
     description: MaybeDescription = Field(default=None, sa_type=JSONB, nullable=True)
     keywords: MaybeKeywords = Field(default=None, sa_type=JSONB, nullable=True)
-    custom_page_size: int | None = Field(default=None, ge=1)
-    custom_page_size_max: int | None = Field(default=None, ge=1)
     additional_links: list[dict[str, str | dict[str, str]]] | None = Field(
         default=None, sa_type=JSONB, nullable=True
     )
@@ -201,11 +199,21 @@ class Process(SQLModel, table=True):
     )
     inputs: list[dict] | None = Field(default=None, sa_type=JSONB, nullable=True)
     outputs: list[dict] | None = Field(default=None, sa_type=JSONB, nullable=True)
-    deployment: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+    execution_unit: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+    deployment_status: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
 
     owner: "User" = Relationship(back_populates="owned_processes")
 
     def to_potto(self) -> process_schemas.Process:
+        match self.execution_unit:
+            case {"type_": "oci"}:
+                execution_unit = process_schemas.ProcessExecutionUnitOci(**self.execution_unit)
+            case {"type": "cwl"}:
+                execution_unit = process_schemas.ProcessExecutionUnitCwl(**self.execution_unit)
+            case {"type": _}:
+                execution_unit = process_schemas.ProcessExecutionUnitOther(**self.execution_unit)
+            case _:
+                execution_unit = None
         return process_schemas.Process(
             identifier=self.resource_identifier,
             created_at=self.created_at,  # ty: ignore[invalid-argument-type]
@@ -216,9 +224,8 @@ class Process(SQLModel, table=True):
             version=self.version,
             description=self.description,
             keywords=self.keywords,
-            custom_page_size=self.custom_page_size,
-            custom_page_size_max=self.custom_page_size_max,
             additional_links=self.additional_links,
+            execution_unit=execution_unit,
             inputs=(
                 [process_schemas.ProcessInputDescription(**inp) for inp in self.inputs]
                 if self.inputs
@@ -232,9 +239,11 @@ class Process(SQLModel, table=True):
                 if self.outputs
                 else []
             ),
-            deployment=process_schemas.ProcessDeployment(**self.deployment)
-            if self.deployment is not None
-            else None,
+            deployment_status=(
+                process_schemas.ProcessDeploymentStatus(**self.deployment_status)
+                if self.deployment_status
+                else process_schemas.ProcessDeploymentStatus(value="not-deployed")
+            ),
         )
 
 

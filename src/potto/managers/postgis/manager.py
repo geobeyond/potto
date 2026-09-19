@@ -377,7 +377,14 @@ class PostgisManager:
         identifier: str,
         user: auth_schemas.PottoUser | None,
     ) -> process_schemas.Process | None:
-        raise NotImplementedError
+        """Retrieve a process."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.get_process_by_resource_identifier(
+                db_session,
+                user,
+                self.authorization_backend,
+                identifier
+            )
 
     async def paginated_list_processes(
         self,
@@ -388,7 +395,21 @@ class PostgisManager:
         include_total: bool = False,
         filter_: process_schemas.ProcessFilter | None = None,
     ) -> tuple[list[process_schemas.Process], int | None]:
-        raise NotImplementedError
+        """Retrieve a list of processes."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.paginated_list_processes(
+                db_session,
+                user,
+                self.authorization_backend,
+                page=page,
+                page_size=page_size,
+                include_total=include_total,
+                identifier_filter=(
+                    filter_.identifiers[0]
+                    if filter_ is not None and filter_.identifiers
+                    else None
+                )
+            )
 
     async def create_process(
         self,
@@ -400,7 +421,10 @@ class PostgisManager:
         When the manager does not support creating processes this should raise
         ``potto.exceptions.CapabilityNotSupported``.
         """
-        raise NotImplementedError
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.create_process(
+                db_session, user, self.authorization_backend, to_create
+            )
 
     async def update_process(
         self,
@@ -408,24 +432,22 @@ class PostgisManager:
         to_update: process_schemas.ProcessUpdate,
         user: auth_schemas.PottoUser,
     ) -> process_schemas.Process:
-        """Update an existing process.
-
-        When the manager does not support updating processes this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
+        """Update an existing process."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.update_process(
+                db_session, user, self.authorization_backend, process, to_update
+            )
 
     async def delete_process(
         self,
         identifier: str,
         user: auth_schemas.PottoUser,
     ) -> None:
-        """Delete a process.
-
-        When the manager does not support deleting processes this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
+        """Delete a process."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.delete_process(
+                db_session, user, self.authorization_backend, identifier
+            )
 
     async def grant_process_access(
         self,
@@ -435,12 +457,16 @@ class PostgisManager:
         process: process_schemas.Process,
         role: str,
     ) -> None:
-        """Grant a role on the input process to the target user.
-
-        When the manager does not support granting process access this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
+        """Grant a role on the input process to the target user."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await user_ops.grant_process_access(
+                db_session,
+                granting_user,
+                self.authorization_backend,
+                target_user_id,
+                process,
+                role,
+            )
 
     async def revoke_process_access(
         self,
@@ -449,37 +475,15 @@ class PostgisManager:
         target_user_id: str,
         process: process_schemas.Process,
     ) -> None:
-        """Revoke a user's access to a process.
-
-        When the manager does not support revoking process access this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
-
-    async def deploy_process(
-        self,
-        process: process_schemas.Process,
-        to_deploy: process_schemas.ProcessDeploymentCreate,
-        user: auth_schemas.PottoUser,
-    ) -> process_schemas.ProcessDeployment:
-        """(Re)deploy a process.
-
-        When the manager does not support deploying processes this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
-
-    async def undeploy_process(
-        self,
-        identifier: str,
-        user: auth_schemas.PottoUser,
-    ) -> None:
-        """Undeploy a process.
-
-        When the manager does not support deploying processes this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
+        """Revoke a user's access to a process."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await user_ops.revoke_process_access(
+                db_session,
+                revoking_user,
+                self.authorization_backend,
+                target_user_id,
+                process,
+            )
 
 
 _manager_cache: dict[str, PostgisManager] = {}

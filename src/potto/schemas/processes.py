@@ -83,6 +83,7 @@ class ProcessExecutionUnitOci:
     image: str
     bindings_inputs: dict[str, OciInputBinding]
     bindings_outputs: dict[str, str]
+    type_: Literal["oci"] = "oci"
     config_cpu_min_num: int = 1
     config_cpu_max_num: int | None = None
     config_memory_min_gb: int | None = None
@@ -94,6 +95,13 @@ class ProcessExecutionUnitOci:
 
 @dataclasses.dataclass(frozen=True)
 class ProcessExecutionUnitCwl:
+    definition: dict[str, Any]
+    type_: Literal["cwl"] = "cwl"
+
+
+@dataclasses.dataclass(frozen=True)
+class ProcessExecutionUnitOther:
+    type_: str
     definition: dict[str, Any]
 
 
@@ -112,12 +120,10 @@ class Process:
     owner: PottoUser
     is_public: bool
     version: str
-    execution_unit: ProcessExecutionUnitOci | ProcessExecutionUnitCwl
     deployment_status: ProcessDeploymentStatus
+    execution_unit: ProcessExecutionUnitOci | ProcessExecutionUnitCwl | ProcessExecutionUnitOther | None = None
     description: MaybeDescription = None
     keywords: MaybeKeywords = None
-    custom_page_size: int | None = None
-    custom_page_size_max: int | None = None
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
     inputs: list[ProcessInputDescription] = dataclasses.field(default_factory=list)
     outputs: list[ProcessOutputDescription] = dataclasses.field(default_factory=list)
