@@ -113,7 +113,10 @@ async def update_process(
         raise exceptions.CannotUpdateResourceException(
             f"User does not have permission to edit process {process.identifier!r}."
         )
-    if to_update.owner_id is not None and to_update.owner_id != process.owner.id:
+    if (
+        to_update.description.owner_id is not None
+        and to_update.description.owner_id != process.owner.id
+    ):
         if not await authorization_backend.can_change_process_owner(user, process):
             raise exceptions.CannotChangeResourceOwnerException(
                 f"User does not have permission to change the owner of process "

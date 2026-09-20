@@ -207,11 +207,17 @@ class Process(SQLModel, table=True):
     def to_potto(self) -> process_schemas.Process:
         match self.execution_unit:
             case {"type_": "oci"}:
-                execution_unit = process_schemas.ProcessExecutionUnitOci(**self.execution_unit)
-            case {"type": "cwl"}:
-                execution_unit = process_schemas.ProcessExecutionUnitCwl(**self.execution_unit)
-            case {"type": _}:
-                execution_unit = process_schemas.ProcessExecutionUnitOther(**self.execution_unit)
+                execution_unit = process_schemas.ProcessExecutionUnitOci(
+                    **self.execution_unit
+                )
+            case {"type_": "cwl"}:
+                execution_unit = process_schemas.ProcessExecutionUnitCwl(
+                    **self.execution_unit
+                )
+            case {"type_": _}:
+                execution_unit = process_schemas.ProcessExecutionUnitOther(
+                    **self.execution_unit
+                )
             case _:
                 execution_unit = None
         return process_schemas.Process(
