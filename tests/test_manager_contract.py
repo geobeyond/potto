@@ -568,7 +568,7 @@ class TestResourceEditorsAndViewers:
     ):
         with pytest.raises(NotImplementedError):
             await contract_harness.manager.list_resource_editors(
-                "process", "some-process", contract_harness.admin_user
+                "widget", "some-widget", contract_harness.admin_user
             )
 
 

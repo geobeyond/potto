@@ -78,6 +78,7 @@ async def _register_manager_cli_groups(settings: PottoSettings) -> None:
         seen_group_names.add(manager.potto_cli_group)
         if (group := await manager.get_cli_group()) is not None:
             cli_groups[manager.potto_cli_group] = group
+    potto_app.console.print(f"{cli_groups=}")
     for name, group in cli_groups.items():
         group.console = potto_app.console
         group.error_console = potto_app.error_console
@@ -108,7 +109,9 @@ def launcher(
             level=logging.DEBUG if settings.debug else logging.INFO,
             handlers=[rich_log_handler],
         )
+    potto_app.console.print("About to register manager CLI groups...")
     asyncio.run(_register_manager_cli_groups(settings))
+    potto_app.console.print("Registered manager CLI groups")
     command, bound, ignored = potto_app.parse_args(tokens)
     additional_kwargs = {}
     if "settings" in ignored:

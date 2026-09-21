@@ -35,6 +35,7 @@ from ..db.commands import auth as auth_commands
 from ..db.queries import (
     auth as auth_queries,
     collections as collection_queries,
+    processes as process_queries,
 )
 
 if TYPE_CHECKING:
@@ -229,13 +230,18 @@ async def list_resource_editors(
         raise PottoCannotViewUserException(
             "User does not have permission to view resource editors."
         )
-    if resource_type != "collection":
+    if resource_type == "collection":
+        editors = await collection_queries.get_collection_editors(
+            session, resource_identifier
+        )
+    elif resource_type == "process":
+        editors = await process_queries.get_process_editors(
+            session, resource_identifier
+        )
+    else:
         raise NotImplementedError(
             f"Resource type {resource_type!r} is not supported yet."
         )
-    editors = await collection_queries.get_collection_editors(
-        session, resource_identifier
-    )
     return [e.to_potto() for e in editors]
 
 
@@ -250,13 +256,18 @@ async def list_resource_viewers(
         raise PottoCannotViewUserException(
             "User does not have permission to view resource viewers."
         )
-    if resource_type != "collection":
+    if resource_type == "collection":
+        viewers = await collection_queries.get_collection_viewers(
+            session, resource_identifier
+        )
+    elif resource_type == "process":
+        viewers = await process_queries.get_process_viewers(
+            session, resource_identifier
+        )
+    else:
         raise NotImplementedError(
             f"Resource type {resource_type!r} is not supported yet."
         )
-    viewers = await collection_queries.get_collection_viewers(
-        session, resource_identifier
-    )
     return [v.to_potto() for v in viewers]
 
 

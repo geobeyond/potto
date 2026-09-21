@@ -9,7 +9,9 @@ from typing import (
 import alembic.config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
+import cyclopts
 from sqlalchemy import create_engine
+from starlette_admin.views import BaseModelView
 
 from ...authz.protocols import AuthorizationBackendProtocol
 from ...schemas import (
@@ -19,22 +21,21 @@ from ...schemas import (
     processes as process_schemas,
 )
 
+from .admin.collections import CollectionView
+from .admin.metadata import ServerMetadataModelView
+from .admin.processes import ProcessView
+from .admin.users import UserView
+from .cli import build_cli_group
+from .config import PostgisManagerConfiguration
+from .db.alembic_utils import build_alembic_config
 from .operations import (
     collections as collection_ops,
     metadata as metadata_ops,
     processes as process_ops,
     users as user_ops,
 )
-from .admin.collections import CollectionView
-from .admin.metadata import ServerMetadataModelView
-from .admin.users import UserView
-from .config import PostgisManagerConfiguration
-from .db.alembic_utils import build_alembic_config
 
 if TYPE_CHECKING:
-    import cyclopts
-    from starlette_admin.views import BaseModelView
-
     from ...config import PottoSettings
 
 
@@ -68,9 +69,10 @@ class PostgisManager:
         return "postgis-manager"
 
     async def get_cli_group(self) -> "cyclopts.App | None":
-        from .cli import build_cli_group
-
-        return build_cli_group(self)
+        cli_app = build_cli_group(self)
+        if cli_app:
+            cli_app.console.print("Created the manager's CLI app")
+        return cli_app
 
     async def get_collection_admin_view(self) -> "BaseModelView | None":
         return CollectionView()
@@ -358,8 +360,8 @@ class PostgisManager:
                 resource_identifier,
             )
 
-    async def get_process_admin_view(self) -> BaseModelView | None:
-        raise NotImplementedError
+    async def get_process_admin_view(self) -> "BaseModelView | None":
+        return ProcessView()
 
     async def get_process_capabilities(
         self,
@@ -380,10 +382,7 @@ class PostgisManager:
         """Retrieve a process."""
         async with self.config.get_db_session_maker()() as db_session:
             return await process_ops.get_process_by_resource_identifier(
-                db_session,
-                user,
-                self.authorization_backend,
-                identifier
+                db_session, user, self.authorization_backend, identifier
             )
 
     async def paginated_list_processes(
@@ -408,7 +407,7 @@ class PostgisManager:
                     filter_.identifiers[0]
                     if filter_ is not None and filter_.identifiers
                     else None
-                )
+                ),
             )
 
     async def create_process(
