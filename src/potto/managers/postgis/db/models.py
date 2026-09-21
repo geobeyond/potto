@@ -248,7 +248,7 @@ class Process(SQLModel, table=True):
             deployment_status=(
                 process_schemas.ProcessDeploymentStatus(**self.deployment_status)
                 if self.deployment_status
-                else process_schemas.ProcessDeploymentStatus(value="not-deployed")
+                else process_schemas.ProcessDeploymentStatus(value="failed")
             ),
         )
 

@@ -106,7 +106,7 @@ class ProcessExecutionUnitOther:
 
 @dataclasses.dataclass(frozen=True)
 class ProcessDeploymentStatus:
-    value: Literal["deployed", "not-deployed"]
+    value: Literal["queued", "in-progress", "deployed", "failed"]
     detail: str | None = None
 
 
