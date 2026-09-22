@@ -92,6 +92,10 @@ class ProcessManagerSettings(pydantic.BaseModel):
     )
 
 
+class InternalMqttBrokerSettings(pydantic.BaseModel):
+    url: pydantic.AnyUrl = pydantic.AnyUrl("mqtt://localhost:1883")
+
+
 class PottoSettings(pydantic_settings.BaseSettings):
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="potto__",
@@ -116,6 +120,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     local_data_root: Path = Path.home() / "potto_data"
     oidc: OIDCSettings | None = None
     opa: OPASettings | None = None
+    internal_mqtt_broker: InternalMqttBrokerSettings = InternalMqttBrokerSettings()
 
     # these use default_factory in order to defer construction until PottoSettings() is actually called,
     # by which point the model_rebuild() calls below have resolved these settings models' forward

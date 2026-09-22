@@ -291,3 +291,16 @@ class ProcessUpdate(pydantic.BaseModel):
         | Annotated[ExecutionUnitOtherUpdate, pydantic.Tag("other")],
         pydantic.Discriminator(_execution_unit_type_tag),
     ]
+
+
+class ProcessCreatedEvent(pydantic.BaseModel):
+    identifier: str
+
+
+class ProcessUpdatedEvent(pydantic.BaseModel):
+    identifier: str
+    old: dict
+
+
+class ProcessDeletedEvent(pydantic.BaseModel):
+    identifier: str
