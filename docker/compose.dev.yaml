@@ -28,6 +28,7 @@ services:
           action: rebuild
     environment:
       DATA_ROOT: "/data"
+      POTTO__INTERNAL_MQTT_BROKER__URL: "mqtt://mosquitto:1883"
       POTTO__COLLECTION_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
@@ -357,9 +358,26 @@ services:
     profiles:
       - opa
 
+  mosquitto:
+    image: "eclipse-mosquitto:2.1.2-alpine"
+    configs:
+      - source: mosquitto-conf
+        target: /mosquitto/config/mosquitto.conf
+    ports:
+      - target: 1883
+        published: 11883
+
 volumes:
   db:
   test-db:
   cite-db:
 #  external-db:
   keycloak:
+
+configs:
+  mosquitto-conf:
+    content: |
+      allow_anonymous true
+      listener 1883
+      log_dest stderr
+      log_timestamp_format %Y-%m-%dT%H:%M:%S

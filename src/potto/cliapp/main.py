@@ -19,6 +19,7 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
+from ..eventhandlers.main import create_app_from_settings as create_subscriber_app
 
 from .banner import BANNER
 from .cite import cite_app
@@ -118,6 +119,16 @@ def launcher(
     if inspect.iscoroutinefunction(command):
         return asyncio.run(command(*bound.args, **bound.kwargs, **additional_kwargs))
     return command(*bound.args, **bound.kwargs, **additional_kwargs)
+
+
+@potto_app.command(name="run-subscriber")
+async def run_subscriber(
+    *,
+    settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
+):
+    potto_app.console.print(BANNER)
+    subscriber_app = create_subscriber_app(settings)
+    await subscriber_app.run()
 
 
 @potto_app.command(name="run-server")
