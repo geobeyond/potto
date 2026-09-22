@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 class JobManagerProtocol(Protocol):
     """A protocol for potto job managers."""
-    
+
     @property
     def supported_deployment_types(self) -> tuple[Literal["cwl", "oci"] | str, ...]:
         """Report which deployment types are supported by the manager."""
@@ -47,13 +47,12 @@ class JobManagerProtocol(Protocol):
 
     async def get_job_capabilities(self) -> "JobManagerCapabilities":
         """Return the manager's capabilities."""
-        
+
     async def deploy_process(self, process: "Process") -> "ProcessDeploymentStatus":
         """Deploy a process.
-        
-        This is a potentially long-running task and should thus be called 
-        from a background worker.
-        
+
+        This is a potentially long-running task and should thus be called from a background worker.
+
         Raise DeploymentFailedException when the deployment cannot be done or fails.
         """
         ...
