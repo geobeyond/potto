@@ -1,4 +1,3 @@
-import datetime as dt
 import dataclasses
 import logging
 import pydantic
@@ -13,7 +12,6 @@ from .. import constants
 
 if typing.TYPE_CHECKING:
     from .pygeoapi_config import ExtentConfig
-    from .auth import PottoUser
 
 logger = logging.getLogger(__name__)
 

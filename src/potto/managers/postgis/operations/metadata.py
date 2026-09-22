@@ -6,7 +6,6 @@ models.
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
