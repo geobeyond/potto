@@ -69,10 +69,7 @@ class PostgisManager:
         return "postgis-manager"
 
     async def get_cli_group(self) -> "cyclopts.App | None":
-        cli_app = build_cli_group(self)
-        if cli_app:
-            cli_app.console.print("Created the manager's CLI app")
-        return cli_app
+        return build_cli_group(self)
 
     async def get_collection_admin_view(self) -> "BaseModelView | None":
         return CollectionView()
