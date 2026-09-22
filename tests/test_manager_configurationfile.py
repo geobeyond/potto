@@ -8,10 +8,13 @@ This file only covers what's genuinely specific to this manager: TOML parsing/
 type-coercion, and its file-existence-based health check.
 """
 
+import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 import shapely
+from starlette_admin import RequestAction
 
 from potto import config
 from potto.constants import CollectionType, ProvidedDataType
@@ -24,6 +27,7 @@ from potto.schemas.auth import PottoUser, UserCreateFromOidc
 class _FakeAdminRequestState:
     def __init__(self, manager: configurationfile_manager.ConfigurationFileManager):
         self.SETTINGS = _FakeAdminSettings(manager)
+        self.ROUTE_NAME = "admin"
 
 
 class _FakeAdminSettings:
@@ -47,6 +51,9 @@ class _FakeAdminSettings:
     def get_user_account_manager(self):
         return self._manager
 
+    def get_process_manager(self):
+        return self._manager
+
     def get_authorization_backend(self):
         return self._manager.authorization_backend
 
@@ -61,9 +68,15 @@ class _FakeAdminRequest:
         self,
         manager: configurationfile_manager.ConfigurationFileManager,
         user: PottoUser,
+        action: RequestAction = RequestAction.LIST,
     ):
         self.app = _FakeAdminRequestApp(manager)
         self.user = user
+        self.state = types.SimpleNamespace(action=action)
+        self.path_params: dict[str, Any] = {}
+
+    def url_for(self, *args: Any, **kwargs: Any) -> str:
+        return "/fake"
 
 
 SAMPLE_CONFIG_FILE = (
@@ -116,6 +129,29 @@ class TestParsing:
                 manager.user_accounts,
             )
 
+    def test_processes_have_correctly_typed_fields(self, manager):
+        public_process = manager.processes["public-process"]
+        assert isinstance(public_process.owner, PottoUser)
+        assert public_process.owner.id == "user-1"
+        assert public_process.execution_unit.type_ == "other"
+        assert len(public_process.inputs) == 1
+        assert public_process.inputs[0].title == "Input area"
+        assert len(public_process.outputs) == 1
+        assert public_process.deployment_status.value == "deployed"
+
+    def test_process_deployment_status_defaults_to_failed(self, manager):
+        # private-process has no `[process.deployment_status]` table in the sample
+        # config, mirroring PostgisManager's Process.to_potto() fallback.
+        private_process = manager.processes["private-process"]
+        assert private_process.deployment_status.value == "failed"
+
+    def test_process_unknown_owner_id_raises(self, manager):
+        with pytest.raises(ValueError, match="unknown owner_id"):
+            parsing.parse_processes(
+                [{"identifier": "broken", "owner_id": "does-not-exist"}],
+                manager.user_accounts,
+            )
+
 
 class TestCollections:
     @pytest.mark.asyncio
@@ -149,6 +185,76 @@ class TestCollections:
         view = await manager.get_collection_admin_view()
         request = _FakeAdminRequest(manager, admin_user)
         assert await view.count(request) == len(manager.collections)
+
+
+class TestProcesses:
+    @pytest.mark.asyncio
+    async def test_get_process_admin_view_is_read_only(self, manager):
+        view = await manager.get_process_admin_view()
+        assert view is not None
+        assert view.pk_attr == "identifier"
+        assert view.can_create(None) is False
+        assert view.can_edit(None) is False
+        assert view.can_delete(None) is False
+
+    @pytest.mark.asyncio
+    async def test_process_admin_view_find_all(self, manager, admin_user):
+        view = await manager.get_process_admin_view()
+        request = _FakeAdminRequest(manager, admin_user)
+        results = await view.find_all(request)
+        assert {p.identifier for p in results} == set(manager.processes.keys())
+
+    @pytest.mark.asyncio
+    async def test_process_admin_view_find_by_pk(self, manager, admin_user):
+        view = await manager.get_process_admin_view()
+        request = _FakeAdminRequest(manager, admin_user)
+        process = await view.find_by_pk(request, "public-process")
+        assert process is not None
+        assert process.identifier == "public-process"
+        assert process.editors == []
+        assert process.viewers == []
+
+    @pytest.mark.asyncio
+    async def test_process_admin_view_count(self, manager, admin_user):
+        view = await manager.get_process_admin_view()
+        request = _FakeAdminRequest(manager, admin_user)
+        assert await view.count(request) == len(manager.processes)
+
+    @pytest.mark.asyncio
+    async def test_process_admin_view_serialize_shows_inputs_outputs_and_execution_unit(
+        self, manager, admin_user
+    ):
+        view = await manager.get_process_admin_view()
+        request = _FakeAdminRequest(manager, admin_user, action=RequestAction.DETAIL)
+        process = await view.find_by_pk(request, "public-process")
+        result = await view.serialize(process, request, RequestAction.DETAIL)
+        assert result["inputs"] == [
+            {
+                "title": "Input area",
+                "schema": {"type": "string"},
+                "min_occurs": 1,
+                "max_occurs": 1,
+                "description": None,
+                "keywords": None,
+            }
+        ]
+        assert result["outputs"] == [
+            {
+                "title": "Output result",
+                "schema": {"type": "string"},
+                "min_occurs": 1,
+                "max_occurs": 1,
+                "description": None,
+                "keywords": None,
+                "data_classes": None,
+                "data_access_apis": None,
+            }
+        ]
+        assert result["execution_unit"] == {
+            "type_": "other",
+            "definition": {"echo": "hello"},
+        }
+        assert result["deployment_status"] == {"value": "deployed", "detail": None}
 
 
 class TestServerMetadata:

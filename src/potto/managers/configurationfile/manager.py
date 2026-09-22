@@ -26,20 +26,40 @@ from ...schemas.collections import (
     CollectionFilter,
     CollectionManagerCapabilities,
 )
-from ...schemas.metadata import ServerMetadata, ServerMetadataManagerCapabilities
+from ...schemas.metadata import (
+    ServerMetadata,
+    ServerMetadataManagerCapabilities,
+)
+from ...schemas.processes import (
+    Process,
+    ProcessFilter,
+    ProcessManagerCapabilities,
+)
 from . import parsing
+from .admin.collections import CollectionView
+from .admin.metadata import ServerMetadataModelView
+from .admin.processes import ProcessView
+from .admin.users import UserView
 
 if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
     from ...config import PottoSettings
-    from ...schemas.auth import UserCreate, UserCreateFromOidc, UserUpdate
+    from ...schemas.auth import (
+        UserCreate,
+        UserCreateFromOidc,
+        UserUpdate,
+    )
     from ...schemas.collections import (
         CollectionCreate,
         CollectionUpdate,
     )
     from ...schemas.metadata import ServerMetadataUpdate
+    from ...schemas.processes import (
+        ProcessCreate,
+        ProcessUpdate,
+    )
 
 
 def _paginate(items: list, page: int, page_size: int) -> list:
@@ -60,6 +80,7 @@ class ConfigurationFileManager:
     Implements the following potto protocols:
 
     - CollectionManagerProtocol
+    - ProcessManagerProtocol
     - ServerMetadataManagerProtocol
     - UserAccountManagerProtocol
     """
@@ -67,6 +88,7 @@ class ConfigurationFileManager:
     authorization_backend: AuthorizationBackendProtocol
     config: ConfigurationFileManagerConfiguration
     collections: dict[str, Collection]
+    processes: dict[str, Process]
     server_metadata: ServerMetadata
     user_accounts: dict[str, PottoUser]
     _hashed_passwords: dict[str, str]
@@ -85,6 +107,9 @@ class ConfigurationFileManager:
         self.collections = parsing.parse_collections(
             raw_configuration.get("collection", []), self.user_accounts
         )
+        self.processes = parsing.parse_processes(
+            raw_configuration.get("process", []), self.user_accounts
+        )
         self.server_metadata = parsing.parse_server_metadata(
             raw_configuration.get("server_metadata", {})
         )
@@ -100,12 +125,8 @@ class ConfigurationFileManager:
     async def get_cli_group(self) -> "cyclopts.App | None":
         return None
 
-    # --- collections ---------------------------------------------------------
-
     async def get_collection_admin_view(self) -> "BaseModelView | None":
         """Return a starlette_admin view suitable for use in potto's admin ui."""
-        from .admin.collections import CollectionView
-
         return CollectionView()
 
     async def get_collection_capabilities(self) -> CollectionManagerCapabilities:
@@ -237,12 +258,128 @@ class ConfigurationFileManager:
             "Revoking collection access is not supported by the configuration file manager."
         )
 
-    # --- server metadata -------------------------------------------------------
+    async def get_process_admin_view(self) -> "BaseModelView | None":
+        """Return a starlette_admin view suitable for use in potto's admin ui."""
+        return ProcessView()
+
+    async def get_process_capabilities(self) -> ProcessManagerCapabilities:
+        """Return the manager's capabilities."""
+        return ProcessManagerCapabilities()
+
+    async def get_process(
+        self,
+        identifier: str,
+        user: "PottoUser | None",
+    ) -> Process | None:
+        """Retrieve a process."""
+        if (process := self.processes.get(identifier)) is None:
+            return None
+        if await self.authorization_backend.can_view_process(user, process):
+            return process
+        else:
+            return None
+
+    async def paginated_list_processes(
+        self,
+        user: "PottoUser | None",
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        include_total: bool = False,
+        filter_: ProcessFilter | None = None,
+    ) -> tuple[list[Process], int | None]:
+        """Retrieve a list of processes"""
+        candidates = sorted(self.processes.values(), key=lambda p: p.identifier)
+        if filter_ is not None and filter_.identifiers:
+            identifiers = set(filter_.identifiers)
+            candidates = [p for p in candidates if p.identifier in identifiers]
+        accessible = [
+            p
+            for p in candidates
+            if await self.authorization_backend.can_view_process(user, p)
+        ]
+        total = len(accessible) if include_total else None
+        return _paginate(accessible, page, page_size), total
+
+    async def create_process(
+        self,
+        to_create: "ProcessCreate",
+        user: "PottoUser",
+    ) -> "Process":
+        """Create a new process.
+
+        When the manager does not support creating processes this should raise
+        ``CapabilityNotSupported``.
+        """
+        raise CapabilityNotSupported(
+            "Creating processes is not supported by the configuration file manager."
+        )
+
+    async def update_process(
+        self,
+        process: "Process",
+        to_update: "ProcessUpdate",
+        user: "PottoUser",
+    ) -> "Process":
+        """Update an existing process.
+
+        When the manager does not support updating processes this should raise
+        ``CapabilityNotSupported``.
+        """
+        raise CapabilityNotSupported(
+            "Updating processes is not supported by the configuration file manager."
+        )
+
+    async def delete_process(
+        self,
+        identifier: str,
+        user: "PottoUser",
+    ) -> None:
+        """Delete a process.
+
+        When the manager does not support deleting processes this should raise
+        ``CapabilityNotSupported``.
+        """
+        raise CapabilityNotSupported(
+            "Deleting processes is not supported by the configuration file manager."
+        )
+
+    async def grant_process_access(
+        self,
+        *,
+        granting_user: "PottoUser",
+        target_user_id: str,
+        process: "Process",
+        role: str,
+    ) -> None:
+        """Grant a role on the input process to the target user.
+
+        When the manager does not support granting process access this should raise
+        ``CapabilityNotSupported``.
+        """
+        raise CapabilityNotSupported(
+            "Granting process access is not supported by the "
+            "configuration file manager."
+        )
+
+    async def revoke_process_access(
+        self,
+        *,
+        revoking_user: "PottoUser",
+        target_user_id: str,
+        process: "Process",
+    ) -> None:
+        """Revoke a user's access to a process.
+
+        When the manager does not support revoking process access this should raise
+        ``CapabilityNotSupported``.
+        """
+        raise CapabilityNotSupported(
+            "Revoking process access is not supported by the configuration file manager."
+        )
 
     async def get_server_metadata_admin_view(self) -> "BaseModelView | None":
         """Return a starlette_admin view suitable for use in potto's admin ui."""
-        from .admin.metadata import ServerMetadataModelView
-
         return ServerMetadataModelView()
 
     async def get_server_metadata_capabilities(
@@ -269,12 +406,8 @@ class ConfigurationFileManager:
             "Updating server metadata is not supported by the configuration file manager."
         )
 
-    # --- user accounts -----------------------------------------------------------
-
     async def get_user_account_admin_view(self) -> "BaseModelView | None":
         """Return a starlette_admin view suitable for use in potto's admin ui."""
-        from .admin.users import UserView
-
         return UserView()
 
     async def get_user_account_capabilities(self) -> UserAccountManagerCapabilities:
@@ -415,11 +548,14 @@ class ConfigurationFileManager:
             raise PottoCannotViewUserException(
                 "User does not have permission to view resource editors."
             )
-        if resource_type != "collection":
+        if resource_type == "collection":
+            scope = PottoScope.collection_editor(resource_identifier)
+        elif resource_type == "process":
+            scope = PottoScope.process_editor(resource_identifier)
+        else:
             raise NotImplementedError(
                 f"Resource type {resource_type!r} is not supported yet."
             )
-        scope = PottoScope.collection_editor(resource_identifier)
         return [u for u in self.user_accounts.values() if scope in u.scopes]
 
     async def list_resource_viewers(
@@ -433,11 +569,14 @@ class ConfigurationFileManager:
             raise PottoCannotViewUserException(
                 "User does not have permission to view resource viewers."
             )
-        if resource_type != "collection":
+        if resource_type == "collection":
+            scope = PottoScope.collection_viewer(resource_identifier)
+        elif resource_type == "process":
+            scope = PottoScope.process_viewer(resource_identifier)
+        else:
             raise NotImplementedError(
                 f"Resource type {resource_type!r} is not supported yet."
             )
-        scope = PottoScope.collection_viewer(resource_identifier)
         return [u for u in self.user_accounts.values() if scope in u.scopes]
 
 
