@@ -16,6 +16,17 @@ from ...schemas.metadata import (
     PointOfContact,
     ServerMetadata,
 )
+from ...schemas.processes import (
+    OciInputBinding,
+    OciOutputBinding,
+    Process,
+    ProcessDeploymentStatus,
+    ProcessExecutionUnitCwl,
+    ProcessExecutionUnitOci,
+    ProcessExecutionUnitOther,
+    ProcessInputDescription,
+    ProcessOutputDescription,
+)
 
 
 def parse_user_accounts(
@@ -75,6 +86,70 @@ def parse_collections(
         collection = Collection(**raw)
         collections[collection.identifier] = collection
     return collections
+
+
+def _parse_execution_unit(
+    raw: dict[str, Any],
+) -> ProcessExecutionUnitOci | ProcessExecutionUnitCwl | ProcessExecutionUnitOther:
+    raw = dict(raw)
+    type_ = raw.get("type_")
+    if type_ == "oci":
+        raw["bindings_inputs"] = {
+            key: OciInputBinding(**value)
+            for key, value in raw.get("bindings_inputs", {}).items()
+        }
+        raw["bindings_outputs"] = {
+            key: OciOutputBinding(**value)
+            for key, value in raw.get("bindings_outputs", {}).items()
+        }
+        return ProcessExecutionUnitOci(**raw)
+    elif type_ == "cwl":
+        return ProcessExecutionUnitCwl(**raw)
+    else:
+        return ProcessExecutionUnitOther(**raw)
+
+
+def parse_processes(
+    raw_entries: list[dict[str, Any]],
+    users_by_id: dict[str, PottoUser],
+) -> dict[str, Process]:
+    """Parse ``[[process]]`` entries into ``Process`` instances, keyed by identifier.
+
+    Like ``parse_collections``, this hand-builds the fields that ``Process`` (a plain
+    frozen dataclass) can't coerce on its own: ``owner`` (resolved from ``owner_id``
+    against ``users_by_id``), ``inputs``/``outputs`` (lists of
+    ``ProcessInputDescription``/``ProcessOutputDescription``), ``execution_unit`` (one
+    of the OCI/CWL/other variants, picked by its ``type_`` field), and
+    ``deployment_status`` (defaulting to ``failed`` when absent, mirroring
+    ``managers/postgis/db/models.py``'s ``Process.to_potto()``).
+    """
+    processes: dict[str, Process] = {}
+    for raw in raw_entries:
+        raw = dict(raw)
+        owner_id = raw.pop("owner_id")
+        try:
+            owner = users_by_id[owner_id]
+        except KeyError:
+            raise ValueError(
+                f"Process {raw.get('identifier')!r} references unknown "
+                f"owner_id {owner_id!r}"
+            ) from None
+        raw["owner"] = owner
+        raw["inputs"] = [
+            ProcessInputDescription(**value) for value in raw.get("inputs", [])
+        ]
+        raw["outputs"] = [
+            ProcessOutputDescription(**value) for value in raw.get("outputs", [])
+        ]
+        if (raw_execution_unit := raw.get("execution_unit")) is not None:
+            raw["execution_unit"] = _parse_execution_unit(raw_execution_unit)
+        if (raw_deployment_status := raw.get("deployment_status")) is not None:
+            raw["deployment_status"] = ProcessDeploymentStatus(**raw_deployment_status)
+        else:
+            raw["deployment_status"] = ProcessDeploymentStatus(value="failed")
+        process = Process(**raw)
+        processes[process.identifier] = process
+    return processes
 
 
 def parse_server_metadata(raw: dict[str, Any]) -> ServerMetadata:

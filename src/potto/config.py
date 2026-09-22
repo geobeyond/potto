@@ -18,6 +18,10 @@ from .managers.collections import (
     CollectionManagerProtocol,
     CollectionManagerFactoryProtocol,
 )
+from .managers.processes import (
+    ProcessManagerProtocol,
+    ProcessManagerFactoryProtocol,
+)
 from .managers.servermetadata import (
     ServerMetadataProtocol,
     ServerMetadataManagerFactoryProtocol,
@@ -79,6 +83,15 @@ class UserAccountManagerSettings(pydantic.BaseModel):
     )
 
 
+class ProcessManagerSettings(pydantic.BaseModel):
+    manager_factory: pydantic.ImportString[ProcessManagerFactoryProtocol] = (
+        get_postgis_manager
+    )
+    settings_model: dict[str, Any] = pydantic.Field(
+        default_factory=lambda: PostgisManagerConfiguration().model_dump()
+    )
+
+
 class PottoSettings(pydantic_settings.BaseSettings):
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="potto__",
@@ -116,6 +129,9 @@ class PottoSettings(pydantic_settings.BaseSettings):
     user_account_manager: UserAccountManagerSettings = pydantic.Field(
         default_factory=lambda: UserAccountManagerSettings()
     )
+    process_manager: ProcessManagerSettings = pydantic.Field(
+        default_factory=lambda: ProcessManagerSettings()
+    )
     page_size: int = 20
     page_size_max: int = 100
     use_oas30_fixes: bool = pydantic.Field(
@@ -141,6 +157,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     _collection_manager: CollectionManagerProtocol | None = None
     _server_metadata_manager: ServerMetadataProtocol | None = None
     _user_account_manager: UserAccountProtocol | None = None
+    _process_manager: ProcessManagerProtocol | None = None
     _jinja_env: jinja2.Environment | None = None
     _oidc_provider: OIDCProvider | None = None
     _authorization_backend: AuthorizationBackendProtocol | None = None
@@ -197,6 +214,13 @@ class PottoSettings(pydantic_settings.BaseSettings):
             )
         return self._user_account_manager
 
+    def get_process_manager(self) -> ProcessManagerProtocol:
+        if self._process_manager is None:
+            self._process_manager = self.process_manager.manager_factory(
+                self.process_manager.settings_model, self
+            )
+        return self._process_manager
+
 
 # These each have a manager_factory field typed against a Callable whose signature
 # references "PottoSettings" as a forward reference (to avoid a circular imports.
@@ -205,6 +229,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
 CollectionManagerSettings.model_rebuild()
 ServerMetadataManagerSettings.model_rebuild()
 UserAccountManagerSettings.model_rebuild()
+ProcessManagerSettings.model_rebuild()
 
 
 def get_settings() -> PottoSettings:

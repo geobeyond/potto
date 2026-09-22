@@ -1,4 +1,3 @@
-import datetime as dt
 import dataclasses
 import logging
 import pydantic
@@ -13,7 +12,6 @@ from .. import constants
 
 if typing.TYPE_CHECKING:
     from .pygeoapi_config import ExtentConfig
-    from .auth import PottoUser
 
 logger = logging.getLogger(__name__)
 
@@ -103,21 +101,6 @@ MaybeKeywords = typing.Annotated[
         }
     ),
 ]
-
-
-@dataclasses.dataclass(frozen=True)
-class Resource:
-    identifier: str
-    created_at: dt.datetime
-    updated_at: dt.datetime
-    title: Title
-    owner: "PottoUser"
-    is_public: bool
-    description: MaybeDescription = None
-    keywords: MaybeKeywords = None
-    custom_page_size: int | None = None
-    custom_page_size_max: int | None = None
-    additional_links: list[dict[str, str | dict[str, str]]] | None = None
 
 
 @dataclasses.dataclass

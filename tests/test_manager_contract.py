@@ -4,7 +4,8 @@ Every test here takes the `contract_harness` fixture (defined in
 `tests/manager_contract.py`) and is written purely in terms of it - the same
 assertions run, unmodified, against both `PostgisManager` and
 `ConfigurationFileManager`, since both are expected to conform to the same
-`CollectionManagerProtocol`/`ServerMetadataProtocol`/`UserAccountProtocol` contract.
+`CollectionManagerProtocol`/`ProcessManagerProtocol`/`ServerMetadataProtocol`/
+`UserAccountProtocol` contract.
 
 Backend-specific behavior (TOML type-coercion, postgis DB-constraint tests, HTTP/
 serialization concerns) stays in its own test file - see
@@ -33,6 +34,15 @@ from potto.schemas.collections import (
     CollectionUpdate,
 )
 from potto.schemas.metadata import ServerMetadataUpdate
+from potto.schemas.processes import (
+    ExecutionUnitOtherCreate,
+    ExecutionUnitOtherUpdate,
+    ProcessCreate,
+    ProcessDescriptionCreate,
+    ProcessDescriptionUpdate,
+    ProcessFilter,
+    ProcessUpdate,
+)
 
 # Matches manager_contract.py's SPATIAL_EXTENT_WKT: x in [-10, 5], y in [40, 50].
 _POINT_INSIDE_SPATIAL_EXTENT = shapely.Point(0, 45)
@@ -290,6 +300,231 @@ class TestCollectionMutationCapabilities:
                     revoking_user=contract_harness.owner_user,
                     target_user_id=contract_harness.other_user.id,
                     collection=contract_harness.private_collection,
+                )
+
+
+class TestProcessVisibility:
+    @pytest.mark.asyncio
+    async def test_public_process_visible_to_anonymous(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.public_process.identifier, None
+        )
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_private_process_hidden_from_anonymous(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, None
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_private_process_hidden_from_unrelated_user(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, contract_harness.other_user
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_private_process_visible_to_owner(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, contract_harness.owner_user
+        )
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_private_process_visible_to_viewer(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, contract_harness.viewer_user
+        )
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_private_process_visible_to_editor(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, contract_harness.editor_user
+        )
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_private_process_visible_to_admin(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            contract_harness.private_process.identifier, contract_harness.admin_user
+        )
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_process_missing_returns_none(self, contract_harness):
+        result = await contract_harness.manager.get_process(
+            "does-not-exist-xyz", contract_harness.admin_user
+        )
+        assert result is None
+
+
+class TestProcessListing:
+    @pytest.mark.asyncio
+    async def test_anonymous_sees_only_public_processes(self, contract_harness):
+        results, _ = await contract_harness.manager.paginated_list_processes(None)
+        identifiers = {p.identifier for p in results}
+        assert contract_harness.public_process.identifier in identifiers
+        assert contract_harness.private_process.identifier not in identifiers
+
+    @pytest.mark.asyncio
+    async def test_admin_sees_private_process(self, contract_harness):
+        results, _ = await contract_harness.manager.paginated_list_processes(
+            contract_harness.admin_user
+        )
+        identifiers = {p.identifier for p in results}
+        assert contract_harness.private_process.identifier in identifiers
+
+    @pytest.mark.asyncio
+    async def test_identifier_filter(self, contract_harness):
+        results, _ = await contract_harness.manager.paginated_list_processes(
+            contract_harness.admin_user,
+            filter_=ProcessFilter(
+                identifiers=[contract_harness.public_process.identifier]
+            ),
+        )
+        identifiers = {p.identifier for p in results}
+        assert identifiers == {contract_harness.public_process.identifier}
+
+    @pytest.mark.asyncio
+    async def test_pagination_consistent_with_total(self, contract_harness):
+        manager = contract_harness.manager
+        admin = contract_harness.admin_user
+        all_results, total = await manager.paginated_list_processes(
+            admin, page=1, page_size=1000, include_total=True
+        )
+        assert total == len(all_results)
+        assert total >= 2
+        page_1, _ = await manager.paginated_list_processes(admin, page=1, page_size=1)
+        page_2, _ = await manager.paginated_list_processes(admin, page=2, page_size=1)
+        combined_identifiers = [p.identifier for p in page_1 + page_2]
+        expected_identifiers = [
+            p.identifier for p in all_results[: len(page_1) + len(page_2)]
+        ]
+        assert combined_identifiers == expected_identifiers
+
+
+class TestProcessMutationCapabilities:
+    @pytest.mark.asyncio
+    async def test_create_process(self, contract_harness):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        to_create = ProcessCreate(
+            processDescription=ProcessDescriptionCreate(
+                identifier="contract-created-process",
+                title="Newly created process",
+                owner_id=contract_harness.owner_user.id,
+                is_public=True,
+                version="1.0.0",
+            ),
+            execution_unit=ExecutionUnitOtherCreate(type_="other", value={}),
+        )
+        if capabilities.supports_creation:
+            created = await manager.create_process(
+                to_create, contract_harness.owner_user
+            )
+            assert created.identifier == "contract-created-process"
+            fetched = await manager.get_process(
+                "contract-created-process", contract_harness.owner_user
+            )
+            assert fetched is not None
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.create_process(to_create, contract_harness.owner_user)
+
+    @pytest.mark.asyncio
+    async def test_update_process(self, contract_harness):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        to_update = ProcessUpdate(
+            processDescription=ProcessDescriptionUpdate(title="Updated title"),
+            execution_unit=ExecutionUnitOtherUpdate(type_="other", value={}),
+        )
+        if capabilities.supports_modification:
+            updated = await manager.update_process(
+                contract_harness.private_process,
+                to_update,
+                contract_harness.owner_user,
+            )
+            assert updated.title == "Updated title"
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.update_process(
+                    contract_harness.private_process,
+                    to_update,
+                    contract_harness.owner_user,
+                )
+
+    @pytest.mark.asyncio
+    async def test_delete_process(self, contract_harness):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        identifier = contract_harness.public_process.identifier
+        if capabilities.supports_deletion:
+            await manager.delete_process(identifier, contract_harness.owner_user)
+            assert (
+                await manager.get_process(identifier, contract_harness.admin_user)
+                is None
+            )
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.delete_process(identifier, contract_harness.owner_user)
+
+    @pytest.mark.asyncio
+    async def test_grant_and_revoke_process_access(self, contract_harness):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        if capabilities.supports_granting_access:
+            await manager.grant_process_access(
+                granting_user=contract_harness.owner_user,
+                target_user_id=contract_harness.other_user.id,
+                process=contract_harness.private_process,
+                role="viewer",
+            )
+            granted_other_user = await manager.get_user(
+                contract_harness.other_user.id, contract_harness.admin_user
+            )
+            assert (
+                await manager.get_process(
+                    contract_harness.private_process.identifier,
+                    granted_other_user,
+                )
+                is not None
+            )
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.grant_process_access(
+                    granting_user=contract_harness.owner_user,
+                    target_user_id=contract_harness.other_user.id,
+                    process=contract_harness.private_process,
+                    role="viewer",
+                )
+
+        if capabilities.supports_revoking_access:
+            if capabilities.supports_granting_access:
+                await manager.revoke_process_access(
+                    revoking_user=contract_harness.owner_user,
+                    target_user_id=contract_harness.other_user.id,
+                    process=contract_harness.private_process,
+                )
+                revoked_other_user = await manager.get_user(
+                    contract_harness.other_user.id, contract_harness.admin_user
+                )
+                assert (
+                    await manager.get_process(
+                        contract_harness.private_process.identifier,
+                        revoked_other_user,
+                    )
+                    is None
+                )
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.revoke_process_access(
+                    revoking_user=contract_harness.owner_user,
+                    target_user_id=contract_harness.other_user.id,
+                    process=contract_harness.private_process,
                 )
 
 
@@ -568,7 +803,50 @@ class TestResourceEditorsAndViewers:
     ):
         with pytest.raises(NotImplementedError):
             await contract_harness.manager.list_resource_editors(
-                "process", "some-process", contract_harness.admin_user
+                "widget", "some-widget", contract_harness.admin_user
+            )
+
+    @pytest.mark.asyncio
+    async def test_list_process_editors(self, contract_harness):
+        editors = await contract_harness.manager.list_resource_editors(
+            "process",
+            contract_harness.private_process.identifier,
+            contract_harness.admin_user,
+        )
+        assert contract_harness.editor_user.id in {u.id for u in editors}
+
+    @pytest.mark.asyncio
+    async def test_list_process_viewers(self, contract_harness):
+        viewers = await contract_harness.manager.list_resource_viewers(
+            "process",
+            contract_harness.private_process.identifier,
+            contract_harness.admin_user,
+        )
+        assert contract_harness.viewer_user.id in {u.id for u in viewers}
+
+    @pytest.mark.asyncio
+    async def test_list_process_editors_allowed_for_any_authenticated_user(
+        self, contract_harness
+    ):
+        editors = await contract_harness.manager.list_resource_editors(
+            "process",
+            contract_harness.private_process.identifier,
+            contract_harness.other_user,
+        )
+        assert contract_harness.editor_user.id in {u.id for u in editors}
+
+    @pytest.mark.asyncio
+    async def test_list_process_editors_denied_for_anonymous(self, contract_harness):
+        with pytest.raises(PottoCannotViewUserException):
+            await contract_harness.manager.list_resource_editors(
+                "process", contract_harness.private_process.identifier, None
+            )
+
+    @pytest.mark.asyncio
+    async def test_list_process_viewers_denied_for_anonymous(self, contract_harness):
+        with pytest.raises(PottoCannotViewUserException):
+            await contract_harness.manager.list_resource_viewers(
+                "process", contract_harness.private_process.identifier, None
             )
 
 

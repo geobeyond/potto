@@ -52,6 +52,21 @@ The collection manager deals with collections. It implements the
   access
 
 
+### Process manager
+
+The process manager deals with processes. It implements the
+``potto.managers.processes.ProcessManagerProtocol``, which defines a set of capabilities:
+
+- Read access to processes. This comprises listing, searching and filtering and getting details about existing
+  processes. This is always implicitly enabled and represents the core responsibility of the manager.
+
+- Optionally, mutating the set of processes known to potto. This comprises creating new processes, deleting
+  and modifying existing processes.
+
+- Optionally, managing users' access controls over private processes. This comprises granting and revoking
+  access
+
+
 ## Built-in resource managers
 
 potto comes with two built-in resource managers:
@@ -78,6 +93,12 @@ The Postgis manager implements all resource protocols and provides read and writ
 | Collection | delete existing collections | :green_square: Yes |
 | Collection | grant access to private collection | :green_square: Yes |
 | Collection | revoke access to private collection | :green_square: Yes |
+| Process | read existing processes | :green_square: Yes |
+| Process | create new processes | :green_square: Yes |
+| Process | update existing processes | :green_square: Yes |
+| Process | delete existing processes | :green_square: Yes |
+| Process | grant access to private process | :green_square: Yes |
+| Process | revoke access to private process | :green_square: Yes |
 | Server metadata | read server metadata | :green_square: Yes |
 | Server metadata | update server metadata | :green_square: Yes |
 | User account | read existing users | :green_square: Yes |
@@ -96,6 +117,8 @@ In order to enable the postgis manager, set the following configuration keys:
     -  `database_dsn` - The sqlalchemy connection string
     -  `test_database_dsn` - The sqlalchemy connection string for connecting to a test database - This is only needed if you are a potto developer
 
+-  `process_manager.manager_factory`: `potto.manager.postgis.manager:get_postgis_manager`
+-  `process_manager.settings_model`: The same as the `collection_manager.settings_model`
 -  `server_metadata_manager.manager_factory`: `potto.manager.postgis.manager:get_postgis_manager`
 -  `server_metadata_manager.settings_model`: The same as the `collection_manager.settings_model`
 -  `user_account_manager.manager_factory`: `potto.manager.postgis.manager:get_postgis_manager`
@@ -107,6 +130,9 @@ Note that these can be set as environment variables, _e.g._:
 ```shell
 POTTO__COLLECTION_MANAGER__MANAGER_FACTORY="potto.managers.postgis.manager:get_postgis_manager"
 POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN="postgresql+psycopg://<user>:<password>@<host>:<port>/<db>"
+
+POTTO__PROCESS_MANAGER__MANAGER_FACTORY="potto.managers.postgis.manager:get_postgis_manager"
+POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN="postgresql+psycopg://<user>:<password>@<host>:<port>/<db>"
 
 POTTO__SERVER_METADATA_MANAGER__MANAGER_FACTORY="potto.managers.postgis.manager:get_postgis_manager"
 POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN="postgresql+psycopg://<user>:<password>@<host>:<port>/<db>"
@@ -131,6 +157,7 @@ POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN="postgresql+psycopg://
 The Postgis manager registers views in the potto admin area for
 
 - collections
+- processes
 - server metadata
 - user accounts
 
@@ -190,6 +217,23 @@ An array of `collection` tables, where each `collection` has the following prope
 | `updated_at` | `datetime` | Update date of the collection **NOTE**: This must be a TOML offset datetime | No |
 
 
+An array of `process` tables, where each `process` has the following properties:
+
+| name | type | description | optional |
+| ---- | ---- | ----------- | -------- |
+| `identifier` | `str` | The public identifier of the process | No |
+| `owner_id` | `str` | `id` of the user who owns the process | No |
+| `is_public` | `bool` | Whether the process is public | No |
+| `title` | `str` | A title for the process | No |
+| `version` | `str` | The process version | No |
+| `created_at` | `datetime` | Creation date of the process **NOTE**: This must be a TOML offset datetime | No |
+| `updated_at` | `datetime` | Update date of the process **NOTE**: This must be a TOML offset datetime | No |
+| `inputs` | `array[table]` | The process' input descriptions | Yes |
+| `outputs` | `array[table]` | The process' output descriptions | Yes |
+| `execution_unit` | `table` | The process' execution unit (an OCI image, a CWL definition, or another custom type - picked by its `type_` field) | Yes |
+| `deployment_status` | `table` | The process' deployment status. Defaults to `{ value = "failed" }` when omitted | Yes |
+
+
 A `server_metadata` table with the following properties:
 
 | name | type | description | optional |
@@ -218,6 +262,19 @@ crs = ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"]
 created_at = 2024-01-01T00:00:00Z
 updated_at = 2024-01-01T00:00:00Z
 
+[[process]]
+identifier = "buffer"
+owner_id = "u1"              # resolved against [[user_account]] entries
+is_public = true
+title = "Buffer"
+version = "1.0.0"
+created_at = 2024-01-01T00:00:00Z
+updated_at = 2024-01-01T00:00:00Z
+
+[process.execution_unit]
+type_ = "other"
+definition = { echo = "hello" }
+
 [server_metadata]
 title = "My potto server"
 ```
@@ -234,6 +291,12 @@ The configuration file manager implements all resource protocols but only provid
 | Collection | delete existing collections | :red_square: No |
 | Collection | grant access to private collection | :red_square: No |
 | Collection | revoke access to private collection | :red_square: No |
+| Process | read existing processes | :green_square: Yes |
+| Process | create new processes | :red_square: No |
+| Process | update existing processes | :red_square: No |
+| Process | delete existing processes | :red_square: No |
+| Process | grant access to private process | :red_square: No |
+| Process | revoke access to private process | :red_square: No |
 | Server metadata | read server metadata | :green_square: Yes |
 | Server metadata | update server metadata | :red_square: No |
 | User account | read existing users | :green_square: Yes |
@@ -251,6 +314,8 @@ In order to enable the configuration file manager, set the following configurati
 
     -  `config_file` - Path to the TOML configuration file
 
+-  `process_manager.manager_factory`: `potto.managers.configurationfile.manager:get_configuration_file_manager`
+-  `process_manager.settings_model`: The same as the `collection_manager.settings_model`
 -  `server_metadata_manager.manager_factory`: `potto.managers.configurationfile.manager:get_configuration_file_manager`
 -  `server_metadata_manager.settings_model`: The same as the `collection_manager.settings_model`
 -  `user_account_manager.manager_factory`: `potto.managers.configurationfile.manager:get_configuration_file_manager`
@@ -262,6 +327,9 @@ Note that these can be set as environment variables, _e.g._:
 ```shell
 POTTO__COLLECTION_MANAGER__MANAGER_FACTORY="potto.managers.configurationfile.manager:get_configuration_file_manager"
 POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__CONFIG_FILE="/etc/potto/my-config.toml"
+
+POTTO__PROCESS_MANAGER__MANAGER_FACTORY="potto.managers.configurationfile.manager:get_configuration_file_manager"
+POTTO__PROCESS_MANAGER__SETTINGS_MODEL__CONFIG_FILE="/etc/potto/my-config.toml"
 
 POTTO__SERVER_METADATA_MANAGER__MANAGER_FACTORY="potto.managers.configurationfile.manager:get_configuration_file_manager"
 POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__CONFIG_FILE="/etc/potto/my-config.toml"
@@ -285,6 +353,7 @@ POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__CONFIG_FILE="/etc/potto/my-config.t
 The configuration file manager registers views in the potto admin area for
 
 - collections
+- processes
 - server metadata
 - user accounts
 
