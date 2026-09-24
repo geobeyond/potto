@@ -13,7 +13,11 @@ import bcrypt
 from sqlalchemy.exc import DatabaseError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from ....authz.protocols import AuthorizationBackendProtocol
+from ....authz.authorizer import (
+    PottoAuthorizer,
+    Principal,
+    SystemPrincipal,
+)
 from .... import exceptions
 from ....exceptions import (
     PottoCannotCreateUserException,
@@ -49,17 +53,19 @@ _EDITOR_SCOPE_RE = re.compile(r"^collection-(.+):editor$")
 
 async def create_user(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     to_create: UserCreate,
 ) -> PottoUser:
-    if not await authorization_backend.can_create_user(requesting_user):
+    if not await authorizer.can_create_user(requesting_user):
         raise PottoCannotCreateUserException(
             "User does not have permission to create new users."
         )
+    # can_create_user() above already rejects a None requesting_user.
+    assert requesting_user is not None
     if to_create.scopes:
         await _check_scope_assignment(
-            session, requesting_user, authorization_backend, to_create.scopes
+            session, requesting_user, authorizer, to_create.scopes
         )
     created = await auth_commands.create_user(session, to_create)
     return created.to_potto()
@@ -67,21 +73,23 @@ async def create_user(
 
 async def update_user(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     user_id: str,
     to_update: UserUpdate,
 ) -> PottoUser:
-    if not await authorization_backend.can_edit_user(requesting_user):
+    if not await authorizer.can_edit_user(requesting_user):
         raise PottoCannotEditUserException(
             "User does not have permission to edit user accounts."
         )
+    # can_edit_user() above already rejects a None requesting_user.
+    assert requesting_user is not None
     db_user = await auth_queries.get_user(session, user_id)
     if db_user is None:
         raise PottoNotFoundException(f"User {user_id!r} does not exist.")
     if to_update.scopes is not None:
         await _check_scope_assignment(
-            session, requesting_user, authorization_backend, to_update.scopes
+            session, requesting_user, authorizer, to_update.scopes
         )
     updated = await auth_commands.update_user(session, db_user, to_update)
     return updated.to_potto()
@@ -89,32 +97,34 @@ async def update_user(
 
 async def _check_scope_assignment(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal,
+    authorizer: PottoAuthorizer,
     new_scopes: list[str],
 ) -> None:
     if PottoScope.ADMIN.value in new_scopes:
-        if not await authorization_backend.can_assign_admin_scope(requesting_user):
+        if not await authorizer.can_assign_admin_scope(requesting_user):
             raise PottoCannotSetAdminScopeException(
                 "User does not have permission to assign the admin scope."
             )
-    editable_identifiers = await _get_editable_collection_identifiers(
-        session, requesting_user
-    )
-    if not await authorization_backend.can_set_user_scopes(
-        requesting_user, new_scopes, editable_identifiers
-    ):
-        raise PottoCannotSetScopesException(
-            "User does not have permission to set these scopes."
-        )
+    match requesting_user:
+        case SystemPrincipal():
+            return
+        case _:
+            editable_identifiers = await _get_editable_collection_identifiers(
+                session, requesting_user
+            )
+            if not await authorizer.can_set_user_scopes(
+                requesting_user, new_scopes, editable_identifiers
+            ):
+                raise PottoCannotSetScopesException(
+                    "User does not have permission to set these scopes."
+                )
 
 
 async def _get_editable_collection_identifiers(
     session: AsyncSession,
-    user: PottoUser | None,
+    user: PottoUser,
 ) -> list[str]:
-    if user is None:
-        return []
     owned = await collection_queries.get_owned_collection_identifiers(session, user.id)
     from_scopes = [
         m.group(1) for scope in user.scopes if (m := _EDITOR_SCOPE_RE.match(scope))
@@ -124,11 +134,11 @@ async def _get_editable_collection_identifiers(
 
 async def delete_user(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     user_id: str,
 ) -> None:
-    if not await authorization_backend.can_delete_user(requesting_user):
+    if not await authorizer.can_delete_user(requesting_user):
         raise PottoCannotDeleteUserException(
             "User does not have permission to delete user accounts."
         )
@@ -137,8 +147,8 @@ async def delete_user(
 
 async def paginated_list_users(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     *,
     username_filter: str | None = None,
     admin_filter: bool = False,
@@ -146,7 +156,7 @@ async def paginated_list_users(
     page_size: int = 20,
     include_total: bool = False,
 ) -> tuple[list[PottoUser], int | None]:
-    if not await authorization_backend.can_view_user(requesting_user):
+    if not await authorizer.can_view_user(requesting_user):
         raise PottoCannotViewUserException(
             "User does not have permission to view user accounts."
         )
@@ -163,11 +173,11 @@ async def paginated_list_users(
 
 async def get_user(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     user_id: str,
 ) -> PottoUser | None:
-    if not await authorization_backend.can_view_user(requesting_user):
+    if not await authorizer.can_view_user(requesting_user):
         raise PottoCannotViewUserException(
             "User does not have permission to view user accounts."
         )
@@ -177,11 +187,11 @@ async def get_user(
 
 async def get_user_by_username(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     username: str,
 ) -> PottoUser | None:
-    if not await authorization_backend.can_view_user(requesting_user):
+    if not await authorizer.can_view_user(requesting_user):
         raise PottoCannotViewUserException(
             "User does not have permission to view user accounts."
         )
@@ -221,12 +231,12 @@ async def authenticate(
 
 async def list_resource_editors(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     resource_type: str,
     resource_identifier: str,
 ) -> list[PottoUser]:
-    if not await authorization_backend.can_view_user(requesting_user):
+    if not await authorizer.can_view_user(requesting_user):
         raise PottoCannotViewUserException(
             "User does not have permission to view resource editors."
         )
@@ -247,12 +257,12 @@ async def list_resource_editors(
 
 async def list_resource_viewers(
     session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    requesting_user: Principal | None,
+    authorizer: PottoAuthorizer,
     resource_type: str,
     resource_identifier: str,
 ) -> list[PottoUser]:
-    if not await authorization_backend.can_view_user(requesting_user):
+    if not await authorizer.can_view_user(requesting_user):
         raise PottoCannotViewUserException(
             "User does not have permission to view resource viewers."
         )
@@ -273,13 +283,13 @@ async def list_resource_viewers(
 
 async def grant_collection_access(
     session: AsyncSession,
-    granting_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    granting_user: Principal,
+    authorizer: PottoAuthorizer,
     target_user_id: str,
     collection: "Collection",
     role: str,
 ) -> None:
-    if not await authorization_backend.can_edit_collection(granting_user, collection):
+    if not await authorizer.can_edit_collection(granting_user, collection):
         raise exceptions.CannotModifyResourceAccess(
             "User does not have permission to grant access to this collection."
         )
@@ -307,12 +317,12 @@ async def grant_collection_access(
 
 async def revoke_collection_access(
     session: AsyncSession,
-    revoking_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    revoking_user: Principal,
+    authorizer: PottoAuthorizer,
     target_user_id: str,
     collection: "Collection",
 ) -> None:
-    if not await authorization_backend.can_edit_collection(revoking_user, collection):
+    if not await authorizer.can_edit_collection(revoking_user, collection):
         raise exceptions.CannotModifyResourceAccess(
             "User does not have permission to revoke access to this collection."
         )
@@ -336,13 +346,13 @@ async def revoke_collection_access(
 
 async def grant_process_access(
     session: AsyncSession,
-    granting_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    granting_user: Principal,
+    authorizer: PottoAuthorizer,
     target_user_id: str,
     process: "Process",
     role: str,
 ) -> None:
-    if not await authorization_backend.can_edit_process(granting_user, process):
+    if not await authorizer.can_edit_process(granting_user, process):
         raise exceptions.CannotModifyResourceAccess(
             "User does not have permission to grant access to this process."
         )
@@ -370,12 +380,12 @@ async def grant_process_access(
 
 async def revoke_process_access(
     session: AsyncSession,
-    revoking_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    revoking_user: Principal,
+    authorizer: PottoAuthorizer,
     target_user_id: str,
     process: "Process",
 ) -> None:
-    if not await authorization_backend.can_edit_process(revoking_user, process):
+    if not await authorizer.can_edit_process(revoking_user, process):
         raise exceptions.CannotModifyResourceAccess(
             "User does not have permission to revoke access to this collection."
         )

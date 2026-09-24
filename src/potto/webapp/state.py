@@ -4,7 +4,7 @@ from starlette.templating import Jinja2Templates
 
 from .. import config
 from ..authn.oidc import OIDCProvider
-from ..authz.protocols import AuthorizationBackendProtocol
+from ..authz.authorizer import PottoAuthorizer
 from ..wrapper import Potto
 
 
@@ -13,4 +13,4 @@ class AppState(TypedDict):
     potto: Potto
     templates: Jinja2Templates
     oidc_provider: OIDCProvider | None
-    authorization_backend: AuthorizationBackendProtocol
+    authorizer: PottoAuthorizer

@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import logging
 from typing import AsyncIterator
@@ -31,19 +32,39 @@ from .admin.main import create_admin_app_from_settings
 logger = logging.getLogger(__name__)
 
 
+def _log_broker_connect_failure(task: "asyncio.Task[object]") -> None:
+    if task.cancelled():
+        return
+    if (err := task.exception()) is not None:
+        logger.error("Internal MQTT broker connection failed", exc_info=err)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
     settings: config.PottoSettings = app.state.settings
     oidc_provider = settings.get_oidc_provider()
     if oidc_provider is not None:
         await oidc_provider.get_discovery()
-    yield AppState(
-        settings=settings,
-        templates=Jinja2Templates(env=settings.get_jinja_env()),
-        potto=Potto(settings),
-        oidc_provider=oidc_provider,
-        authorization_backend=settings.get_authorization_backend(),
-    )
+    broker = settings.get_internal_broker(role="api")
+    # Connecting to the internal broker must not block API startup or crash it if
+    # mosquitto is unreachable - the broker is configured for unlimited reconnect
+    # attempts (see config.py's get_internal_broker), so this task keeps retrying
+    # in the background for as long as the app runs.
+    connect_task = asyncio.create_task(broker.connect())
+    connect_task.add_done_callback(_log_broker_connect_failure)
+    try:
+        yield AppState(
+            settings=settings,
+            templates=Jinja2Templates(env=settings.get_jinja_env()),
+            potto=Potto(settings),
+            oidc_provider=oidc_provider,
+            authorizer=settings.get_authorizer(),
+        )
+    finally:
+        connect_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await connect_task
+        await broker.stop()
 
 
 def create_app() -> Starlette:

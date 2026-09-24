@@ -66,14 +66,14 @@ wheels = [
 
 [[package]]
 name = "anyio"
-version = "4.12.1"
+version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/96/f0/5eb65b2bb0d09ac6776f2eb54adee6abe8228ea05b20a5ad0e4945de8aac/anyio-4.12.1.tar.gz", hash = "sha256:41cfcc3a4c85d3f05c932da7c26d0201ac36f72abd4435ba90d0464a3ffed703", size = 228685, upload-time = "2026-01-06T11:45:21.246Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/cc/a381afa6efea9f496eff839d4a6a1aed3bfafc7b3ab4b0d1b243a12573dd/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f", size = 260176, upload-time = "2026-07-12T20:29:07.082Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/0e/27be9fdef66e72d64c0cdc3cc2823101b80585f8119b5c112c2e8f5f7dab/anyio-4.12.1-py3-none-any.whl", hash = "sha256:d405828884fc140aa80a3c667b8beed277f1dfedec42ba031bd6ac3db606ab6c", size = 113592, upload-time = "2026-01-06T11:45:19.497Z" },
+    { url = "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl", hash = "sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494", size = 125813, upload-time = "2026-07-12T20:29:05.763Z" },
 ]
 
 [[package]]
@@ -449,6 +449,24 @@ wheels = [
 ]
 
 [[package]]
+name = "fast-depends"
+version = "3.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/8e/0da74a68d1fab3370962802bde8726fbd9248d8156f9cf98f3562e654cc3/fast_depends-3.0.9.tar.gz", hash = "sha256:c31c3985d0196ea4998da9f5913a76ede75cc4484d89eeafcea1a6bd64fbca82", size = 18437, upload-time = "2026-09-19T12:37:28.181Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/c3/a4e6a88229798f5afe0e79a9e81947731a89e3f19659b7e90980cfedeee4/fast_depends-3.0.9-py3-none-any.whl", hash = "sha256:a9fda223e4f9f92ade11dabfdc31d20e62fedc25340f1a5b1f01db2ae25ab1d9", size = 25521, upload-time = "2026-09-19T12:37:26.863Z" },
+]
+
+[package.optional-dependencies]
+pydantic = [
+    { name = "pydantic" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.133.1"
 source = { registry = "https://pypi.org/simple" }
@@ -566,6 +584,25 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/e2/dfa19a4b260b8ab3581b7484dcb80c09b25324f4daa6b6ae1c7640d1607a/fastar-0.8.0-cp314-cp314t-win32.whl", hash = "sha256:187f61dc739afe45ac8e47ed7fd1adc45d52eac110cf27d579155720507d6fbe", size = 455767, upload-time = "2025-11-26T02:36:34.758Z" },
     { url = "https://files.pythonhosted.org/packages/51/47/df65c72afc1297797b255f90c4778b5d6f1f0f80282a134d5ab610310ed9/fastar-0.8.0-cp314-cp314t-win_amd64.whl", hash = "sha256:40e9d763cf8bf85ce2fa256e010aa795c0fe3d3bd1326d5c3084e6ce7857127e", size = 489971, upload-time = "2025-11-26T02:36:22.081Z" },
     { url = "https://files.pythonhosted.org/packages/85/11/0aa8455af26f0ae89e42be67f3a874255ee5d7f0f026fc86e8d56f76b428/fastar-0.8.0-cp314-cp314t-win_arm64.whl", hash = "sha256:e59673307b6a08210987059a2bdea2614fe26e3335d0e5d1a3d95f49a05b1418", size = 460467, upload-time = "2025-11-26T02:36:07.978Z" },
+]
+
+[[package]]
+name = "faststream"
+version = "0.7.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "fast-depends", extra = ["pydantic"] },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a7/3b/f322016151614c9de6df319b40d6a5f6cfda46d1860bad2e867502833fd5/faststream-0.7.6.tar.gz", hash = "sha256:b0c60ac8cde24ade040cbca4642c14edbd1a220abab985dbe6caf91b1cc61fcb", size = 369478, upload-time = "2026-09-20T09:27:22.052Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/84/9a5fee9e783ac8c04265b4fda31e72c05acaac7e27fa809facfa92f97db4/faststream-0.7.6-py3-none-any.whl", hash = "sha256:6c6b8875557fccb83ff58a19fec35cfe208d21a722e962ff1e57e78425eae694", size = 594085, upload-time = "2026-09-20T09:27:20.185Z" },
+]
+
+[package.optional-dependencies]
+mqtt = [
+    { name = "zmqtt" },
 ]
 
 [[package]]
@@ -1169,6 +1206,7 @@ dependencies = [
     { name = "cyclopts" },
     { name = "duckdb" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "faststream", extra = ["mqtt"] },
     { name = "geoalchemy2" },
     { name = "geopandas" },
     { name = "httpx" },
@@ -1192,6 +1230,7 @@ dependencies = [
     { name = "starlette-admin" },
     { name = "starlette-babel" },
     { name = "uvicorn" },
+    { name = "watchfiles" },
 ]
 
 [package.dev-dependencies]
@@ -1218,6 +1257,7 @@ requires-dist = [
     { name = "cyclopts", specifier = ">=4.2.4" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
+    { name = "faststream", extras = ["mqtt"], specifier = ">=0.7.6" },
     { name = "geoalchemy2", specifier = ">=0.18.1" },
     { name = "geopandas", specifier = ">=1.1.3" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -1241,6 +1281,7 @@ requires-dist = [
     { name = "starlette-admin", specifier = ">=0.16.0" },
     { name = "starlette-babel", specifier = ">=1.0.3" },
     { name = "uvicorn", specifier = ">=0.38.0" },
+    { name = "watchfiles", specifier = ">=1.1.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -2571,4 +2612,13 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/78/80/8bd9054e15ac992c911a87a9d2651aa3468bc370ad97084f9902f2c9f7e0/zensical-0.0.38-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:8b913573ec99171534f51f0a5ab2032eee5416981ba2fe502601c5ac5a6da898", size = 13237935, upload-time = "2026-04-30T12:04:53.104Z" },
     { url = "https://files.pythonhosted.org/packages/63/75/d81ca979bc770c0d678717687b9b9fdf1e3afc0e3d52b05092a0391866c8/zensical-0.0.38-cp310-abi3-win32.whl", hash = "sha256:a2eebc767037943f93fa6f5b74f409ad2ca53d1eda7776092ebb455d7b42eb67", size = 12228161, upload-time = "2026-04-30T12:04:56.641Z" },
     { url = "https://files.pythonhosted.org/packages/14/09/52965dcb9bbae6883a1981a23d926b6410fdf61bd83f399fc9acda5ccb98/zensical-0.0.38-cp310-abi3-win_amd64.whl", hash = "sha256:e91412a38c4a7099e498b656eaf858b1f9d6c3b09dab05a4bdc65a6c3b9a45a1", size = 12469561, upload-time = "2026-04-30T12:04:59.632Z" },
+]
+
+[[package]]
+name = "zmqtt"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/5e/48979a39b03f82dbb9c35f17fba2f685d9f0078ebcb0f12a4abd907fc24c/zmqtt-0.2.2.tar.gz", hash = "sha256:58bd4b93d581de640504f41f881f68fa0b20192a28561fe14f2dc0024eb989d9", size = 44086, upload-time = "2026-09-08T13:32:34.198Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/d6/7bf9fa71c1a6d4ec56b2037e6026989d9b6aac8d15257a83afde81f4eb0d/zmqtt-0.2.2-py3-none-any.whl", hash = "sha256:44b0f03dc6bf8dcc3a0092ff036b6179dc247c9959c920dc9faf0379a35e8458", size = 55935, upload-time = "2026-09-08T13:32:32.905Z" },
 ]

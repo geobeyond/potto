@@ -54,8 +54,8 @@ class _FakeAdminSettings:
     def get_process_manager(self):
         return self._manager
 
-    def get_authorization_backend(self):
-        return self._manager.authorization_backend
+    def get_authorizer(self):
+        return self._manager.authorizer
 
 
 class _FakeAdminRequestApp:
@@ -254,7 +254,12 @@ class TestProcesses:
             "type_": "other",
             "definition": {"echo": "hello"},
         }
-        assert result["deployment_status"] == {"value": "deployed", "detail": None}
+        assert result["deployment_status"] == {
+            "value": "deployed",
+            "detail": None,
+            "definition_hash": None,
+            "changed_at": None,
+        }
 
 
 class TestServerMetadata:
@@ -353,7 +358,7 @@ class TestCommon:
             configurationfile_manager.ConfigurationFileManagerConfiguration(
                 config_file=config_file
             ),
-            settings.get_authorization_backend(),
+            settings.get_authorizer(),
         )
         config_file.unlink()
         assert await instance_manager.check_health() == "error"

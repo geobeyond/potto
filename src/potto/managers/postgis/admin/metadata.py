@@ -65,7 +65,7 @@ class ServerMetadataModelView(_PottoAdminModelView):
     async def async_can_edit(self, request: Request) -> bool:
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
-        return await settings.get_authorization_backend().can_edit_server_metadata(user)
+        return await settings.get_authorizer().can_edit_server_metadata(user)
 
     async def is_row_action_allowed(self, request: Request, name: str) -> bool:
         if name == "edit":

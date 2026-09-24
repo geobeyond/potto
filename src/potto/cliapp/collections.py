@@ -19,14 +19,13 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ._shared import get_cli_system_user
 from ..exceptions import PottoException
 from ..schemas import (
     base as base_schemas,
     cli as cli_schemas,
 )
 from ..schemas.collections import CollectionCreate
-from ..schemas.auth import UserFilter
+from ..schemas.auth import SystemPrincipal, UserFilter
 from ..util import run_sync
 
 
@@ -68,7 +67,7 @@ async def list_collections(
         collections,
         total,
     ) = await settings.get_collection_manager().paginated_list_collections(
-        get_cli_system_user(),
+        SystemPrincipal(name="cli"),
         page=page,
         page_size=page_size,
         include_total=True,
@@ -109,7 +108,7 @@ async def get_collection(
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Get details about a collection."""
-    user = get_cli_system_user()
+    user = SystemPrincipal(name="cli")
     collection_manager = settings.get_collection_manager()
     if not (
         collection := await collection_manager.get_collection(
@@ -145,7 +144,7 @@ async def create_feature_collection(
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Create a new feature collection."""
-    system_user = get_cli_system_user()
+    system_user = SystemPrincipal(name="cli")
     user_account_manager = settings.get_user_account_manager()
     existing_admins, total_admins = await user_account_manager.paginated_list_users(
         include_total=True,
@@ -211,7 +210,7 @@ async def delete_collections(
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Delete collections."""
-    user = get_cli_system_user()
+    user = SystemPrincipal(name="cli")
     collection_manager = settings.get_collection_manager()
     found_error = False
     for id_ in collection_identifier:
@@ -237,7 +236,7 @@ async def grant_collection_access(
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Grant a user editor or viewer access to a collection."""
-    user = get_cli_system_user()
+    user = SystemPrincipal(name="cli")
     collection_manager = settings.get_collection_manager()
     collection = await collection_manager.get_collection(collection_identifier, user)
     if collection is None:
@@ -263,7 +262,7 @@ async def revoke_collection_access(
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ) -> None:
     """Revoke a user's access to a collection."""
-    user = get_cli_system_user()
+    user = SystemPrincipal(name="cli")
     collection_manager = settings.get_collection_manager()
     collection = await collection_manager.get_collection(collection_identifier, user)
     if collection is None:

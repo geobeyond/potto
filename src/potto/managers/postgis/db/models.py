@@ -246,9 +246,21 @@ class Process(SQLModel, table=True):
                 else []
             ),
             deployment_status=(
-                process_schemas.ProcessDeploymentStatus(**self.deployment_status)
+                process_schemas.ProcessDeploymentStatus(
+                    value=self.deployment_status["value"],
+                    detail=self.deployment_status["detail"],
+                    definition_hash=self.deployment_status["definition_hash"],
+                    changed_at=(
+                        dt.datetime.fromisoformat(changed_at)
+                        if (changed_at := self.deployment_status["changed_at"])
+                        is not None
+                        else None
+                    ),
+                )
                 if self.deployment_status
-                else process_schemas.ProcessDeploymentStatus(value="failed")
+                else process_schemas.ProcessDeploymentStatus(
+                    value=process_schemas.ProcessDeploymentStatusValue.FAILED
+                )
             ),
         )
 

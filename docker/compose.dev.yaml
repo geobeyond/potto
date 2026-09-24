@@ -3,55 +3,88 @@
 name: potto
 
 
+x-potto-image: &potto-image ghcr.io/geobeyond/potto/potto:${CURRENT_GIT_BRANCH:-main}
 x-db-image: &db-image "postgis/postgis:17-3.5-alpine"
+
+x-common-potto-build: &common-potto-build
+    context: ../
+    dockerfile: docker/Dockerfile
+    args:
+      GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+
+x-common-potto-develop-watch: &common-potto-develop-watch
+    - path: ../src/potto
+      action: sync
+      target: /home/appuser/app/src/potto
+    - path: ../tests
+      action: sync
+      target: /home/appuser/app/tests
+    - path: ../pyproject.toml
+      action: rebuild
+    - path: ../uv.lock
+      action: rebuild
+
+x-common-potto-environment: &common-potto-environment
+    DATA_ROOT: "/data"
+    POTTO__INTERNAL_MQTT_BROKER__URL: "mqtt://mosquitto:1883"
+    POTTO__COLLECTION_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
+    POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+    POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+
+    POTTO__SERVER_METADATA_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
+    POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+    POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+
+    POTTO__USER_ACCOUNT_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
+    POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+
+    POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+    POTTO__PROCESS_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+    POTTO__DEBUG: "true"
+    POTTO__UVICORN_LOG_CONFIG_FILE: "/home/appuser/app/uvicorn-log-config-no-db.yml"
+    POTTO__ENV_WHITELIST: '["DATA_ROOT"]'
+
+x-common-potto-depends-on: &common-potto-depends-on
+    db:
+      condition: service_healthy
+    mosquitto:
+      condition: service_started
 
 services:
 
-  potto:
-    image: ghcr.io/geobeyond/potto/potto:${CURRENT_GIT_BRANCH:-main}
+  potto-worker:
+    image: *potto-image
     build:
-      context: ../
-      dockerfile: docker/Dockerfile
-      args:
-        GIT_COMMIT: ${CURRENT_GIT_COMMIT:-unknown}
+      <<: *common-potto-build
     develop:
-      watch:
-        - path: ../src/potto
-          action: sync
-          target: /home/appuser/app/src/potto
-        - path: ../tests
-          action: sync
-          target: /home/appuser/app/tests
-        - path: ../pyproject.toml
-          action: rebuild
-        - path: ../uv.lock
-          action: rebuild
+      watch: *common-potto-develop-watch
     environment:
-      DATA_ROOT: "/data"
-      POTTO__COLLECTION_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
-      POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
-      POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
-
-      POTTO__SERVER_METADATA_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
-      POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
-      POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
-
-      POTTO__USER_ACCOUNT_MANAGER__MANAGER_FACTORY: "potto.managers.postgis.manager:get_postgis_manager"
-      POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
-      POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
-
-      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
-      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
-      POTTO__DEBUG: "true"
-      POTTO__UVICORN_LOG_CONFIG_FILE: "/home/appuser/app/uvicorn-log-config-no-db.yml"
-      POTTO__ENV_WHITELIST: '["DATA_ROOT"]'
+      <<: *common-potto-environment
     depends_on:
-      db:
-        condition: service_healthy
+      <<: *common-potto-depends-on
     volumes:
       - type: bind
         source: ${POTTO_DATA_ROOT:?set POTTO_DATA_ROOT environment variable to your local data directory}
         target: /data
+    command: ["run-worker"]
+
+  potto:
+    image: *potto-image
+    build:
+      <<: *common-potto-build
+    develop:
+      watch: *common-potto-develop-watch
+    environment:
+      <<: *common-potto-environment
+    depends_on:
+      <<: *common-potto-depends-on
+    volumes:
+      - type: bind
+        source: ${POTTO_DATA_ROOT:?set POTTO_DATA_ROOT environment variable to your local data directory}
+        target: /data
+      # this next volume bind is needed to allow generating db migrations when working inside the container and
+      # then have the migration file show up on the local host
       - type: bind
         source: ../src/potto/managers/postgis/db/migrations/versions
         target: /home/appuser/app/src/potto/managers/postgis/db/migrations/versions
@@ -357,9 +390,26 @@ services:
     profiles:
       - opa
 
+  mosquitto:
+    image: "eclipse-mosquitto:2.1.2-alpine"
+    configs:
+      - source: mosquitto-conf
+        target: /mosquitto/config/mosquitto.conf
+    ports:
+      - target: 1883
+        published: 11883
+
 volumes:
   db:
   test-db:
   cite-db:
 #  external-db:
   keycloak:
+
+configs:
+  mosquitto-conf:
+    content: |
+      allow_anonymous true
+      listener 1883
+      log_dest stderr
+      log_timestamp_format %Y-%m-%dT%H:%M:%S

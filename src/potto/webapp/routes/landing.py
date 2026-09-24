@@ -33,7 +33,11 @@ async def get_landing_page(request: Request) -> Response:
             # health check just passed, but the DB dropped before this next
             # query - fall back to the same banner rendering rather than
             # letting this 500.
-            health = WebHealthCheck(status="error", collection_manager="error")
+            health = WebHealthCheck(
+                status="error",
+                collection_manager="error",
+                internal_broker=health.internal_broker,
+            )
     return request.state.templates.TemplateResponse(
         request,
         "landing-page.html",
