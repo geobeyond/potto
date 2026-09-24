@@ -1230,6 +1230,7 @@ dependencies = [
     { name = "starlette-admin" },
     { name = "starlette-babel" },
     { name = "uvicorn" },
+    { name = "watchfiles" },
 ]
 
 [package.dev-dependencies]
@@ -1280,6 +1281,7 @@ requires-dist = [
     { name = "starlette-admin", specifier = ">=0.16.0" },
     { name = "starlette-babel", specifier = ">=1.0.3" },
     { name = "uvicorn", specifier = ">=0.38.0" },
+    { name = "watchfiles", specifier = ">=1.1.1" },
 ]
 
 [package.metadata.requires-dev]

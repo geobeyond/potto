@@ -10,8 +10,7 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ._shared import get_cli_system_user
-from ..schemas.auth import UserFilter
+from ..schemas.auth import SystemPrincipal, UserFilter
 
 from ..schemas import (
     base as base_schemas,
@@ -71,7 +70,7 @@ async def bootstrap_for_cite_ogcapi_features(
         return None
     identifier = "obs-cite"
     if (
-        await collection_manager.get_collection(identifier, get_cli_system_user())
+        await collection_manager.get_collection(identifier, SystemPrincipal(name="cli"))
     ) is not None:
         cite_app.error_console.print(
             f"[red]Error:[/red] a collection named {identifier!r} already "
@@ -81,7 +80,7 @@ async def bootstrap_for_cite_ogcapi_features(
     admin_users, _ = await user_account_manager.paginated_list_users(
         filter_=UserFilter(is_admin=True),
         include_total=False,
-        requesting_user=get_cli_system_user(),
+        requesting_user=SystemPrincipal(name="cli"),
     )
     if len(admin_users) == 0:
         cite_app.error_console.print(

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
     from ..schemas.auth import (
         PottoUser,
@@ -44,14 +45,14 @@ class UserAccountProtocol(Protocol):
     async def get_user(
         self,
         user_id: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser | None":
         """Retrieve a user by id."""
 
     async def get_user_by_username(
         self,
         username: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser | None":
         """Retrieve a user by username."""
 
@@ -62,14 +63,14 @@ class UserAccountProtocol(Protocol):
         page_size: int = 20,
         include_total: bool = False,
         filter_: "UserFilter | None" = None,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> tuple[list["PottoUser"], int | None]:
         """Retrieve a list of users."""
 
     async def create_user(
         self,
         to_create: "UserCreate",
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser":
         """Create a new local user.
 
@@ -81,7 +82,7 @@ class UserAccountProtocol(Protocol):
         self,
         user_id: str,
         to_update: "UserUpdate",
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser":
         """Update an existing user.
 
@@ -92,7 +93,7 @@ class UserAccountProtocol(Protocol):
     async def delete_user(
         self,
         user_id: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> None:
         """Delete a user.
 
@@ -115,7 +116,7 @@ class UserAccountProtocol(Protocol):
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> list["PottoUser"]:
         """Return the users who hold the editor role on the given resource.
 
@@ -127,7 +128,7 @@ class UserAccountProtocol(Protocol):
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> list["PottoUser"]:
         """Return the users who hold the viewer role on the given resource."""
 

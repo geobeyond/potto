@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class HealthCheck:
     status: Literal["ok", "error"]
     collection_manager: Literal["ok", "not-ready", "error"]
+    internal_broker: Literal["ok", "error"]
 
 
 @dataclasses.dataclass(frozen=True)

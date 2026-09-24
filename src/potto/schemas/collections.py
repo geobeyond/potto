@@ -162,3 +162,16 @@ class CollectionUpdate(pydantic.BaseModel):
     custom_page_size_max: Annotated[int | None, pydantic.Field(ge=1)] = None
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
     providers: dict[str, PottoProvider] | None = None
+
+
+class CollectionCreatedEvent(pydantic.BaseModel):
+    identifier: str
+
+
+class CollectionUpdatedEvent(pydantic.BaseModel):
+    identifier: str
+    old: dict
+
+
+class CollectionDeletedEvent(pydantic.BaseModel):
+    identifier: str

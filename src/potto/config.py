@@ -1,18 +1,25 @@
+import socket
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import (
+    Any,
+    Literal,
+)
 
 import jinja2
 import pydantic
 import pydantic_settings
+import zmqtt
+from faststream.mqtt import MQTTBroker
 from pygeoapi import __version__ as pygeoapi_version
 from starlette_babel import get_translator
 from starlette_babel.contrib.jinja import configure_jinja_env
 
 from . import jinjafilters
 from .authn.oidc import OIDCProvider
-from .authz.protocols import AuthorizationBackendProtocol
+from .authz.authorizer import PottoAuthorizer
 from .authz.backend import LocalAuthorizationBackend
+from .authz.protocols import AuthorizationBackendProtocol
 from .authz.opa import OPAAuthorizationBackend
 from .managers.collections import (
     CollectionManagerProtocol,
@@ -96,6 +103,10 @@ class InternalMqttBrokerSettings(pydantic.BaseModel):
     url: pydantic.AnyUrl = pydantic.AnyUrl("mqtt://localhost:1883")
 
 
+class ExternalMqttBrokerSettings(pydantic.BaseModel):
+    url: pydantic.AnyUrl = pydantic.AnyUrl("mqtt://localhost:1884")
+
+
 class PottoSettings(pydantic_settings.BaseSettings):
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="potto__",
@@ -121,6 +132,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     oidc: OIDCSettings | None = None
     opa: OPASettings | None = None
     internal_mqtt_broker: InternalMqttBrokerSettings = InternalMqttBrokerSettings()
+    external_mqtt_broker: ExternalMqttBrokerSettings = ExternalMqttBrokerSettings()
 
     # these use default_factory in order to defer construction until PottoSettings() is actually called,
     # by which point the model_rebuild() calls below have resolved these settings models' forward
@@ -159,6 +171,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
         ),
     )
 
+    _internal_broker: MQTTBroker | None = None
     _collection_manager: CollectionManagerProtocol | None = None
     _server_metadata_manager: ServerMetadataProtocol | None = None
     _user_account_manager: UserAccountProtocol | None = None
@@ -195,6 +208,25 @@ class PottoSettings(pydantic_settings.BaseSettings):
             else:
                 self._authorization_backend = LocalAuthorizationBackend()
         return self._authorization_backend
+
+    def get_authorizer(self) -> PottoAuthorizer:
+        return PottoAuthorizer(self.get_authorization_backend())
+
+    def get_internal_broker(self, role: Literal["api", "worker"]) -> MQTTBroker:
+        if self._internal_broker is None:
+            self._internal_broker = MQTTBroker(
+                self.internal_mqtt_broker.url.unicode_string(),
+                version="5.0",
+                client_id=f"potto-{role}-{socket.gethostname()}",
+                clean_session=True if role == "api" else False,
+                # Retry forever with exponential backoff instead of giving up after
+                # zmqtt's default of 5 attempts - the api role connects in a
+                # non-blocking background task (see webapp/main.py's lifespan) and
+                # must keep trying even if mosquitto is unreachable for a while.
+                reconnect=zmqtt.ReconnectConfig(max_attempts=None),
+            )
+
+        return self._internal_broker
 
     def get_collection_manager(self) -> CollectionManagerProtocol:
         if self._collection_manager is None:

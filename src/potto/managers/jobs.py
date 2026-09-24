@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
-    from ..schemas.auth import PottoUser
     from ..schemas.jobs import (
         Job,
         JobCreate,
@@ -27,10 +27,6 @@ if TYPE_CHECKING:
 
 class JobManagerProtocol(Protocol):
     """A protocol for potto job managers."""
-
-    @property
-    def supported_deployment_types(self) -> tuple[Literal["cwl", "oci"] | str, ...]:
-        """Report which deployment types are supported by the manager."""
 
     async def check_health(self) -> Literal["ok", "not-ready", "error"]:
         """Check whether the manager is healthy."""
@@ -47,6 +43,10 @@ class JobManagerProtocol(Protocol):
 
     async def get_job_capabilities(self) -> "JobManagerCapabilities":
         """Return the manager's capabilities."""
+
+    @property
+    def supported_deployment_types(self) -> tuple[Literal["cwl", "oci"] | str, ...]:
+        """Report which deployment types are supported by the manager."""
 
     async def deploy_process(self, process: "Process") -> "ProcessDeploymentStatus":
         """Deploy a process.
@@ -70,13 +70,13 @@ class JobManagerProtocol(Protocol):
     async def get_job(
         self,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> "Job | None":
         """Retrieve a job."""
 
     async def paginated_list_jobs(
         self,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -88,14 +88,14 @@ class JobManagerProtocol(Protocol):
     async def create_job(
         self,
         to_create: "JobCreate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Job":
         """Create a new job. This implicitly means that execution is also scheduled to start."""
 
     async def delete_job(
         self,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
         """Delete a job.
 

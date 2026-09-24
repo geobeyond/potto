@@ -21,6 +21,7 @@ from ...schemas.processes import (
     OciOutputBinding,
     Process,
     ProcessDeploymentStatus,
+    ProcessDeploymentStatusValue,
     ProcessExecutionUnitCwl,
     ProcessExecutionUnitOci,
     ProcessExecutionUnitOther,
@@ -146,7 +147,9 @@ def parse_processes(
         if (raw_deployment_status := raw.get("deployment_status")) is not None:
             raw["deployment_status"] = ProcessDeploymentStatus(**raw_deployment_status)
         else:
-            raw["deployment_status"] = ProcessDeploymentStatus(value="failed")
+            raw["deployment_status"] = ProcessDeploymentStatus(
+                value=ProcessDeploymentStatusValue.FAILED
+            )
         process = Process(**raw)
         processes[process.identifier] = process
     return processes

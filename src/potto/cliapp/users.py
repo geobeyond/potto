@@ -18,8 +18,7 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ._shared import get_cli_system_user
-from ..schemas.auth import UserCreate
+from ..schemas.auth import SystemPrincipal, UserCreate
 from ..schemas import cli as cli_schemas
 from ..util import run_sync
 
@@ -63,7 +62,7 @@ async def list_users(
         page=page,
         page_size=page_size,
         include_total=True,
-        requesting_user=get_cli_system_user(),
+        requesting_user=SystemPrincipal(name="cli"),
     )
     assert total is not None
     result = cli_schemas.ItemList[cli_schemas.UserListItem](
@@ -127,7 +126,7 @@ async def create_user(
     except Exception as err:
         raise SystemExit(f"Error: {err}") from err
     created = await settings.get_user_account_manager().create_user(
-        to_create, requesting_user=get_cli_system_user()
+        to_create, requesting_user=SystemPrincipal(name="cli")
     )
     user_app.console.print(f"User {created.username!r} created (id: {created.id})")
 
