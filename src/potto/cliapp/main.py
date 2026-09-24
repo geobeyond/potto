@@ -19,7 +19,6 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ..eventhandlers.main import create_app_from_settings as create_subscriber_app
 
 from .banner import BANNER
 from .cite import cite_app
@@ -121,14 +120,27 @@ def launcher(
     return command(*bound.args, **bound.kwargs, **additional_kwargs)
 
 
-@potto_app.command(name="run-subscriber")
-async def run_subscriber(
+@potto_app.command(name="run-worker")
+async def run_faststream_worker(
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ):
     potto_app.console.print(BANNER)
-    subscriber_app = create_subscriber_app(settings)
-    await subscriber_app.run()
+    faststream_args = [
+        "faststream",
+        "run",
+        "potto.eventhandlers.main:create_worker_app",
+        "--factory",
+    ]
+    if settings.debug:
+        faststream_args.extend(["--reload", "--log-level", "debug"])
+    else:
+        faststream_args.extend(["--log-level", "info"])
+    if (log_config_file := settings.uvicorn_log_config_file) is not None:
+        faststream_args.extend(["--log-config", f"{str(log_config_file)}"])
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execvp("faststream", faststream_args)
 
 
 @potto_app.command(name="run-server")

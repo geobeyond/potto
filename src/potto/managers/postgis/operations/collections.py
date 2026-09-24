@@ -8,7 +8,11 @@ from sqlalchemy.exc import DatabaseError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .... import util
-from ....authz.protocols import AuthorizationBackendProtocol
+from ....authz.authorizer import (
+    PottoAuthorizer,
+    Principal,
+    SystemPrincipal,
+)
 from ....constants import (
     CollectionType,
     CRS_84,
@@ -42,8 +46,8 @@ logger = logging.getLogger(__name__)
 
 async def paginated_list_collections(
     session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal | None,
+    authorizer: PottoAuthorizer,
     *,
     page: int = 1,
     page_size: int = 20,
@@ -67,23 +71,38 @@ async def paginated_list_collections(
             spatial_intersect=spatial_intersect,
         )
         return [col.to_potto() for col in public_collections], count
-    accessible_ids = await authorization_backend.get_accessible_collection_identifiers(
-        user
-    )
-    (
-        accessible_collections,
-        count,
-    ) = await collection_queries.paginated_list_user_collections(
-        session,
-        page=page,
-        page_size=page_size,
-        include_total=include_total,
-        identifier_filter=identifier_filter,
-        user_id=user.id,
-        accessible_identifiers=accessible_ids,
-        collection_type_filter=collection_type_filter,
-        spatial_intersect=spatial_intersect,
-    )
+    match user:
+        case SystemPrincipal():
+            (
+                accessible_collections,
+                count,
+            ) = await collection_queries.paginated_list_all_collections(
+                session,
+                page=page,
+                page_size=page_size,
+                include_total=include_total,
+                identifier_filter=identifier_filter,
+                collection_type_filter=collection_type_filter,
+                spatial_intersect=spatial_intersect,
+            )
+        case _:
+            accessible_ids = await authorizer.get_accessible_collection_identifiers(
+                user
+            )
+            (
+                accessible_collections,
+                count,
+            ) = await collection_queries.paginated_list_user_collections(
+                session,
+                page=page,
+                page_size=page_size,
+                include_total=include_total,
+                identifier_filter=identifier_filter,
+                user_id=user.id,
+                accessible_identifiers=accessible_ids,
+                collection_type_filter=collection_type_filter,
+                spatial_intersect=spatial_intersect,
+            )
     return [
         accessible_col.to_potto() for accessible_col in accessible_collections
     ], count
@@ -91,8 +110,8 @@ async def paginated_list_collections(
 
 async def get_collection_by_resource_identifier(
     session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal | None,
+    authorizer: PottoAuthorizer,
     identifier: str,
 ) -> CollectionSchema | None:
     resource = await collection_queries.get_collection_by_resource_identifier(
@@ -101,7 +120,7 @@ async def get_collection_by_resource_identifier(
     if resource is None:
         return None
     collection = resource.to_potto()
-    if not await authorization_backend.can_view_collection(user, collection):
+    if not await authorizer.can_view_collection(user, collection):
         return None
     return collection
 
@@ -173,12 +192,12 @@ async def _enrich_from_provider(
 
 async def create_collection(
     session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal | None,
+    authorizer: PottoAuthorizer,
     to_create: CollectionCreate,
     potto_settings: "PottoSettings",
 ) -> CollectionSchema:
-    if not await authorization_backend.can_create_collection(user):
+    if not await authorizer.can_create_collection(user):
         raise PottoCannotCreateCollectionException(
             "User does not have permission to create a collection."
         )
@@ -197,20 +216,18 @@ async def create_collection(
 
 async def update_collection(
     session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal,
+    authorizer: PottoAuthorizer,
     collection: CollectionSchema,
     to_update: CollectionUpdate,
 ) -> CollectionSchema:
-    if not await authorization_backend.can_edit_collection(user, collection):
+    if not await authorizer.can_edit_collection(user, collection):
         raise PottoCannotEditCollectionException(
             f"User does not have permission to edit collection "
             f"{collection.identifier!r}."
         )
     if to_update.owner_id is not None and to_update.owner_id != collection.owner.id:
-        if not await authorization_backend.can_change_collection_owner(
-            user, collection
-        ):
+        if not await authorizer.can_change_collection_owner(user, collection):
             raise PottoCannotChangeCollectionOwnerException(
                 f"User does not have permission to change the owner of collection "
                 f"{collection.identifier!r}."
@@ -233,8 +250,8 @@ async def update_collection(
 
 async def delete_collection(
     session: AsyncSession,
-    user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal,
+    authorizer: PottoAuthorizer,
     identifier: str,
 ) -> None:
     db_collection = await collection_queries.get_collection_by_resource_identifier(
@@ -242,9 +259,7 @@ async def delete_collection(
     )
     if db_collection is None:
         raise PottoException(f"Collection {identifier!r} does not exist.")
-    if not await authorization_backend.can_edit_collection(
-        user, db_collection.to_potto()
-    ):
+    if not await authorizer.can_edit_collection(user, db_collection.to_potto()):
         raise PottoCannotDeleteCollectionException(
             f"User does not have permission to delete collection {identifier!r}."
         )
@@ -281,7 +296,7 @@ def _get_crs_info(
 async def import_pygeoapi_collection(
     session: AsyncSession,
     user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
+    authorizer: PottoAuthorizer,
     identifier: str,
     pygeoapi_collection: dict,
     potto_settings: "PottoSettings",
@@ -333,7 +348,7 @@ async def import_pygeoapi_collection(
 
     collection_type = util.get_collection_type(pygeoapi_collection)
     if existing_db_collection and overwrite:
-        if not await authorization_backend.can_edit_collection(
+        if not await authorizer.can_edit_collection(
             user, existing_db_collection.to_potto()
         ):
             raise PottoException(
@@ -386,5 +401,5 @@ async def import_pygeoapi_collection(
             providers=providers,
         )
         return await create_collection(
-            session, user, authorization_backend, to_create, potto_settings
+            session, user, authorizer, to_create, potto_settings
         )

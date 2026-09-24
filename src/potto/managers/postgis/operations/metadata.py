@@ -9,9 +9,11 @@ import logging
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from ....authz.protocols import AuthorizationBackendProtocol
+from ....authz.authorizer import (
+    PottoAuthorizer,
+    Principal,
+)
 from ....exceptions import PottoCannotEditServerMetadataException
-from ....schemas.auth import PottoUser
 from ....schemas.metadata import (
     ServerMetadata,
     ServerMetadataCreate,
@@ -35,11 +37,11 @@ async def get_server_metadata(session: AsyncSession) -> ServerMetadata:
 
 async def update_server_metadata(
     session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
+    user: Principal | None,
+    authorizer: PottoAuthorizer,
     to_update: ServerMetadataUpdate,
 ) -> ServerMetadata:
-    if not await authorization_backend.can_edit_server_metadata(user):
+    if not await authorizer.can_edit_server_metadata(user):
         raise PottoCannotEditServerMetadataException(
             "User does not have permission to edit server metadata."
         )

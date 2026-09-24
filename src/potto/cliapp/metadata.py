@@ -14,7 +14,7 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
-from ._shared import get_cli_system_user
+from ..schemas.auth import SystemPrincipal
 from ..schemas.metadata import (
     ServerMetadataFlattenedUpdate,
     unflatten_server_metadata_update,
@@ -80,7 +80,7 @@ async def update_metadata(
     existing = await server_metadata_manager.get_server_metadata()
     nested_update = unflatten_server_metadata_update(existing, to_update)
     updated_metadata = await server_metadata_manager.update_server_metadata(
-        nested_update, get_cli_system_user()
+        nested_update, SystemPrincipal(name="cli")
     )
     result = cli_schemas.ServerMetadataDetail.from_potto(updated_metadata)
     if format == "json":

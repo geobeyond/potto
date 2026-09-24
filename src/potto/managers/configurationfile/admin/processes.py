@@ -164,11 +164,11 @@ class ProcessView(_PottoAdminModelView):
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
         process_manager = settings.get_process_manager()
-        auth_backend = settings.get_authorization_backend()
+        authorizer = settings.get_authorizer()
         process = await process_manager.get_process(pk, user)
         if process is None:
             return None
-        if not await auth_backend.can_view_process(user, process):
+        if not await authorizer.can_view_process(user, process):
             return None
         user_account_manager = settings.get_user_account_manager()
         editors = await user_account_manager.list_resource_editors(
@@ -229,7 +229,12 @@ class ProcessView(_PottoAdminModelView):
         if field.name in ("inputs", "outputs"):
             return [dataclasses.asdict(item) for item in value]
         if field.name == "deployment_status":
-            return dataclasses.asdict(value) if value is not None else None
+            if value is None:
+                return None
+            status_dict = dataclasses.asdict(value)
+            if status_dict["changed_at"] is not None:
+                status_dict["changed_at"] = status_dict["changed_at"].isoformat()
+            return status_dict
         return await super().serialize_field_value(value, field, action, request)
 
     def _flatten_execution_unit(self, value: Any) -> dict:

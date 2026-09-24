@@ -83,3 +83,5 @@ GREGORIAN: typing.Final[str] = "http://www.opengis.net/def/uom/ISO-8601/0/Gregor
 FEATURE_COLLECTION_ITEM_TYPE: typing.Final[str] = "feature"
 
 PYGEOAPI_F_JSON: typing.Final[str] = "json"
+
+PROCESS_INTERNAL_TOPIC_PREFIX: typing.Final[str] = "processes"

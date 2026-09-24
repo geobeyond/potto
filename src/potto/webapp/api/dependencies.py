@@ -13,7 +13,7 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordBearer
 
 from ... import config
-from ...authz.protocols import AuthorizationBackendProtocol
+from ...authz.authorizer import PottoAuthorizer
 from ...schemas.auth import PottoUser
 from ...wrapper import Potto
 
@@ -51,10 +51,10 @@ def get_current_locale(request: Request) -> babel.Locale:
     return babel.Locale.parse(request.state.language)
 
 
-def get_authorization_backend(
+def get_authorizer(
     settings: Annotated[config.PottoSettings, Depends(get_settings)],
-) -> AuthorizationBackendProtocol:
-    return settings.get_authorization_backend()
+) -> PottoAuthorizer:
+    return settings.get_authorizer()
 
 
 def get_pagination_limit(
@@ -71,9 +71,7 @@ SettingsDependency = Annotated[config.PottoSettings, Depends(get_settings)]
 PottoDependency = Annotated[Potto, Depends(get_potto)]
 UserDependency = Annotated[PottoUser | None, Depends(get_current_user)]
 LocaleDependency = Annotated[babel.Locale, Depends(get_current_locale)]
-AuthorizationBackendDependency = Annotated[
-    AuthorizationBackendProtocol, Depends(get_authorization_backend)
-]
+AuthorizerDependency = Annotated[PottoAuthorizer, Depends(get_authorizer)]
 PaginationLimitDependency = Annotated[int, Depends(get_pagination_limit)]
 CollectionIdPath = Annotated[
     str, Path(description="Unique identifier of the collection.")

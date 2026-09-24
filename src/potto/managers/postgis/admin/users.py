@@ -46,7 +46,7 @@ class UserView(_PottoAdminModelView):
     async def async_can_create(self, request: Request) -> bool:
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
-        return await settings.get_authorization_backend().can_create_user(user)
+        return await settings.get_authorizer().can_create_user(user)
 
     fields = (
         StringField("id"),

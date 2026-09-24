@@ -13,7 +13,10 @@ import cyclopts
 from sqlalchemy import create_engine
 from starlette_admin.views import BaseModelView
 
-from ...authz.protocols import AuthorizationBackendProtocol
+from ...authz.authorizer import (
+    PottoAuthorizer,
+    Principal,
+)
 from ...schemas import (
     auth as auth_schemas,
     collections as collection_schemas,
@@ -49,12 +52,12 @@ class PostgisManager:
     - ``ServerMetadataProtocol``
     """
 
-    authorization_backend: AuthorizationBackendProtocol
+    authorizer: PottoAuthorizer
     config: PostgisManagerConfiguration
     settings: "PottoSettings"
 
     def __init__(self, config: PostgisManagerConfiguration, settings: "PottoSettings"):
-        self.authorization_backend = settings.get_authorization_backend()
+        self.authorizer = settings.get_authorizer()
         self.config = config
         self.settings = settings
 
@@ -88,17 +91,17 @@ class PostgisManager:
     async def get_collection(
         self,
         identifier: str,
-        user: auth_schemas.PottoUser | None,
+        user: Principal | None,
     ) -> collection_schemas.Collection | None:
         """Retrieve a collection."""
         async with self.config.get_db_session_maker()() as db_session:
             return await collection_ops.get_collection_by_resource_identifier(
-                db_session, user, self.authorization_backend, identifier
+                db_session, user, self.authorizer, identifier
             )
 
     async def paginated_list_collections(
         self,
-        user: auth_schemas.PottoUser | None,
+        user: Principal | None,
         *,
         page: int = 1,
         page_size: int = 20,
@@ -110,7 +113,7 @@ class PostgisManager:
             return await collection_ops.paginated_list_collections(
                 db_session,
                 user,
-                self.authorization_backend,
+                self.authorizer,
                 page=page,
                 page_size=page_size,
                 include_total=include_total,
@@ -130,41 +133,41 @@ class PostgisManager:
     async def create_collection(
         self,
         to_create: collection_schemas.CollectionCreate,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> collection_schemas.Collection:
         """Create a new collection."""
         async with self.config.get_db_session_maker()() as db_session:
             return await collection_ops.create_collection(
-                db_session, user, self.authorization_backend, to_create, self.settings
+                db_session, user, self.authorizer, to_create, self.settings
             )
 
     async def update_collection(
         self,
         collection: collection_schemas.Collection,
         to_update: collection_schemas.CollectionUpdate,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> collection_schemas.Collection:
         """Update an existing collection."""
         async with self.config.get_db_session_maker()() as db_session:
             return await collection_ops.update_collection(
-                db_session, user, self.authorization_backend, collection, to_update
+                db_session, user, self.authorizer, collection, to_update
             )
 
     async def delete_collection(
         self,
         identifier: str,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> None:
         """Delete a collection."""
         async with self.config.get_db_session_maker()() as db_session:
             return await collection_ops.delete_collection(
-                db_session, user, self.authorization_backend, identifier
+                db_session, user, self.authorizer, identifier
             )
 
     async def grant_collection_access(
         self,
         *,
-        granting_user: auth_schemas.PottoUser,
+        granting_user: Principal,
         target_user_id: str,
         collection: collection_schemas.Collection,
         role: str,
@@ -174,7 +177,7 @@ class PostgisManager:
             return await user_ops.grant_collection_access(
                 db_session,
                 granting_user,
-                self.authorization_backend,
+                self.authorizer,
                 target_user_id,
                 collection,
                 role,
@@ -183,7 +186,7 @@ class PostgisManager:
     async def revoke_collection_access(
         self,
         *,
-        revoking_user: auth_schemas.PottoUser,
+        revoking_user: Principal,
         target_user_id: str,
         collection: collection_schemas.Collection,
     ) -> None:
@@ -192,7 +195,7 @@ class PostgisManager:
             return await user_ops.revoke_collection_access(
                 db_session,
                 revoking_user,
-                self.authorization_backend,
+                self.authorizer,
                 target_user_id,
                 collection,
             )
@@ -214,13 +217,13 @@ class PostgisManager:
     async def update_server_metadata(
         self,
         to_update: metadata_schemas.ServerMetadataUpdate,
-        user: auth_schemas.PottoUser | None,
+        user: Principal | None,
     ) -> metadata_schemas.ServerMetadata:
         async with self.config.get_db_session_maker()() as db_session:
             return await metadata_ops.update_server_metadata(
                 db_session,
                 user,
-                self.authorization_backend,
+                self.authorizer,
                 to_update,
             )
 
@@ -239,21 +242,21 @@ class PostgisManager:
     async def get_user(
         self,
         user_id: str,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> auth_schemas.PottoUser | None:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.get_user(
-                db_session, requesting_user, self.authorization_backend, user_id
+                db_session, requesting_user, self.authorizer, user_id
             )
 
     async def get_user_by_username(
         self,
         username: str,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> auth_schemas.PottoUser | None:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.get_user_by_username(
-                db_session, requesting_user, self.authorization_backend, username
+                db_session, requesting_user, self.authorizer, username
             )
 
     async def paginated_list_users(
@@ -263,13 +266,13 @@ class PostgisManager:
         page_size: int = 20,
         include_total: bool = False,
         filter_: auth_schemas.UserFilter | None = None,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> tuple[list[auth_schemas.PottoUser], int | None]:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.paginated_list_users(
                 db_session,
                 requesting_user,
-                self.authorization_backend,
+                self.authorizer,
                 username_filter=filter_.username if filter_ else None,
                 admin_filter=bool(filter_ and filter_.is_admin),
                 page=page,
@@ -280,13 +283,13 @@ class PostgisManager:
     async def create_user(
         self,
         to_create: auth_schemas.UserCreate,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> auth_schemas.PottoUser:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.create_user(
                 db_session,
                 requesting_user,
-                self.authorization_backend,
+                self.authorizer,
                 to_create,
             )
 
@@ -294,13 +297,13 @@ class PostgisManager:
         self,
         user_id: str,
         to_update: auth_schemas.UserUpdate,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> auth_schemas.PottoUser:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.update_user(
                 db_session,
                 requesting_user,
-                self.authorization_backend,
+                self.authorizer,
                 user_id,
                 to_update,
             )
@@ -308,11 +311,11 @@ class PostgisManager:
     async def delete_user(
         self,
         user_id: str,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> None:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.delete_user(
-                db_session, requesting_user, self.authorization_backend, user_id
+                db_session, requesting_user, self.authorizer, user_id
             )
 
     async def provision_oidc_user(
@@ -331,13 +334,13 @@ class PostgisManager:
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> list[auth_schemas.PottoUser]:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.list_resource_editors(
                 db_session,
                 requesting_user,
-                self.authorization_backend,
+                self.authorizer,
                 resource_type,
                 resource_identifier,
             )
@@ -346,13 +349,13 @@ class PostgisManager:
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: auth_schemas.PottoUser | None,
+        requesting_user: Principal | None,
     ) -> list[auth_schemas.PottoUser]:
         async with self.config.get_db_session_maker()() as db_session:
             return await user_ops.list_resource_viewers(
                 db_session,
                 requesting_user,
-                self.authorization_backend,
+                self.authorizer,
                 resource_type,
                 resource_identifier,
             )
@@ -374,17 +377,17 @@ class PostgisManager:
     async def get_process(
         self,
         identifier: str,
-        user: auth_schemas.PottoUser | None,
+        user: Principal | None,
     ) -> process_schemas.Process | None:
         """Retrieve a process."""
         async with self.config.get_db_session_maker()() as db_session:
             return await process_ops.get_process_by_resource_identifier(
-                db_session, user, self.authorization_backend, identifier
+                db_session, user, self.authorizer, identifier
             )
 
     async def paginated_list_processes(
         self,
-        user: auth_schemas.PottoUser | None,
+        user: Principal | None,
         *,
         page: int = 1,
         page_size: int = 20,
@@ -396,7 +399,7 @@ class PostgisManager:
             return await process_ops.paginated_list_processes(
                 db_session,
                 user,
-                self.authorization_backend,
+                self.authorizer,
                 page=page,
                 page_size=page_size,
                 include_total=include_total,
@@ -410,7 +413,7 @@ class PostgisManager:
     async def create_process(
         self,
         to_create: process_schemas.ProcessCreate,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> process_schemas.Process:
         """Create a new process.
 
@@ -419,36 +422,54 @@ class PostgisManager:
         """
         async with self.config.get_db_session_maker()() as db_session:
             return await process_ops.create_process(
-                db_session, user, self.authorization_backend, to_create
+                db_session, user, self.authorizer, to_create
             )
 
     async def update_process(
         self,
         process: process_schemas.Process,
         to_update: process_schemas.ProcessUpdate,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> process_schemas.Process:
         """Update an existing process."""
         async with self.config.get_db_session_maker()() as db_session:
             return await process_ops.update_process(
-                db_session, user, self.authorization_backend, process, to_update
+                db_session, user, self.authorizer, process, to_update
+            )
+
+    async def set_process_deployment_status(
+        self,
+        process: process_schemas.Process,
+        value: process_schemas.ProcessDeploymentStatusValue,
+        user: Principal,
+        detail: str | None = None,
+    ) -> process_schemas.Process:
+        """update a process' deployment status."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await process_ops.set_process_deployment_status(
+                db_session,
+                user,
+                self.authorizer,
+                process,
+                value=value,
+                detail=detail,
             )
 
     async def delete_process(
         self,
         identifier: str,
-        user: auth_schemas.PottoUser,
+        user: Principal,
     ) -> None:
         """Delete a process."""
         async with self.config.get_db_session_maker()() as db_session:
             return await process_ops.delete_process(
-                db_session, user, self.authorization_backend, identifier
+                db_session, user, self.authorizer, identifier
             )
 
     async def grant_process_access(
         self,
         *,
-        granting_user: auth_schemas.PottoUser,
+        granting_user: Principal,
         target_user_id: str,
         process: process_schemas.Process,
         role: str,
@@ -458,7 +479,7 @@ class PostgisManager:
             return await user_ops.grant_process_access(
                 db_session,
                 granting_user,
-                self.authorization_backend,
+                self.authorizer,
                 target_user_id,
                 process,
                 role,
@@ -467,7 +488,7 @@ class PostgisManager:
     async def revoke_process_access(
         self,
         *,
-        revoking_user: auth_schemas.PottoUser,
+        revoking_user: Principal,
         target_user_id: str,
         process: process_schemas.Process,
     ) -> None:
@@ -476,7 +497,7 @@ class PostgisManager:
             return await user_ops.revoke_process_access(
                 db_session,
                 revoking_user,
-                self.authorization_backend,
+                self.authorizer,
                 target_user_id,
                 process,
             )

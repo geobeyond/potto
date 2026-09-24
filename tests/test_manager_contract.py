@@ -18,12 +18,14 @@ from pydantic import SecretStr
 
 from potto.constants import CollectionType
 from potto.exceptions import (
+    CannotUpdateResourceException,
     CapabilityNotSupported,
     PottoCannotDeleteUserException,
     PottoCannotEditUserException,
     PottoCannotViewUserException,
 )
 from potto.schemas.auth import (
+    SystemPrincipal,
     UserCreate,
     UserFilter,
     UserUpdate,
@@ -38,6 +40,7 @@ from potto.schemas.processes import (
     ExecutionUnitOtherCreate,
     ExecutionUnitOtherUpdate,
     ProcessCreate,
+    ProcessDeploymentStatusValue,
     ProcessDescriptionCreate,
     ProcessDescriptionUpdate,
     ProcessFilter,
@@ -454,6 +457,42 @@ class TestProcessMutationCapabilities:
                 await manager.update_process(
                     contract_harness.private_process,
                     to_update,
+                    contract_harness.owner_user,
+                )
+
+    @pytest.mark.asyncio
+    async def test_set_process_deployment_status(self, contract_harness):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        if capabilities.supports_modification:
+            with pytest.raises(CannotUpdateResourceException):
+                await manager.set_process_deployment_status(
+                    contract_harness.private_process,
+                    ProcessDeploymentStatusValue.DEPLOYED,
+                    contract_harness.other_user,
+                )
+            updated = await manager.set_process_deployment_status(
+                contract_harness.private_process,
+                ProcessDeploymentStatusValue.DEPLOYED,
+                contract_harness.owner_user,
+            )
+            assert (
+                updated.deployment_status.value == ProcessDeploymentStatusValue.DEPLOYED
+            )
+            updated_by_system = await manager.set_process_deployment_status(
+                contract_harness.private_process,
+                ProcessDeploymentStatusValue.IN_PROGRESS,
+                SystemPrincipal(name="test-system"),
+            )
+            assert (
+                updated_by_system.deployment_status.value
+                == ProcessDeploymentStatusValue.IN_PROGRESS
+            )
+        else:
+            with pytest.raises(CapabilityNotSupported):
+                await manager.set_process_deployment_status(
+                    contract_harness.private_process,
+                    ProcessDeploymentStatusValue.DEPLOYED,
                     contract_harness.owner_user,
                 )
 

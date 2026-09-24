@@ -110,3 +110,11 @@ class UserAccountManagerCapabilities:
     supports_creation: bool = False
     supports_modification: bool = False
     supports_deletion: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class SystemPrincipal:
+    name: str
+
+
+Principal = PottoUser | SystemPrincipal

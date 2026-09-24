@@ -44,6 +44,7 @@ dependencies = [
     "starlette-admin>=0.16.0",
     "starlette-babel>=1.0.3",
     "uvicorn>=0.38.0",
+    "watchfiles>=1.1.1",
 ]
 
 [dependency-groups]

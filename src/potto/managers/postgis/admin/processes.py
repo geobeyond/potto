@@ -179,24 +179,24 @@ class ProcessView(_PottoAdminModelView):
             pk = request.path_params.get("pk")
             if pk is not None:
                 user = cast(PottoUser, request.user)
-                auth_backend = settings.get_authorization_backend()
+                authorizer = settings.get_authorizer()
                 if (
                     process := await process_manager.get_process(
                         identifier=pk, user=user
                     )
                 ) is not None:
-                    return await auth_backend.can_edit_process(user, process)
+                    return await authorizer.can_edit_process(user, process)
         return await super().is_row_action_allowed(request, name)
 
     async def find_by_pk(self, request: Request, pk: Any) -> Any:
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
         process_manager = settings.get_process_manager()
-        auth_backend = settings.get_authorization_backend()
+        authorizer = settings.get_authorizer()
         process = await process_manager.get_process(pk, user)
         if process is None:
             return None
-        if not await auth_backend.can_view_process(user, process):
+        if not await authorizer.can_view_process(user, process):
             return None
         user_account_manager = settings.get_user_account_manager()
         editors = await user_account_manager.list_resource_editors(
@@ -259,9 +259,9 @@ class ProcessView(_PottoAdminModelView):
             capabilities = await process_manager.get_process_capabilities()
             can_edit = capabilities.supports_modification
 
-            auth_backend = settings.get_authorization_backend()
+            authorizer = settings.get_authorizer()
             result["_meta"]["can_edit"] = can_edit and (
-                await auth_backend.can_edit_process(user, obj)
+                await authorizer.can_edit_process(user, obj)
             )
         return result
 
@@ -277,7 +277,10 @@ class ProcessView(_PottoAdminModelView):
         if field.name in ("inputs", "outputs"):
             return [dataclasses.asdict(item) for item in value]
         if field.name == "deployment_status":
-            return dataclasses.asdict(value)
+            status_dict = dataclasses.asdict(value)
+            if status_dict["changed_at"] is not None:
+                status_dict["changed_at"] = status_dict["changed_at"].isoformat()
+            return status_dict
         else:
             return await super().serialize_field_value(value, field, action, request)
 

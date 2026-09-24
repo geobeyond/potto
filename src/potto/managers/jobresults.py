@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
-    from ..schemas.auth import PottoUser
     from ..schemas.jobs import (
         JobResult,
         JobResultFilter,
@@ -43,14 +43,14 @@ class JobResultManagerProtocol(Protocol):
         self,
         job_identifier: str,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> "JobResult | None":
         """Retrieve a job result."""
 
     async def paginated_list_job_results(
         self,
         job_identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -63,7 +63,7 @@ class JobResultManagerProtocol(Protocol):
         self,
         job_identifier: str,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
         """Delete a job result.
 

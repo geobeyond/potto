@@ -58,6 +58,26 @@ async def collect_all_user_processes(
     return items
 
 
+async def paginated_list_all_processes(
+    session: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    include_total: bool = False,
+    identifier_filter: str | None = None,
+) -> tuple[list[Process], int | None]:
+    limit = page_size
+    offset = limit * (page - 1)
+    return await list_user_processes(
+        session,
+        limit=limit,
+        offset=offset,
+        include_total=include_total,
+        user_id=None,
+        identifier_filter=identifier_filter,
+    )
+
+
 async def paginated_list_public_processes(
     session: AsyncSession,
     *,

@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
-    from ..schemas.auth import PottoUser
     from ..schemas.metadata import (
         ServerMetadata,
         ServerMetadataManagerCapabilities,
@@ -47,7 +47,7 @@ class ServerMetadataProtocol(Protocol):
     async def update_server_metadata(
         self,
         to_update: "ServerMetadataUpdate",
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> "ServerMetadata":
         """Update the server's metadata.
 

@@ -1,5 +1,8 @@
 import dataclasses
 import datetime as dt
+import enum
+import hashlib
+import json
 from typing import (
     Annotated,
     Any,
@@ -9,12 +12,13 @@ from typing import (
 
 import pydantic
 
-from .auth import PottoUser
+from .auth import Principal, PottoUser
 from .base import (
     MaybeDescription,
     MaybeKeywords,
     Title,
 )
+from .pagination import Pagination
 
 
 @dataclasses.dataclass(frozen=True)
@@ -104,10 +108,19 @@ class ProcessExecutionUnitOther:
     definition: dict[str, Any]
 
 
+class ProcessDeploymentStatusValue(enum.StrEnum):
+    QUEUED = "queued"
+    IN_PROGRESS = "in-progress"
+    DEPLOYED = "deployed"
+    FAILED = "failed"
+
+
 @dataclasses.dataclass(frozen=True)
 class ProcessDeploymentStatus:
-    value: Literal["queued", "in-progress", "deployed", "failed"]
+    value: ProcessDeploymentStatusValue
     detail: str | None = None
+    definition_hash: str | None = None
+    changed_at: dt.datetime | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -131,6 +144,17 @@ class Process:
     additional_links: list[dict[str, str | dict[str, str]]] | None = None
     inputs: list[ProcessInputDescription] = dataclasses.field(default_factory=list)
     outputs: list[ProcessOutputDescription] = dataclasses.field(default_factory=list)
+
+    def get_deployment_hash(self) -> str:
+        relevant = {
+            "execution_unit": dataclasses.asdict(self.execution_unit)
+            if self.execution_unit
+            else None,
+            "inputs": [dataclasses.asdict(i) for i in self.inputs],
+            "outputs": [dataclasses.asdict(o) for o in self.outputs],
+        }
+        payload = json.dumps(relevant, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode()).hexdigest()
 
 
 class ProcessDescriptionCreate(pydantic.BaseModel):
@@ -293,14 +317,28 @@ class ProcessUpdate(pydantic.BaseModel):
     ]
 
 
-class ProcessCreatedEvent(pydantic.BaseModel):
-    identifier: str
+class ProcessEventType(enum.StrEnum):
+    CREATED = "created"
+    UPDATED = "updated"
+    DELETED = "deleted"
+    DEPLOYED = "deployed"
+    UNDEPLOYED = "undeployed"
+    CREATION_FAILED = "creation_failed"
+    UPDATE_FAILED = "update_failed"
+    DELETION_FAILED = "deletion_failed"
+    DEPLOYMENT_FAILED = "deployment_failed"
+    UNDEPLOYMENT_FAILED = "undeployment_failed"
 
 
-class ProcessUpdatedEvent(pydantic.BaseModel):
-    identifier: str
-    old: dict
+class ProcessEvent(pydantic.BaseModel):
+    event_type: ProcessEventType
+    process_identifier: str
+    initiated_by: Principal
+    timestamp: pydantic.AwareDatetime
+    correlation_id: str
 
 
-class ProcessDeletedEvent(pydantic.BaseModel):
-    identifier: str
+@dataclasses.dataclass(frozen=True)
+class ProcessList:
+    processes: list[Process]
+    pagination: Pagination
