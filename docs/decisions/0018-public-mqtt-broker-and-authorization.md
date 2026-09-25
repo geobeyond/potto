@@ -8,7 +8,7 @@ decision-makers: Ricardo
 
 ## Context and Problem Statement
 
-Following the adoption of an event-driven architecture ([ADR-xxxx](xxxx-adopt-event-driven-architecture.md)), potto publishes domain events
+Following the adoption of an event-driven architecture ([ADR-0016](0016-adopt-event-driven-architecture.md)), potto publishes domain events
 (e.g. `collection_item_added`, job status changes) through a [FastStream] app. Internally, a [Mosquitto] broker
 ([ADR-internal-broker]) running MQTT v5 distributes work to worker groups using shared subscriptions. External clients also need to receive
 event notifications, through a separate public broker.
@@ -114,4 +114,4 @@ Options not chosen, and why:
 [FastStream]: https://faststream.ag2.ai/latest/
 [Mosquitto]: https://mosquitto.org/
 [mosquitto-go-auth]: https://github.com/iegomez/mosquitto-go-auth
-[ADR-internal-broker]: xxxx-use-internal-event-broker.md
+[ADR-internal-broker]: 0017-use-internal-event-broker.md

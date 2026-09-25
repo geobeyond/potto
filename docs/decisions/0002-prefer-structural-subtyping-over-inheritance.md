@@ -66,6 +66,6 @@ The design:
 - Bad, because the method-naming convention for multi-protocol classes must be followed carefully to avoid clashes.
 
 
-[ADR-managers]: xxxx-mediate-top-level-resource-access-via-pluggable-managers.md
-[ADR-providers]: xxxx-mediate-collection-item-data-via-pluggable-providers.md
-[ADR-authz]: xxxx-pluggable-authorization-with-local-and-opa.md
+[ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md
+[ADR-providers]: 0012-mediate-collection-item-data-via-pluggable-providers.md
+[ADR-authz]: 0006-pluggable-authorization-with-local-and-opa.md

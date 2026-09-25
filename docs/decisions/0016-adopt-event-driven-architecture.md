@@ -47,7 +47,7 @@ The design:
   can be tracked, such as `201` with `Location: /jobs/{jobId}` for OGC API – Processes. Clients can then poll, use
   the Part 1 callback URIs, or subscribe to events.
 - Public broker - A separate public MQTT broker exposes event notifications to external clients. Its authentication,
-  authorization and technology choice are recorded in [ADR-xxxx](xxxx-public-mqtt-broker-and-authorization.md).
+  authorization and technology choice are recorded in [ADR-0018](0018-public-mqtt-broker-and-authorization.md).
 - Thin events - Events carry identifiers, type, status and links. The API remains the source of truth for full
   resource representations.
 
@@ -61,10 +61,10 @@ The design:
 - Bad, because broker infrastructure has to be deployed, monitored and secured;
 - Bad, because eventual consistency, duplicate delivery (QoS 1) and idempotent consumers become design concerns throughout the codebase;
 - Bad, because debugging and tracing a flow of work across asynchronous components is harder than following a request;
-- Bad, because a public event interface adds per-event authorization concerns for resources that aren't public (addressed in [ADR-xxxx]);
+- Bad, because a public event interface adds per-event authorization concerns for resources that aren't public (addressed in [ADR-0018]);
 - Bad, because OGC's pub/sub standards are still evolving, so parts of the public event interface (topic layout,
   payload format) may need to change to conform later;
 
 
-[ADR-xxxx]: xxxx-public-mqtt-broker-and-authorization.md
-[ADR-internal-broker]: xxxx-use-internal-event-broker.md
+[ADR-0018]: 0018-public-mqtt-broker-and-authorization.md
+[ADR-internal-broker]: 0017-use-internal-event-broker.md

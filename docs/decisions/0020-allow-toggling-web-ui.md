@@ -41,7 +41,7 @@ The design:
 - Authentication routes that the API or the admin UI need (e.g. the OIDC login/callback) stay available regardless.
 
 <!-- TODO: confirm the setting name, the behaviour of `/` when disabled (redirect vs 404), and whether the admin UI
-link should still be reachable when the web UI is disabled (see the admin UI toggle ADR). -->
+link should still be reachable when the web UI is disabled (see ADR-0019). -->
 
 ### Consequences
 

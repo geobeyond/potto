@@ -68,4 +68,4 @@ Known leaks to resolve or explicitly accept:
 - `config.py` depends on `starlette_babel`.
 
 
-[ADR-events]: xxxx-adopt-event-driven-architecture.md
+[ADR-events]: 0016-adopt-event-driven-architecture.md

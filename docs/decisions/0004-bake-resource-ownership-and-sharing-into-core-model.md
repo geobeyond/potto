@@ -67,5 +67,5 @@ The design:
 - Bad, because there are no group or organization grants yet, only per-user ones.
 
 
-[ADR-authz]: xxxx-pluggable-authorization-with-local-and-opa.md
-[ADR-public-broker]: xxxx-public-mqtt-broker-and-authorization.md
+[ADR-authz]: 0006-pluggable-authorization-with-local-and-opa.md
+[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md

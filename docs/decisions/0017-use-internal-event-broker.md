@@ -76,9 +76,9 @@ Options not chosen, and why:
   broker would still be needed.
 
 
-[ADR-events]: xxxx-adopt-event-driven-architecture.md
-[ADR-public-broker]: xxxx-public-mqtt-broker-and-authorization.md
-[ADR-job-manager]: xxxx-job-manager-protocol.md
+[ADR-events]: 0016-adopt-event-driven-architecture.md
+[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md
+[ADR-job-manager]: 0011-job-manager-protocol.md
 [amqtt]: https://amqtt.readthedocs.io/en/latest/index.html
 [FastStream]: https://faststream.ag2.ai/latest/
 [Mosquitto]: https://mosquitto.org/

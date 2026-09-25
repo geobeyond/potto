@@ -61,7 +61,7 @@ The design:
   checked against the job manager's `supported_deployment_types` at deploy time.
 
 
-[ADR-ownership]: xxxx-bake-resource-ownership-and-sharing-into-core-model.md
-[ADR-managers]: xxxx-mediate-top-level-resource-access-via-pluggable-managers.md
-[ADR-collection-manager]: xxxx-collection-manager-protocol.md
-[ADR-job-manager]: xxxx-job-manager-protocol.md
+[ADR-ownership]: 0004-bake-resource-ownership-and-sharing-into-core-model.md
+[ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md
+[ADR-collection-manager]: 0009-collection-manager-protocol.md
+[ADR-job-manager]: 0011-job-manager-protocol.md

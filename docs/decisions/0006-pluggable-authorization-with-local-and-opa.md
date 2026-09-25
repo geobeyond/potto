@@ -66,5 +66,5 @@ Decide whether to make it pluggable via an ImportString factory, like the resour
 - Bad, because potto's Rego reference policy must be kept in step with the local backend's behaviour by hand.
 
 
-[ADR-ownership]: xxxx-bake-resource-ownership-and-sharing-into-core-model.md
-[ADR-public-broker]: xxxx-public-mqtt-broker-and-authorization.md
+[ADR-ownership]: 0004-bake-resource-ownership-and-sharing-into-core-model.md
+[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md

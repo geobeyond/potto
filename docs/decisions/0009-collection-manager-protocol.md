@@ -64,7 +64,7 @@ The design:
 - Bad, because `Collection` does not yet expose `additional_extents`, although the write schemas do.
 
 
-[ADR-ownership]: xxxx-bake-resource-ownership-and-sharing-into-core-model.md
-[ADR-managers]: xxxx-mediate-top-level-resource-access-via-pluggable-managers.md
-[ADR-providers]: xxxx-mediate-collection-item-data-via-pluggable-providers.md
-[ADR-cql2]: xxxx-cross-cutting-cql2-filtering.md
+[ADR-ownership]: 0004-bake-resource-ownership-and-sharing-into-core-model.md
+[ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md
+[ADR-providers]: 0012-mediate-collection-item-data-via-pluggable-providers.md
+[ADR-cql2]: 0015-cross-cutting-cql2-filtering.md

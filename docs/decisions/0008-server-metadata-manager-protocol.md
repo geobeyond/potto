@@ -55,7 +55,7 @@ The design:
   restart;
 - Bad, because the singleton is enforced by convention in the manager, not by the protocol or the storage.
 
-<!-- TODO: decide whether OGC API standard toggles should live here (see ADR on toggling OGC API standards) -->
+<!-- TODO: decide whether OGC API standard toggles should live here (see ADR-0021) -->
 
 
-[ADR-managers]: xxxx-mediate-top-level-resource-access-via-pluggable-managers.md
+[ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md

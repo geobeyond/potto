@@ -58,6 +58,6 @@ and whether that becomes an optional capability, as with managers. -->
 - Bad, because each provider has to interpret filters itself, including CQL2, which is significant work per provider.
 
 
-[ADR-providers]: xxxx-mediate-collection-item-data-via-pluggable-providers.md
-[ADR-cql2]: xxxx-cross-cutting-cql2-filtering.md
-[ADR-http-agnostic]: xxxx-keep-potto-core-agnostic-of-http.md
+[ADR-providers]: 0012-mediate-collection-item-data-via-pluggable-providers.md
+[ADR-cql2]: 0015-cross-cutting-cql2-filtering.md
+[ADR-http-agnostic]: 0003-keep-potto-core-agnostic-of-http.md

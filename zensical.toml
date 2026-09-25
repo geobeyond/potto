@@ -16,6 +16,29 @@ nav = [
     { "Development" = "development.md" },
     { "API compliance testing" = "api-compliance-testing.md" },
     { "Motivation" = "motivation.md" },
+    { "Architecture decisions" = [
+        { "0001 - Use MADR minimal template" = "decisions/0001-use-madr-minimal-template.md" },
+        { "0002 - Prefer structural subtyping" = "decisions/0002-prefer-structural-subtyping-over-inheritance.md" },
+        { "0003 - Keep core agnostic of HTTP" = "decisions/0003-keep-potto-core-agnostic-of-http.md" },
+        { "0004 - Resource ownership and sharing" = "decisions/0004-bake-resource-ownership-and-sharing-into-core-model.md" },
+        { "0005 - Pluggable authentication" = "decisions/0005-pluggable-authentication-with-local-and-oidc.md" },
+        { "0006 - Pluggable authorization" = "decisions/0006-pluggable-authorization-with-local-and-opa.md" },
+        { "0007 - Pluggable resource managers" = "decisions/0007-mediate-top-level-resource-access-via-pluggable-managers.md" },
+        { "0008 - Server metadata manager protocol" = "decisions/0008-server-metadata-manager-protocol.md" },
+        { "0009 - Collection manager protocol" = "decisions/0009-collection-manager-protocol.md" },
+        { "0010 - Process manager protocol" = "decisions/0010-process-manager-protocol.md" },
+        { "0011 - Job manager protocol" = "decisions/0011-job-manager-protocol.md" },
+        { "0012 - Pluggable item data providers" = "decisions/0012-mediate-collection-item-data-via-pluggable-providers.md" },
+        { "0013 - Feature provider protocol" = "decisions/0013-feature-collection-item-provider-protocol.md" },
+        { "0014 - Curated built-in providers" = "decisions/0014-provide-curated-builtin-item-data-providers.md" },
+        { "0015 - CQL2 filtering" = "decisions/0015-cross-cutting-cql2-filtering.md" },
+        { "0016 - Event-driven architecture" = "decisions/0016-adopt-event-driven-architecture.md" },
+        { "0017 - Internal event broker" = "decisions/0017-use-internal-event-broker.md" },
+        { "0018 - Public MQTT broker and authorization" = "decisions/0018-public-mqtt-broker-and-authorization.md" },
+        { "0019 - Toggle the admin UI" = "decisions/0019-allow-toggling-admin-ui.md" },
+        { "0020 - Toggle the web UI" = "decisions/0020-allow-toggling-web-ui.md" },
+        { "0021 - Toggle OGC API standards" = "decisions/0021-allow-toggling-ogc-api-standards.md" },
+    ] },
 ]
 
 # With the "extra_css" option you can add your own CSS styling to customize
@@ -26,7 +49,7 @@ nav = [
 #
 # Read more: https://zensical.org/docs/customization/#additional-css
 #
-#extra_css = ["stylesheets/extra.css"]
+extra_css = ["stylesheets/extra.css"]
 
 # With the `extra_javascript` option you can add your own JavaScript to your
 # project to customize the behavior according to your needs.
@@ -52,7 +75,7 @@ nav = [
 # Read more:
 # - https://zensical.org/docs/customization/#extending-the-theme
 #
-#custom_dir = "overrides"
+custom_dir = "zensical/overrides"
 
 # With the "favicon" option you can set your own image to use as the icon
 # browsers will use in the browser title bar or tab bar. The path provided

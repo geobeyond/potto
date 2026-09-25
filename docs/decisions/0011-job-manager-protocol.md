@@ -82,8 +82,8 @@ still stubs. -->
   those of the other managers.
 
 
-[ADR-process-manager]: xxxx-process-manager-protocol.md
-[ADR-managers]: xxxx-mediate-top-level-resource-access-via-pluggable-managers.md
-[ADR-events]: xxxx-adopt-event-driven-architecture.md
-[ADR-internal-broker]: xxxx-use-internal-event-broker.md
-[ADR-public-broker]: xxxx-public-mqtt-broker-and-authorization.md
+[ADR-process-manager]: 0010-process-manager-protocol.md
+[ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md
+[ADR-events]: 0016-adopt-event-driven-architecture.md
+[ADR-internal-broker]: 0017-use-internal-event-broker.md
+[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md

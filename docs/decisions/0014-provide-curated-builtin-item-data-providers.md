@@ -61,5 +61,5 @@ and decide whether an entry-point based opt-in (enabled by an admin setting) sho
   cql2-text).
 
 
-[ADR-providers]: xxxx-mediate-collection-item-data-via-pluggable-providers.md
-[ADR-feature-provider]: xxxx-feature-collection-item-provider-protocol.md
+[ADR-providers]: 0012-mediate-collection-item-data-via-pluggable-providers.md
+[ADR-feature-provider]: 0013-feature-collection-item-provider-protocol.md

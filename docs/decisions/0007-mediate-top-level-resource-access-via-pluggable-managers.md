@@ -78,9 +78,9 @@ The design:
   ones.
 
 
-[ADR-protocols]: xxxx-prefer-structural-subtyping-over-inheritance.md
-[ADR-authz]: xxxx-pluggable-authorization-with-local-and-opa.md
-[ADR-server-metadata-manager]: xxxx-server-metadata-manager-protocol.md
-[ADR-collection-manager]: xxxx-collection-manager-protocol.md
-[ADR-process-manager]: xxxx-process-manager-protocol.md
-[ADR-job-manager]: xxxx-job-manager-protocol.md
+[ADR-protocols]: 0002-prefer-structural-subtyping-over-inheritance.md
+[ADR-authz]: 0006-pluggable-authorization-with-local-and-opa.md
+[ADR-server-metadata-manager]: 0008-server-metadata-manager-protocol.md
+[ADR-collection-manager]: 0009-collection-manager-protocol.md
+[ADR-process-manager]: 0010-process-manager-protocol.md
+[ADR-job-manager]: 0011-job-manager-protocol.md

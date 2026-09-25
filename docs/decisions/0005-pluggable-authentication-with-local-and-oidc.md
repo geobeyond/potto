@@ -66,6 +66,6 @@ backends (e.g. API keys, mTLS, SAML) without patching potto. -->
   user removed from the IdP still has a potto record and owns resources).
 
 
-[ADR-ownership]: xxxx-bake-resource-ownership-and-sharing-into-core-model.md
-[ADR-authz]: xxxx-pluggable-authorization-with-local-and-opa.md
-[ADR-public-broker]: xxxx-public-mqtt-broker-and-authorization.md
+[ADR-ownership]: 0004-bake-resource-ownership-and-sharing-into-core-model.md
+[ADR-authz]: 0006-pluggable-authorization-with-local-and-opa.md
+[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md

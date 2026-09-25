@@ -57,6 +57,6 @@ The design:
 - Bad, because caching provider instances means connections and file handles stay open until evicted.
 
 
-[ADR-collection-manager]: xxxx-collection-manager-protocol.md
-[ADR-feature-provider]: xxxx-feature-collection-item-provider-protocol.md
-[ADR-builtin-providers]: xxxx-provide-curated-builtin-item-data-providers.md
+[ADR-collection-manager]: 0009-collection-manager-protocol.md
+[ADR-feature-provider]: 0013-feature-collection-item-provider-protocol.md
+[ADR-builtin-providers]: 0014-provide-curated-builtin-item-data-providers.md
