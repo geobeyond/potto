@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-25
 decision-makers: Ricardo
 ---
@@ -8,20 +8,18 @@ decision-makers: Ricardo
 
 ## Context and Problem Statement
 
-potto has made a number of significant architectural choices: pluggable managers and providers, protocols instead
-of inheritance, resource ownership in the core model, an event-driven design, and so on. Today most of these choices
-are recorded only in the code, in scattered notes (`docs/motivation.md`, `docs/managers.md`) and in the authors'
-heads. New contributors, and future maintainers, need a lightweight way to find out *why* things are the way they are,
+potto has made a number of significant architectural choices. These need to be registered somehow in order for
+contributors and future maintainers to have a lightweight way to find out *why* things are the way they are,
 and which alternatives were already considered.
 
 How should potto record its architectural decisions?
 
 ## Considered Options
 
-- Architecture Decision Records using the [MADR] *minimal* template, stored in `docs/decisions/`
-- Architecture Decision Records using the full MADR template
-- Architecture Decision Records using Michael Nygard's original format
-- No formal records: keep explaining decisions in free-form docs, code comments and PR descriptions
+- Architecture Decision Records using the [MADR] *minimal* template, stored in `docs/decisions/`;
+- Architecture Decision Records using the full MADR template;
+- Architecture Decision Records using Michael Nygard's original format;
+- No formal records: keep explaining decisions in free-form docs, code comments and PR descriptions.
 
 ## Decision Outcome
 
@@ -34,7 +32,7 @@ The design:
 
 - ADRs live in `docs/decisions/`, next to the rest of potto's documentation, so they are versioned and reviewed with
   the code they describe;
-- Each ADR is a markdown file named `NNNN-short-title.md`, based on `docs/decisions/adr-template-minimal.md`;
+- Each ADR is a Markdown file named `NNNN-short-title.md`, based on `docs/decisions/adr-template-minimal.md`;
 - ADRs carry YAML front matter with `status` (`proposed`, `accepted`, `deprecated`, `superseded by ADR-NNNN`),
   `date` and `decision-makers`;
 - An optional "Options not chosen, and why" list may be added after the consequences when the rejected options
@@ -42,7 +40,6 @@ The design:
 - Accepted ADRs are not rewritten when a decision changes. A new ADR supersedes them and the old one's status is
   updated to point at it.
 
-<!-- TODO: decide whether ADRs should be added to the zensical.toml nav so they are published with the docs site -->
 
 ### Consequences
 
