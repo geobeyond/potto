@@ -6,12 +6,14 @@ on:
     paths:
       - 'docs/**'
       - 'zensical.toml'
+      - 'zensical/**'
   pull_request:
     branches:
       - main
     paths:
       - 'docs/**'
       - 'zensical.toml'
+      - 'zensical/**'
 permissions:
   contents: read
   pages: write
