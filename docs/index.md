@@ -1,7 +1,10 @@
 ---
+title: potto
 icon: lucide/rocket
 ---
 
-# potto
+<figure markdown="span">
+  ![potto](img/potto-head-logo-small.png){ loading=lazy }
+</figure>
 
-A web application for serving geospatial data.
+**potto** - A flexible geospatial web application to manage your data
