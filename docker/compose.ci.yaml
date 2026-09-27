@@ -68,6 +68,7 @@ services:
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
     depends_on:
       db:
         condition: service_healthy
@@ -84,6 +85,7 @@ services:
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
+      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN: "postgresql+psycopg://potto:pottopass@db:5432/potto"
       POTTO__PUBLIC_URL: "http://host.docker.internal:3001"
       POTTO__USE_OAS30_FIXES: "true"
     depends_on:
@@ -110,6 +112,7 @@ services:
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
       POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
       POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
     depends_on:
       test-db:
         condition: service_healthy
@@ -134,6 +137,7 @@ services:
       POTTO__COLLECTION_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
       POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
       POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
+      POTTO__PROCESS_MANAGER__SETTINGS_MODEL__TEST_DATABASE_DSN: "postgresql+psycopg://potto:pottopass@test-db:5432/potto_test"
     depends_on:
       test-db:
         condition: service_healthy

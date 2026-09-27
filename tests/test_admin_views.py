@@ -18,6 +18,7 @@ from starlette_admin import RequestAction
 
 from potto.managers.postgis.admin.collections import CollectionView
 from potto.managers.postgis.admin.metadata import ServerMetadataModelView
+from potto.managers.postgis.admin.processes import ProcessView
 from potto.managers.postgis.admin.users import UserView
 
 
@@ -67,6 +68,35 @@ class TestCollectionView:
             collection, request, RequestAction.DETAIL, include_relationships=False
         )
         assert result["identifier"] == obs_feature_collection.identifier
+        assert result["_meta"]["detailUrl"]
+
+
+class TestProcessView:
+    @pytest.mark.asyncio
+    async def test_find_all_and_find_by_pk(self, settings, admin_user, obs_process):
+        view = ProcessView()
+        request = fake_request(settings, admin_user)
+
+        results = await view.find_all(request)
+        assert any(p.identifier == obs_process.identifier for p in results)
+
+        found = await view.find_by_pk(request, obs_process.identifier)
+        assert found is not None
+        assert found.identifier == obs_process.identifier
+
+    @pytest.mark.asyncio
+    async def test_serialize(self, settings, admin_user, obs_process):
+        view = ProcessView()
+        request = fake_request(settings, admin_user, action=RequestAction.DETAIL)
+        process = await view.find_by_pk(request, obs_process.identifier)
+        # owner/editors/viewers are HasOne/HasMany relation fields, which need the
+        # full admin app's view registry (_find_foreign_model, wired up by
+        # PottoAdmin.add_view) to resolve - out of scope for this view-level smoke
+        # test, so relationships are skipped here.
+        result = await view.serialize(
+            process, request, RequestAction.DETAIL, include_relationships=False
+        )
+        assert result["identifier"] == obs_process.identifier
         assert result["_meta"]["detailUrl"]
 
 

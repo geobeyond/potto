@@ -124,13 +124,21 @@ def create_admin_app_from_settings(settings: PottoSettings) -> BaseAdmin:
             await settings.get_server_metadata_manager().get_server_metadata_admin_view(),
             await settings.get_user_account_manager().get_user_account_admin_view(),
             await settings.get_collection_manager().get_collection_admin_view(),
+            await settings.get_process_manager().get_process_admin_view(),
         )
 
-    server_metadata_view, user_account_view, collection_view = run_sync(_get_views())
+    (
+        server_metadata_view,
+        user_account_view,
+        collection_view,
+        process_view,
+    ) = run_sync(_get_views())
     if server_metadata_view is not None:
         app.add_view(server_metadata_view)
     if user_account_view is not None:
         app.add_view(user_account_view)
     if collection_view is not None:
         app.add_view(collection_view)
+    if process_view is not None:
+        app.add_view(process_view)
     return app

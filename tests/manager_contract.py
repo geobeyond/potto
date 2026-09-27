@@ -26,6 +26,12 @@ from potto.managers.configurationfile.manager import get_configuration_file_mana
 from potto.schemas.auth import PottoScope, PottoUser, UserCreate, UserUpdate
 from potto.schemas.collections import Collection, CollectionCreate
 from potto.schemas.metadata import ServerMetadataUpdate
+from potto.schemas.processes import (
+    ExecutionUnitOtherCreate,
+    Process,
+    ProcessCreate,
+    ProcessDescriptionCreate,
+)
 
 SAMPLE_CONFIG_FILE = (
     Path(__file__).parent / "data" / "configurationfile" / "sample_config.toml"
@@ -52,6 +58,8 @@ class ManagerContractHarness:
     private_collection: Collection
     spatial_collection: Collection
     distant_collection: Collection
+    public_process: Process
+    private_process: Process
     server_metadata_title: str
 
 
@@ -75,6 +83,8 @@ async def configurationfile_contract_harness(settings) -> ManagerContractHarness
         private_collection=manager.collections["private-collection"],
         spatial_collection=manager.collections["geo-collection"],
         distant_collection=manager.collections["distant-collection"],
+        public_process=manager.processes["public-process"],
+        private_process=manager.processes["private-process"],
         server_metadata_title=manager.server_metadata.title,
     )
 
@@ -83,6 +93,7 @@ async def configurationfile_contract_harness(settings) -> ManagerContractHarness
 async def postgis_contract_harness(db, settings) -> ManagerContractHarness:
     user_manager = settings.get_user_account_manager()
     collection_manager = settings.get_collection_manager()
+    process_manager = settings.get_process_manager()
     metadata_manager = settings.get_server_metadata_manager()
 
     # A trusted bootstrap caller, analogous to conftest.py's `admin_user` fixture -
@@ -189,6 +200,50 @@ async def postgis_contract_harness(db, settings) -> ManagerContractHarness:
     viewer_user = await user_manager.get_user(viewer_user.id, admin_user)
     editor_user = await user_manager.get_user(editor_user.id, admin_user)
 
+    public_process = await process_manager.create_process(
+        ProcessCreate(
+            processDescription=ProcessDescriptionCreate(
+                identifier="contract-public-process",
+                title="Contract public process",
+                owner_id=owner_user.id,
+                is_public=True,
+                version="1.0.0",
+            ),
+            execution_unit=ExecutionUnitOtherCreate(type_="other", value={}),
+        ),
+        owner_user,
+    )
+    private_process = await process_manager.create_process(
+        ProcessCreate(
+            processDescription=ProcessDescriptionCreate(
+                identifier="contract-private-process",
+                title="Contract private process",
+                owner_id=owner_user.id,
+                is_public=False,
+                version="1.0.0",
+            ),
+            execution_unit=ExecutionUnitOtherCreate(type_="other", value={}),
+        ),
+        owner_user,
+    )
+
+    await process_manager.grant_process_access(
+        granting_user=owner_user,
+        target_user_id=viewer_user.id,
+        process=private_process,
+        role="viewer",
+    )
+    await process_manager.grant_process_access(
+        granting_user=owner_user,
+        target_user_id=editor_user.id,
+        process=private_process,
+        role="editor",
+    )
+    # Re-fetch again for the same reason as above, now that the process grants have
+    # added more scopes on top of the collection ones.
+    viewer_user = await user_manager.get_user(viewer_user.id, admin_user)
+    editor_user = await user_manager.get_user(editor_user.id, admin_user)
+
     server_metadata_title = "Contract potto server"
     await metadata_manager.update_server_metadata(
         ServerMetadataUpdate(title=server_metadata_title), admin_user
@@ -208,6 +263,8 @@ async def postgis_contract_harness(db, settings) -> ManagerContractHarness:
         private_collection=private_collection,
         spatial_collection=spatial_collection,
         distant_collection=distant_collection,
+        public_process=public_process,
+        private_process=private_process,
         server_metadata_title=server_metadata_title,
     )
 

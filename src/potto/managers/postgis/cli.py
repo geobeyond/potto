@@ -12,7 +12,10 @@ import yaml
 
 from ...cliapp._shared import get_cli_system_user
 from ...exceptions import PottoException
-from . import operations as postgis_operations
+from .operations import (
+    collections as collection_ops,
+    users as user_ops,
+)
 from .db.alembic_utils import build_alembic_config
 from .db.queries import collections as collection_queries
 
@@ -90,7 +93,7 @@ def build_cli_group(manager: "PostgisManager") -> cyclopts.App:
             (
                 existing_admins,
                 total_admins,
-            ) = await postgis_operations.paginated_list_users(
+            ) = await user_ops.paginated_list_users(
                 session,
                 get_cli_system_user(),
                 manager.authorization_backend,
@@ -125,7 +128,7 @@ def build_cli_group(manager: "PostgisManager") -> cyclopts.App:
                     f"collection {identifier!r}..."
                 )
                 try:
-                    await postgis_operations.import_pygeoapi_collection(
+                    await collection_ops.import_pygeoapi_collection(
                         session,
                         collection_owner,
                         manager.authorization_backend,

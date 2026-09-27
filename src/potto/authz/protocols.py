@@ -2,6 +2,7 @@ from typing import Protocol
 
 from ..schemas.auth import PottoUser
 from ..schemas.collections import Collection
+from ..schemas.processes import Process
 
 
 class AuthorizationBackendProtocol(Protocol):
@@ -79,4 +80,39 @@ class AuthorizationBackendProtocol(Protocol):
 
     async def can_delete_user(self, requesting_user: PottoUser | None) -> bool:
         """Return True if requesting_user is allowed to delete another user's account."""
+        ...
+
+    async def can_view_process(self, user: PottoUser | None, process: Process) -> bool:
+        """Return True if the user is allowed to view the process.
+
+        A None user represents an unauthenticated (anonymous) visitor.
+        """
+        ...
+
+    async def can_edit_process(self, user: PottoUser | None, process: Process) -> bool:
+        """Return True if the user is allowed to edit the process.
+
+        A None user represents an unauthenticated (anonymous) visitor.
+        """
+        ...
+
+    async def get_accessible_process_identifiers(
+        self, user: PottoUser | None
+    ) -> list[str] | None:
+        """Return identifiers of processes accessible to the user.
+
+        A None user represents an unauthenticated (anonymous) visitor.
+        Returns None if the user has unrestricted access (e.g. admin), or a list of
+        process resource identifiers the user can explicitly access.
+        """
+        ...
+
+    async def can_change_process_owner(
+        self, user: PottoUser | None, process: Process
+    ) -> bool:
+        """Return True if user is allowed to change the owner of the process."""
+        ...
+
+    async def can_create_process(self, user: PottoUser | None) -> bool:
+        """Return True if user is allowed to create a new process."""
         ...

@@ -56,6 +56,10 @@ class CollectionView(_PottoAdminModelView):
 
     # The schema's natural key is the resource identifier, not an ORM row id.
     pk_attr = "identifier"
+    # identifier is a user-supplied natural key, not an auto-generated surrogate id, so it must
+    # remain editable on the create form (starlette-admin otherwise force-hides any field whose
+    # name matches pk_attr from create/edit).
+    form_include_pk = True
     identity = "collection_item"
     icon = "fa fa-database"
     label = "Collections"

@@ -5,6 +5,7 @@ import httpx
 
 from ..schemas.auth import PottoUser
 from ..schemas.collections import Collection
+from ..schemas.processes import Process
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,13 @@ class OPAAuthorizationBackend:
             "identifier": collection.identifier,
             "is_public": collection.is_public,
             "owner_id": collection.owner.id,
+        }
+
+    def _process_input(self, process: Process) -> dict:
+        return {
+            "identifier": process.identifier,
+            "is_public": process.is_public,
+            "owner_id": process.owner.id,
         }
 
     async def can_view_collection(
@@ -146,5 +154,56 @@ class OPAAuthorizationBackend:
         result = await self._query(
             "can_delete_user",
             {"user": self._user_input(requesting_user)},
+        )
+        return bool(result)
+
+    async def can_view_process(self, user: PottoUser | None, process: Process) -> bool:
+        result = await self._query(
+            "can_view_process",
+            {
+                "user": self._user_input(user),
+                "process": self._process_input(process),
+            },
+        )
+        return bool(result)
+
+    async def can_edit_process(self, user: PottoUser | None, process: Process) -> bool:
+        result = await self._query(
+            "can_edit_process",
+            {
+                "user": self._user_input(user),
+                "process": self._process_input(process),
+            },
+        )
+        return bool(result)
+
+    async def get_accessible_process_identifiers(
+        self, user: PottoUser | None
+    ) -> list[str] | None:
+        result = await self._query(
+            "accessible_process_identifiers",
+            {"user": self._user_input(user)},
+        )
+        if result is None:
+            return None
+        result = cast(list[str], result)
+        return result
+
+    async def can_change_process_owner(
+        self, user: PottoUser | None, process: Process
+    ) -> bool:
+        result = await self._query(
+            "can_change_process_owner",
+            {
+                "user": self._user_input(user),
+                "process": self._process_input(process),
+            },
+        )
+        return bool(result)
+
+    async def can_create_process(self, user: PottoUser | None) -> bool:
+        result = await self._query(
+            "can_create_process",
+            {"user": self._user_input(user)},
         )
         return bool(result)

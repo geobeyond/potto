@@ -1,85 +1,43 @@
-"""Permission-checked business logic backing ``PostgisManager``.
-
-The functions defined in this module always return instances of potto's public,
-storage-agnostic schemas (``potto.schemas.*``), never this package's private ORM
-models.
-"""
-
 import copy
 import datetime as dt
 import logging
-import re
 from typing import cast, TYPE_CHECKING
 
-import bcrypt
 import shapely
 from sqlalchemy.exc import DatabaseError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from ... import util
-from ...authz.protocols import AuthorizationBackendProtocol
-from ...constants import (
+from .... import util
+from ....authz.protocols import AuthorizationBackendProtocol
+from ....constants import (
     CollectionType,
     CRS_84,
     CRS_84h,
 )
-from ...exceptions import (
+from ....exceptions import (
     PottoCannotChangeCollectionOwnerException,
     PottoCannotCreateCollectionException,
-    PottoCannotCreateUserException,
     PottoCannotDeleteCollectionException,
-    PottoCannotDeleteUserException,
     PottoCannotEditCollectionException,
-    PottoCannotEditServerMetadataException,
-    PottoCannotEditUserException,
-    PottoCannotModifyCollectionAccessException,
-    PottoCannotSetAdminScopeException,
-    PottoCannotSetScopesException,
-    PottoCannotViewUserException,
     PottoCollectionNotFoundException,
     PottoException,
-    PottoNotFoundException,
 )
-from ...providers.features.registry import get_feature_provider
-from ...schemas.auth import (
-    PottoScope,
-    PottoUser,
-    UserCreate,
-    UserCreateFromOidc,
-    UserUpdate,
-)
-from ...schemas.base import PottoProvider
-from ...schemas.collections import (
+from ....providers.features.registry import get_feature_provider
+from ....schemas.auth import PottoUser
+from ....schemas.base import PottoProvider
+from ....schemas.collections import (
     Collection as CollectionSchema,
     CollectionCreate,
     CollectionUpdate,
 )
-from ...schemas.metadata import (
-    ServerMetadata,
-    ServerMetadataCreate,
-    ServerMetadataUpdate,
-)
-from .db.commands import (
-    auth as auth_commands,
-    collections as collection_commands,
-    metadata as metadata_commands,
-)
-from .db.models import Collection
-from .db.queries import (
-    auth as auth_queries,
-    collections as collection_queries,
-    get_metadata,
-)
+from ..db.commands import collections as collection_commands
+from ..db.models import Collection
+from ..db.queries import collections as collection_queries
 
 if TYPE_CHECKING:
-    from ...config import PottoSettings
+    from ....config import PottoSettings
 
 logger = logging.getLogger(__name__)
-
-_EDITOR_SCOPE_RE = re.compile(r"^collection-(.+):editor$")
-
-
-# --- collections ------------------------------------------------------------
 
 
 async def paginated_list_collections(
@@ -298,65 +256,6 @@ async def delete_collection(
         raise PottoCannotDeleteCollectionException(str(err)) from err
 
 
-async def grant_collection_access(
-    session: AsyncSession,
-    granting_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
-    target_user_id: str,
-    collection: CollectionSchema,
-    role: str,
-) -> None:
-    if not await authorization_backend.can_edit_collection(granting_user, collection):
-        raise PottoException(
-            "User does not have permission to grant access to this collection."
-        )
-    target_user = await auth_queries.get_user(session, target_user_id)
-    if target_user is None:
-        raise PottoException(f"User with id {target_user_id!r} does not exist.")
-    editor_scope = PottoScope.collection_editor(collection.identifier)
-    viewer_scope = PottoScope.collection_viewer(collection.identifier)
-    new_scopes = [
-        s for s in target_user.scopes if s not in (editor_scope, viewer_scope)
-    ]
-    if role == "editor":
-        new_scopes.append(editor_scope)
-    else:
-        new_scopes.append(viewer_scope)
-    try:
-        await auth_commands.update_user(
-            session, target_user, UserUpdate(scopes=new_scopes)
-        )
-    except DatabaseError as err:
-        raise PottoCannotModifyCollectionAccessException(str(err)) from err
-
-
-async def revoke_collection_access(
-    session: AsyncSession,
-    revoking_user: PottoUser,
-    authorization_backend: AuthorizationBackendProtocol,
-    target_user_id: str,
-    collection: CollectionSchema,
-) -> None:
-    if not await authorization_backend.can_edit_collection(revoking_user, collection):
-        raise PottoException(
-            "User does not have permission to revoke access to this collection."
-        )
-    target_user = await auth_queries.get_user(session, target_user_id)
-    if target_user is None:
-        raise PottoException(f"User with id {target_user_id!r} does not exist.")
-    editor_scope = PottoScope.collection_editor(collection.identifier)
-    viewer_scope = PottoScope.collection_viewer(collection.identifier)
-    new_scopes = [
-        s for s in target_user.scopes if s not in (editor_scope, viewer_scope)
-    ]
-    try:
-        await auth_commands.update_user(
-            session, target_user, UserUpdate(scopes=new_scopes)
-        )
-    except DatabaseError as err:
-        raise PottoCannotModifyCollectionAccessException(str(err)) from err
-
-
 def _get_crs_info(
     pygeoapi_collection: dict,
 ) -> tuple[list[str], str | None, str | None]:
@@ -489,252 +388,3 @@ async def import_pygeoapi_collection(
         return await create_collection(
             session, user, authorization_backend, to_create, potto_settings
         )
-
-
-# --- server metadata ---------------------------------------------------------
-
-
-async def get_server_metadata(session: AsyncSession) -> ServerMetadata:
-    """Return pre-existing server metadata, creating a default record if none exists."""
-    if existing := await get_metadata(session):
-        return existing.to_potto()
-    created = await metadata_commands.create_metadata(
-        session, ServerMetadataCreate(title="Default title")
-    )
-    return created.to_potto()
-
-
-async def update_server_metadata(
-    session: AsyncSession,
-    user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    to_update: ServerMetadataUpdate,
-) -> ServerMetadata:
-    if not await authorization_backend.can_edit_server_metadata(user):
-        raise PottoCannotEditServerMetadataException(
-            "User does not have permission to edit server metadata."
-        )
-    db_metadata = await get_metadata(session)
-    if db_metadata is None:
-        db_metadata = await metadata_commands.create_metadata(
-            session, ServerMetadataCreate(title="Default title")
-        )
-    updated = await metadata_commands.update_metadata(session, db_metadata, to_update)
-    return updated.to_potto()
-
-
-# --- user accounts ------------------------------------------------------------
-
-
-async def create_user(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    to_create: UserCreate,
-) -> PottoUser:
-    if not await authorization_backend.can_create_user(requesting_user):
-        raise PottoCannotCreateUserException(
-            "User does not have permission to create new users."
-        )
-    if to_create.scopes:
-        await _check_scope_assignment(
-            session, requesting_user, authorization_backend, to_create.scopes
-        )
-    created = await auth_commands.create_user(session, to_create)
-    return created.to_potto()
-
-
-async def update_user(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    user_id: str,
-    to_update: UserUpdate,
-) -> PottoUser:
-    if not await authorization_backend.can_edit_user(requesting_user):
-        raise PottoCannotEditUserException(
-            "User does not have permission to edit user accounts."
-        )
-    db_user = await auth_queries.get_user(session, user_id)
-    if db_user is None:
-        raise PottoNotFoundException(f"User {user_id!r} does not exist.")
-    if to_update.scopes is not None:
-        await _check_scope_assignment(
-            session, requesting_user, authorization_backend, to_update.scopes
-        )
-    updated = await auth_commands.update_user(session, db_user, to_update)
-    return updated.to_potto()
-
-
-async def _check_scope_assignment(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    new_scopes: list[str],
-) -> None:
-    if PottoScope.ADMIN.value in new_scopes:
-        if not await authorization_backend.can_assign_admin_scope(requesting_user):
-            raise PottoCannotSetAdminScopeException(
-                "User does not have permission to assign the admin scope."
-            )
-    editable_identifiers = await _get_editable_collection_identifiers(
-        session, requesting_user
-    )
-    if not await authorization_backend.can_set_user_scopes(
-        requesting_user, new_scopes, editable_identifiers
-    ):
-        raise PottoCannotSetScopesException(
-            "User does not have permission to set these scopes."
-        )
-
-
-async def _get_editable_collection_identifiers(
-    session: AsyncSession,
-    user: PottoUser | None,
-) -> list[str]:
-    if user is None:
-        return []
-    owned = await collection_queries.get_owned_collection_identifiers(session, user.id)
-    from_scopes = [
-        m.group(1) for scope in user.scopes if (m := _EDITOR_SCOPE_RE.match(scope))
-    ]
-    return list({*owned, *from_scopes})
-
-
-async def delete_user(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    user_id: str,
-) -> None:
-    if not await authorization_backend.can_delete_user(requesting_user):
-        raise PottoCannotDeleteUserException(
-            "User does not have permission to delete user accounts."
-        )
-    return await auth_commands.delete_user(session, user_id)
-
-
-async def paginated_list_users(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    *,
-    username_filter: str | None = None,
-    admin_filter: bool = False,
-    page: int = 1,
-    page_size: int = 20,
-    include_total: bool = False,
-) -> tuple[list[PottoUser], int | None]:
-    if not await authorization_backend.can_view_user(requesting_user):
-        raise PottoCannotViewUserException(
-            "User does not have permission to view user accounts."
-        )
-    users, count = await auth_queries.paginated_list_users(
-        session,
-        page=page,
-        page_size=page_size,
-        include_total=include_total,
-        username_filter=username_filter,
-        admin_filter=admin_filter,
-    )
-    return [u.to_potto() for u in users], count
-
-
-async def get_user(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    user_id: str,
-) -> PottoUser | None:
-    if not await authorization_backend.can_view_user(requesting_user):
-        raise PottoCannotViewUserException(
-            "User does not have permission to view user accounts."
-        )
-    db_user = await auth_queries.get_user(session, user_id)
-    return db_user.to_potto() if db_user is not None else None
-
-
-async def get_user_by_username(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    username: str,
-) -> PottoUser | None:
-    if not await authorization_backend.can_view_user(requesting_user):
-        raise PottoCannotViewUserException(
-            "User does not have permission to view user accounts."
-        )
-    db_user = await auth_queries.get_user_by_username(session, username)
-    return db_user.to_potto() if db_user is not None else None
-
-
-async def provision_oidc_user(
-    session: AsyncSession,
-    to_create: UserCreateFromOidc,
-) -> PottoUser:
-    created = await auth_commands.provision_oidc_user(session, to_create)
-    return created.to_potto()
-
-
-async def authenticate(
-    session: AsyncSession,
-    username: str,
-    password: str,
-) -> PottoUser | None:
-    """Verify a local username/password pair, returning None on any failure."""
-    db_user = await auth_queries.get_user_by_username(session, username)
-    if db_user is None:
-        logger.debug(f"Login failed: user {username!r} not found")
-        return None
-    if not db_user.is_active:
-        logger.warning(f"Login failed: user {username!r} is inactive")
-        return None
-    if db_user.hashed_password is None:
-        logger.warning(f"Login failed: user {username!r} has no local password")
-        return None
-    if not bcrypt.checkpw(password.encode(), db_user.hashed_password.encode()):
-        logger.debug(f"Login failed: wrong password for user {username!r}")
-        return None
-    return db_user.to_potto()
-
-
-async def list_resource_editors(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    resource_type: str,
-    resource_identifier: str,
-) -> list[PottoUser]:
-    if not await authorization_backend.can_view_user(requesting_user):
-        raise PottoCannotViewUserException(
-            "User does not have permission to view resource editors."
-        )
-    if resource_type != "collection":
-        raise NotImplementedError(
-            f"Resource type {resource_type!r} is not supported yet."
-        )
-    editors = await collection_queries.get_collection_editors(
-        session, resource_identifier
-    )
-    return [e.to_potto() for e in editors]
-
-
-async def list_resource_viewers(
-    session: AsyncSession,
-    requesting_user: PottoUser | None,
-    authorization_backend: AuthorizationBackendProtocol,
-    resource_type: str,
-    resource_identifier: str,
-) -> list[PottoUser]:
-    if not await authorization_backend.can_view_user(requesting_user):
-        raise PottoCannotViewUserException(
-            "User does not have permission to view resource viewers."
-        )
-    if resource_type != "collection":
-        raise NotImplementedError(
-            f"Resource type {resource_type!r} is not supported yet."
-        )
-    viewers = await collection_queries.get_collection_viewers(
-        session, resource_identifier
-    )
-    return [v.to_potto() for v in viewers]

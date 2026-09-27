@@ -1,7 +1,7 @@
 # Potto authorization policy.
 #
 # This policy mirrors the logic of the LocalAuthorizationBackend and serves as a
-# starting point for customisation. Potto queries five rules:
+# starting point for customisation. Potto queries these rules:
 #
 #   potto/authz/can_view_collection        input: {user, collection}  -> boolean
 #   potto/authz/can_edit_collection        input: {user, collection}  -> boolean
@@ -13,15 +13,22 @@
 #   potto/authz/can_view_user                   input: {user}              -> boolean
 #   potto/authz/can_edit_user                   input: {user}              -> boolean
 #   potto/authz/can_delete_user                 input: {user}              -> boolean
+#   potto/authz/can_view_process                input: {user, process}    -> boolean
+#   potto/authz/can_edit_process                input: {user, process}    -> boolean
+#   potto/authz/accessible_process_identifiers  input: {user}              -> [string] | null
+#   potto/authz/can_change_process_owner        input: {user, process}    -> boolean
+#   potto/authz/can_create_process              input: {user}              -> boolean
 #
 # The user object has: id, username, scopes (list of strings).
 # For anonymous (unauthenticated) visitors, user is null.
 # The collection object has: identifier, is_public, owner_id.
+# The process object has: identifier, is_public, owner_id.
 #
-# accessible_collection_identifiers must return null when the user should see all
-# collections (e.g. admin), an empty list for anonymous visitors (only public
-# collections are shown via the query layer), or a list of identifier
-# strings for authenticated users with explicit access.
+# accessible_collection_identifiers/accessible_process_identifiers must return
+# null when the user should see all collections/processes (e.g. admin), an
+# empty list for anonymous visitors (only public resources are shown via the
+# query layer), or a list of identifier strings for authenticated users with
+# explicit access.
 
 package potto.authz
 
@@ -173,4 +180,92 @@ default can_delete_user := false
 can_delete_user if {
     input.user != null
     "admin" in input.user.scopes
+}
+
+# --- can_view_process ---
+
+default can_view_process := false
+
+can_view_process if {
+    input.process.is_public
+}
+
+can_view_process if {
+    "admin" in input.user.scopes
+}
+
+can_view_process if {
+    input.user.id == input.process.owner_id
+}
+
+can_view_process if {
+    concat("", ["process-", input.process.identifier, ":editor"]) in input.user.scopes
+}
+
+can_view_process if {
+    concat("", ["process-", input.process.identifier, ":viewer"]) in input.user.scopes
+}
+
+# --- can_edit_process ---
+
+default can_edit_process := false
+
+can_edit_process if {
+    "admin" in input.user.scopes
+}
+
+can_edit_process if {
+    input.user.id == input.process.owner_id
+}
+
+can_edit_process if {
+    concat("", ["process-", input.process.identifier, ":editor"]) in input.user.scopes
+}
+
+# --- accessible_process_identifiers ---
+#
+# Returns null for admins (unrestricted access), [] for anonymous visitors
+# (the query layer will then filter by is_public=true), or the list of
+# process identifiers the user has explicit editor/viewer scope for.
+
+accessible_process_identifiers := [] if {
+    input.user == null
+}
+
+accessible_process_identifiers := null if {
+    input.user != null
+    "admin" in input.user.scopes
+}
+
+accessible_process_identifiers := identifiers if {
+    input.user != null
+    not "admin" in input.user.scopes
+    identifiers := [id |
+        some scope in input.user.scopes
+        matches := regex.find_all_string_submatch_n(`^process-(.+):(editor|viewer)$`, scope, 1)
+        count(matches) > 0
+        id := matches[0][1]
+    ]
+}
+
+# --- can_change_process_owner ---
+
+default can_change_process_owner := false
+
+can_change_process_owner if {
+    input.user != null
+    "admin" in input.user.scopes
+}
+
+can_change_process_owner if {
+    input.user != null
+    input.user.id == input.process.owner_id
+}
+
+# --- can_create_process ---
+
+default can_create_process := false
+
+can_create_process if {
+    input.user != null
 }

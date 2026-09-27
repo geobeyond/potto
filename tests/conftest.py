@@ -16,6 +16,7 @@ from potto.schemas import (
     auth as auth_schemas,
     base as base_schemas,
     collections as collections_schemas,
+    processes as process_schemas,
 )
 from potto.webapp.main import create_app_from_settings
 from potto.webapp.api import dependencies
@@ -37,6 +38,7 @@ def settings() -> config.PottoSettings:
         original_settings.collection_manager,
         original_settings.server_metadata_manager,
         original_settings.user_account_manager,
+        original_settings.process_manager,
     ):
         postgis_settings = PostgisManagerConfiguration.model_validate(
             manager_settings.settings_model
@@ -290,6 +292,27 @@ async def obs_feature_collection(db, admin_user, settings):
                     },
                 )
             },
+        ),
+        admin_user,
+    )
+
+
+@pytest_asyncio.fixture
+async def obs_process(db, admin_user, settings):
+    process_manager = settings.get_process_manager()
+    yield await process_manager.create_process(
+        process_schemas.ProcessCreate(
+            processDescription=process_schemas.ProcessDescriptionCreate(
+                identifier="obs-test-process",
+                title="Testing obs process",
+                owner_id=admin_user.id,
+                is_public=False,
+                version="1.0.0",
+            ),
+            execution_unit=process_schemas.ExecutionUnitOtherCreate(
+                type_="other",
+                value={"foo": "bar"},
+            ),
         ),
         admin_user,
     )

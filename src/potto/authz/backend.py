@@ -5,8 +5,10 @@ from ..schemas.auth import (
     PottoUser,
 )
 from ..schemas.collections import Collection
+from ..schemas.processes import Process
 
 _COLLECTION_SCOPE_RE = re.compile(r"^collection-(.+):(editor|viewer)$")
+_PROCESS_SCOPE_RE = re.compile(r"^process-(.+):(editor|viewer)$")
 
 
 class LocalAuthorizationBackend:
@@ -114,3 +116,52 @@ class LocalAuthorizationBackend:
         if requesting_user is None:
             return False
         return PottoScope.ADMIN.value in requesting_user.scopes
+
+    async def can_view_process(self, user: PottoUser | None, process: Process) -> bool:
+        if process.is_public:
+            return True
+        if user is None:
+            return False
+        if PottoScope.ADMIN.value in user.scopes:
+            return True
+        if user.id == process.owner.id:
+            return True
+        if PottoScope.process_editor(process.identifier) in user.scopes:
+            return True
+        if PottoScope.process_viewer(process.identifier) in user.scopes:
+            return True
+        return False
+
+    async def can_edit_process(self, user: PottoUser | None, process: Process) -> bool:
+        if user is None:
+            return False
+        if PottoScope.ADMIN.value in user.scopes:
+            return True
+        if user.id == process.owner.id:
+            return True
+        if PottoScope.process_editor(process.identifier) in user.scopes:
+            return True
+        return False
+
+    async def get_accessible_process_identifiers(
+        self, user: PottoUser | None
+    ) -> list[str] | None:
+        if user is None:
+            return []
+        if PottoScope.ADMIN.value in user.scopes:
+            return None
+        return [
+            m.group(1) for scope in user.scopes if (m := _PROCESS_SCOPE_RE.match(scope))
+        ]
+
+    async def can_change_process_owner(
+        self, user: PottoUser | None, process: Process
+    ) -> bool:
+        if user is None:
+            return False
+        if PottoScope.ADMIN.value in user.scopes:
+            return True
+        return user.id == process.owner.id
+
+    async def can_create_process(self, user: PottoUser | None) -> bool:
+        return user is not None
