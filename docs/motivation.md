@@ -4,64 +4,51 @@ icon: lucide/heart
 
 # Motivation
 
-An opinionated starlette+fastapi application that wraps pygeoapi.
+This project started out as a [pygeoapi]-powered web application written with starlette and
+FastAPI. The intention was to showcase using pygeoapi as a library and build an external shell to it using some
+different ideas:
 
-This project started out as a pygeoapi-powered web application written with starlette and
-FastAPI. It showcases using pygeoapi as a library and makes some very opinionated choices along the way.
+- Add concepts of resource ownership, sharing and resource visibility on to the main model of the system;
+- Avoid leaking web-related concepts into the core model;
+- Enforce strict contracts between components by using typed data structures;
+- Use structural subtyping rather than inheritance as the extensibility mechanism;
+- Focus on async patterns.
 
-Currently, pygeoapi offers builtin support for all of starlette, flask and django. This results in a complex
-codebase which tries to be a library and a framework at the same time. This project exists to explore a different
-approach. There are three main ideas being pursued:
+The fact that pygeoapi offered builtin support for all of starlette, flask and django was also something we thought
+to invert - We wanted something which could be wrapped by any external web framework, not the other way around. This
+would mean that:
 
-- Focus on async patterns;
-- Include resource ownership and sharing as part of the core domain model;
-- Clearly separate the job of core pygeoapi from whatever framework library is wrapping it (which in this case
-  happens to be starlette and fastapi). This means to let pygeoapi focus on geospatial API processing
-  logic exclusively.
+- The external web framework only ever calls a potto core function, and never the other way around;
+- potto core does not deal with 'webby' concepts at all - no requests, no headers, no status codes, etc. potto's logic
+  gets translated to/from a respective web concept by the external web framework;
+- The external web framework can be used to its fullest instead of having to use a least common denominator;
+- potto can be used in different contexts too, outside of the web;
 
-What does it mean to let pygeoapi focus solely on the logic of geospatial APIs?
+As development started, it became apparent that these ideas would not be possible to implement cleanly while
+keeping a pygeoapi engine as a requirement. As such, we decided to start afresh and build something from the ground up.
 
-It means that there is a split responsibility between pygeoapi and the wrapping framework with regard to implementing
-the more 'webby' features of OGC APIs, like rendering HTML, generating links and openapi schemas, etc.
+!!! success ":heart: pygeoapi"
 
-In Potto, this translates to:
+    We still love pygeoapi, but wanted to take a different direction with potto.
 
-- pygeoapi core does not render HTML, it defers this to starlette. Therefore, all of its code and configuration
-  that deals with rendering HTML is not used by this project. Potto includes all its templates and renders them. This
-  also has the advantage that the templates can take full advantage of the template processing library which they are
-  targeting (which in Potto's case is Jinja), instead of having to try to support multiple templating libraries, as
-  is the case with vanilla pygeoapi
-
-- pygeoapi core does not generate links - this is handled by the web application framework
-
-- pygeoapi core is not asked to gzip responses - this is handled by the web application framework
-
-- pygeoapi core does not need configuration for the web application server because it does not need to launch it
-
-- pygeoapi core is not asked to generate an OpenAPI document, this is a job for the web framework
-
-It also means that there are additional features not currently offered by pygeoapi core which this project is
-free to implement, such as:
-
-- Allowing changes to pygeoapi configuration dynamically without needing to restart the server
-- Adding a richer admin UI based on [starlette-admin]
-- etc.
-
-[starlette-admin]: https://jowilf.github.io/starlette-admin/
+Regardless, and because potto still needs a default web framework in order to be usable, we chose to go
+with [starlette] and [FastAPI]. But a downstream application could very easily just use potto core with any other
+web framework and provide the respective glue code.
 
 
 ### OGC API compliance notes
 
-Potto presents a single OGC API compliant landing page under `/api/` with the main media type of responses
-being of the JSON family. It also has a web UI under `/` - the web UI is intentionally not OGC API compliant.
-The reason being that the author is of the opinion that replicating all OGC API path operations in a UI results
-in an overly complicated user experience.
+Potto means to present a single OGC API compliant landing page under `/api/` with the main media type of responses
+being of the JSON family. It also comes with a web UI under `/` - however, **the web UI is intentionally not OGC
+API compliant**. The reason being that with are of the opinion that replicating all OGC API path operations in
+a UI results in an overly complicated user experience.
 
 
 ## Name inspiration
 
-This project's name is a hommage to the cute [potto mammal], which inhabits the
-rainforests of tropical Africa. May the name serve to inspire this project to move as deliberately as a potto in its
-goal to wrap pygeoapi's core feature-set with web-related features provided by starlette and fastapi.
+This project's name is a hommage to the cute [potto mammal], which inhabits the rainforests of tropical Africa.
 
+[FastAPI]: https://fastapi.tiangolo.com/
 [potto mammal]: https://en.wikipedia.org/wiki/Potto
+[pygeoapi]: https://pygeoapi.io/
+[starlette]: https://starlette.dev/
