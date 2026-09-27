@@ -1,0 +1,33 @@
+{#-
+  Override of the theme's partials/content.html, rendering MADR front matter
+  (status, date, decision-makers, consulted, informed) right below the page title
+-#}
+{% include "partials/actions.html" %}
+{% if "<h1" not in page.content %}
+  <h1 id="__skip">{{ page.title | d(config.site_name, true)}}</h1>
+{% endif %}
+{% if page.meta and page.meta.status %}
+  {% set adr_meta %}
+    <dl class="adr-meta">
+      <dt>Status</dt>
+      <dd><span class="adr-status adr-status--{{ page.meta.status | lower | replace(' ', '-') }}">{{ page.meta.status }}</span></dd>
+      {% for key, label in [("date", "Date"), ("decision-makers", "Decision-makers"), ("consulted", "Consulted"), ("informed", "Informed")] %}
+        {% if page.meta[key] %}
+          <dt>{{ label }}</dt>
+          <dd>{{ page.meta[key] }}</dd>
+        {% endif %}
+      {% endfor %}
+    </dl>
+  {% endset %}
+  {% if "</h1>" in page.content %}
+    {{ page.content | replace("</h1>", "</h1>" ~ adr_meta) }}
+  {% else %}
+    {{ adr_meta }}{{ page.content }}
+  {% endif %}
+{% else %}
+  {{ page.content }}
+{% endif %}
+{% include "partials/tags.html" %}
+{% include "partials/source-file.html" %}
+{% include "partials/feedback.html" %}
+{% include "partials/comments.html" %}
