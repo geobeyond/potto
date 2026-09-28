@@ -46,15 +46,12 @@ async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
     if oidc_provider is not None:
         await oidc_provider.get_discovery()
     internal_broker = settings.get_internal_broker(role="api")
-    external_broker = settings.get_external_broker()
-    # Connecting to the brokers must not block API startup or crash it if
-    # they are unreachable - brokers are configured for unlimited reconnect
-    # attempts (see config.py's get_{internal|external}_broker), so these
-    # tasks keep retrying in the background for as long as the app runs.
+    # Connecting to the broker must not block API startup or crash it if
+    # it is unreachable - the broker is configured for unlimited reconnect
+    # attempts (see config.py's get_internal_broker), so this task keeps
+    # retrying in the background for as long as the app runs.
     internal_connect_task = asyncio.create_task(internal_broker.connect())
-    external_connect_task = asyncio.create_task(external_broker.connect())
     internal_connect_task.add_done_callback(_log_broker_connect_failure)
-    external_connect_task.add_done_callback(_log_broker_connect_failure)
     try:
         yield AppState(
             settings=settings,
@@ -68,10 +65,6 @@ async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
         with contextlib.suppress(asyncio.CancelledError):
             await internal_connect_task
         await internal_broker.stop()
-        external_connect_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await external_connect_task
-        await external_broker.stop()
 
 
 def create_app() -> Starlette:
@@ -80,6 +73,7 @@ def create_app() -> Starlette:
 
 
 def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
+    settings.external_mqtt_broker.validate_for("api")
     if settings.static_dir is not None:
         settings.static_dir.mkdir(parents=True, exist_ok=True)
     oidc_provider = settings.get_oidc_provider()

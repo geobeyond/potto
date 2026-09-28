@@ -14,6 +14,7 @@ from . import exceptions as potto_exceptions
 from .authz.authorizer import (
     Principal,
 )
+from .schemas.auth import SystemPrincipal
 from .constants import (
     ConformanceClass,
     CRS_84,
@@ -21,12 +22,14 @@ from .constants import (
 )
 from .config import PottoSettings
 from .providers.features import get_feature_provider
+from .pubsub.audience import resolve_process_audience
 from .schemas import (
     collections as collection_schemas,
     pagination as pagination_schemas,
     processes as process_schemas,
     features as feature_schemas,
-    system as system_schemas, events,
+    events,
+    system as system_schemas,
 )
 from .util import (
     create_correlation_id,
@@ -285,10 +288,13 @@ class Potto:
         process_manager = self._settings.get_process_manager()
         created = await process_manager.create_process(to_create, user)
         await self.publish_internal_process_event(
-            created.identifier,
-            events.InternalProcessEventType.CREATED,
-            user,
-            correlation_id=correlation_id or create_correlation_id(),
+            events.InternalProcessEvent(
+                event_type=events.InternalProcessEventType.CREATED,
+                process_identifier=created.identifier,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id or create_correlation_id(),
+            )
         )
         return created
 
@@ -312,10 +318,13 @@ class Potto:
             )
         updated = await process_manager.update_process(process, to_update, user)
         await self.publish_internal_process_event(
-            updated.identifier,
-            events.InternalProcessEventType.UPDATED,
-            user,
-            correlation_id=correlation_id or create_correlation_id(),
+            events.InternalProcessEvent(
+                event_type=events.InternalProcessEventType.UPDATED,
+                process_identifier=updated.identifier,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id or create_correlation_id(),
+            )
         )
         return updated
 
@@ -332,12 +341,26 @@ class Potto:
         to the ``processes/{identifier}/deleted`` topic.
         """
         process_manager = self._settings.get_process_manager()
+        if (
+            process := await process_manager.get_process(
+                process_id, SystemPrincipal("process-deleter")
+            )
+        ) is None:
+            raise potto_exceptions.CannotDeleteResourceException(
+                f"process {process_id} not found"
+            )
+        # the audience must be resolved before deleting, as it can no longer be
+        # resolved by looking up the process afterwards
+        audience = await resolve_process_audience(process, self._settings)
         await process_manager.delete_process(process_id, user)
         await self.publish_internal_process_event(
-            process_id,
-            events.InternalProcessEventType.DELETED,
-            user,
-            correlation_id=correlation_id or create_correlation_id(),
+            events.InternalProcessDeletionEvent(
+                process_identifier=process_id,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id or create_correlation_id(),
+                audience=audience,
+            )
         )
 
     async def deploy_process(
@@ -411,18 +434,8 @@ class Potto:
 
     async def publish_internal_process_event(
         self,
-        process_id: str,
-        event_type: events.InternalProcessEventType,
-        initiated_by: Principal,
-        correlation_id: str | None = None,
-    ):
-        event = events.InternalProcessEvent(
-            event_type=event_type,
-            process_identifier=process_id,
-            timestamp=dt.datetime.now(dt.timezone.utc),
-            correlation_id=correlation_id or create_correlation_id(),
-            initiated_by=initiated_by,
-        )
+        event: events.InternalProcessEvent | events.InternalProcessDeletionEvent,
+    ) -> None:
         broker = self._settings.get_internal_broker(role="api")
         try:
             await broker.publish(
@@ -430,13 +443,14 @@ class Potto:
                 topic="/".join(
                     (
                         PROCESS_INTERNAL_TOPIC_PREFIX,
-                        process_id,
-                        event_type.value,
+                        event.process_identifier,
+                        event.event_type.value,
                     )
                 ),
                 qos=QoS.AT_LEAST_ONCE,
             )
         except Exception:
             logger.exception(
-                f"failed to publish {event.event_type.value} for process {process_id}"
+                f"failed to publish {event.event_type.value} for process "
+                f"{event.process_identifier}"
             )

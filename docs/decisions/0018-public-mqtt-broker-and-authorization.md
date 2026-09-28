@@ -10,7 +10,7 @@ decision-makers: Ricardo
 
 Following the adoption of an event-driven architecture ([ADR-0016](0016-adopt-event-driven-architecture.md)), potto publishes domain events
 (e.g. `collection_item_added`, job status changes) through a [FastStream] app. Internally, a [Mosquitto] broker
-([ADR-internal-broker]) running MQTT v5 distributes work to worker groups using shared subscriptions. External clients 
+([ADR-internal-broker]) running MQTT v5 distributes work to worker groups using shared subscriptions. External clients
 also need to receive event notifications, through a separate public broker.
 
 Every resource in potto has an owner, and not all resources are public. Ownership is defined at the collection level
@@ -43,45 +43,55 @@ audience-scoped topics", because it gives the simplest auth model:
 The design:
 
 - Authorization moves into potto (audience-scoped topics) - A FastStream fan-out consumer on the internal broker
-  (in a shared-subscription group) resolves each event's audience with potto's authz logic and republishes it to the
-  public broker, once per recipient:
+  (in a shared-subscription group) resolves each event's audience and republishes it to the public broker, once per
+  recipient:
 
   - `public/...` for public resources;
-  - `users/{user_id}/collections/{cid}/...` for the owners and editors of private collections;
-  - `users/{user_id}/processes/{pid}/...` for process events;
+  - `users/{user_id}/collections/{cid}/...` for the owners, editors and viewers of private collections;
+  - `users/{user_id}/processes/{pid}/...` for the owners, editors and viewers of private processes;
   - `users/{submitter_id}/processes/{pid}/jobs/{jid}` for job events, which go to the submitter only.
+
+  Events on public resources go to `public/...`. For private resources, the audience is decided by potto's
+  authorizer - the same one that the API uses - which is asked which of the resource's owner and sharing members
+  may view it. The authorizer remains the single source of truth for authorization: it delegates to the configured
+  authorization backend, so event audiences follow whichever engine is plugged in (potto's local rules, OPA, etc.).
+  Since the candidates come from the resource's owner and sharing members, the engine can narrow the audience, but
+  not extend it beyond those users.
 
   The broker only enforces namespaces.
 
-- Authentication is by token exchange - An authenticated user, whether OIDC or local, calls `POST /pubsub/token`.
+- Authentication is by token exchange - An authenticated user, whether OIDC or local, calls `POST /api/pubsub/token`.
   potto returns a short-lived JWT: `iss` is `potto`, `aud` is `potto-mqtt`, `sub` is potto's internal user ID,
-  lifetime is 15–60 minutes. It is signed with an asymmetric key and carries a `kid`. Clients send it as the
-  MQTT password.
+  lifetime is 15–60 minutes. It is signed with an asymmetric key. Clients send it as the MQTT password.
 
-- Broker plugin - This is a custom amqtt auth plugin plus a topic plugin, shipped in the potto package and registered
-  via entry points:
+- Broker plugin - This is a custom amqtt auth plugin plus a topic plugin, shipped in the potto package
 
-  - The auth plugin validates the token against potto's public key(s), loaded from configuration rather than fetched
-    from the API at runtime. It sets the session username from `sub` and ignores the username the client sent.
+  - The auth plugin validates the token against potto's public key, which is passed to the broker explicitly in
+    its configuration rather than fetched from the API at runtime. The broker never has access to the signing key,
+    and refuses to start without the public key. It sets the session username from `sub` and ignores the
+    username the client sent.
   - A connection without a password is treated as anonymous; an invalid or expired token is rejected, never downgraded to anonymous.
   - The topic plugin allows SUBSCRIBE on `public/#` for everyone and on `users/{username}/#` for authenticated users.
     It denies PUBLISH for all external clients.
   - It enforces token expiry after connect (reject or disconnect at `exp`), since MQTT 3.1.1 has no re-authentication.
 
-- Publishing - Done only by potto's FastStream app, through a listener bound to the internal network;
+- Publishing - Done only by potto's FastStream app, through a dedicated internal listener that is never exposed
+  outside the deployment's private network. The app authenticates on this listener with a shared publisher secret.
+  External clients can never publish, on any listener;
 - Events are thin - IDs, type, status and links. Clients fetch full resources and job results through the API,
   which remains the authoritative enforcement point;
 - User IDs used in topics - These must be stable, opaque and never contain `/`, `+` or `#`;
-- Operations - A new potto CLI command (e.g. `potto broker serve-public`) runs the public broker as its own process
+- Operations - The `potto run-broker` CLI command runs the public broker as its own process
   or container, configured from potto's settings;
-- Anonymous job notifications** are not offered. Anonymous users poll `/jobs/{jobId}` or use the OGC API – Processes
+- Anonymous job notifications are not offered. Anonymous users poll `/jobs/{jobId}` or use the OGC API – Processes
   callback URIs.
 
 ### Consequences
 
-- Good, because authorization logic lives in one place (potto) and is reused as-is by the fan-out consumer;
+- Good, because potto's authorizer, and therefore the configured authorization backend, stays the single source of
+  truth for authorization, including for event audiences, so authorization engines remain pluggable;
 - Good, because potto's authn modes (OIDC, local accounts, future ones) never change broker-side code;
-- Good, because the broker holds only public keys and no user credentials or ownership state, so there is nothing
+- Good, because the broker holds only a public key and no user credentials or ownership state, so there is nothing
   to reconcile;
 - Good, because no authorization call runs per message on the broker, so delivery doesn't depend on potto's
   availability once clients are connected;
@@ -93,6 +103,8 @@ The design:
   load-tested at expected subscriber counts;
 - Bad, because audience fan-out duplicates each event once per recipient. This is cheap for jobs (one recipient)
   but grows with the number of editors per collection;
+- Bad, because the audience of private resources is limited to their owner and sharing members, so authorization
+  rules that grant access more broadly (e.g. group-based OPA policies) are not reflected in notifications;
 - Bad, because visibility and membership changes apply to events published afterwards, not to events already delivered;
 - Bad, because topics no longer mirror API paths one-to-one, so clients must learn their topic prefix
   (e.g. from the token response or links in API responses).

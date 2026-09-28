@@ -40,6 +40,7 @@ from .routers import (
     base,
     collections,
     items,
+    pubsub,
 )
 
 
@@ -307,6 +308,7 @@ def create_api_app_from_settings(settings: config.PottoSettings) -> FastAPI:
     )
     app.include_router(mutating_collections_router)
     app.include_router(items.router)
+    app.include_router(pubsub.router)
     app.include_router(base.router)
 
     _original_openapi = app.openapi

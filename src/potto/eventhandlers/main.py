@@ -1,4 +1,3 @@
-from rich.pretty import data
 import logging
 
 from faststream import (
@@ -25,6 +24,7 @@ def create_worker_app() -> FastStream:
 
 
 def create_worker_app_from_settings(settings: "PottoSettings") -> FastStream:
+    settings.external_mqtt_broker.validate_for("worker")
     internal_broker = settings.get_internal_broker(role="worker")
     internal_broker.include_router(
         MQTTRouter(
@@ -57,7 +57,7 @@ def create_worker_app_from_settings(settings: "PottoSettings") -> FastStream:
         private_processes=external_broker.publisher("users/{user_id}/processes"),
         private_jobs=external_broker.publisher("users/{user_id}/jobs"),
         public_collections=external_broker.publisher("public/collections"),
-        public_processes=external_broker.publisher("public/collections"),
+        public_processes=external_broker.publisher("public/processes"),
     )
     app = FastStream(internal_broker, external_broker)
 

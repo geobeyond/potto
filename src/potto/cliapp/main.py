@@ -19,6 +19,10 @@ from ..config import (
     get_settings,
     PottoSettings,
 )
+from ..pubsub.broker import (
+    build_broker_config,
+    PottoBroker,
+)
 
 from .banner import BANNER
 from .cite import cite_app
@@ -120,12 +124,47 @@ def launcher(
     return command(*bound.args, **bound.kwargs, **additional_kwargs)
 
 
+@potto_app.command(name="run-broker")
+async def run_amqtt_broker(
+    *,
+    settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
+):
+    """Run potto's public MQTT broker."""
+    potto_app.console.print(BANNER)
+    broker_settings = settings.external_mqtt_broker
+    table = Table(title="Potto MQTT broker configuration")
+    table.add_column("Parameter")
+    table.add_column("Value")
+    table.add_row("debug", str(settings.debug))
+    table.add_row("public_bind", broker_settings.public_bind)
+    table.add_row("internal_url", str(broker_settings.internal_url))
+    table.add_row(
+        "token_public_key",
+        "configured" if broker_settings.token_public_key else "not configured",
+    )
+    table.add_row("uvicorn_log_config", str(settings.uvicorn_log_config_file))
+    potto_app.console.print(table)
+    broker = PottoBroker(config=build_broker_config(settings))
+    try:
+        await broker.start()
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        await broker.shutdown()
+
+
 @potto_app.command(name="run-worker")
 async def run_faststream_worker(
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ):
     potto_app.console.print(BANNER)
+    table = Table(title="Potto faststream worker configuration")
+    table.add_column("Parameter")
+    table.add_column("Value")
+    table.add_row("debug", str(settings.debug))
+    table.add_row("internal_mqtt_broker_url", str(settings.internal_mqtt_broker.url))
+    table.add_row("uvicorn_log_config", str(settings.uvicorn_log_config_file))
+    potto_app.console.print(table)
     faststream_args = [
         "faststream",
         "run",

@@ -5,19 +5,26 @@ from typing import (
 )
 
 from faststream import Context
+from faststream.mqtt import QoS
 
 from ..constants import (
-    PROCESS_EXTERNAL_PRIVATE_TOPIC_PREFIX,
-    PROCESS_EXTERNAL_PUBLIC_TOPIC_PREFIX,
+    LinkRelation,
+    MediaType,
+)
+from ..pubsub.audience import resolve_process_audience
+from ..pubsub.topics import (
+    is_valid_topic_user_id,
+    private_process_topic,
+    public_process_topic,
 )
 from ..schemas.auth import SystemPrincipal
 from ..schemas.events import (
-    ExternalPublishers,
-    InternalProcessEvent,
-    InternalProcessEventType,
-    ExternalPublicProcessEvent,
-    ExternalPrivateProcessEvent,
+    AnyInternalProcessEvent,
+    ExternalEventLink,
+    ExternalProcessEvent,
     ExternalProcessEventType,
+    ExternalPublishers,
+    InternalProcessDeletionEvent,
 )
 from ..schemas.processes import (
     ProcessDeploymentStatusValue,
@@ -29,66 +36,82 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_BRIDGE_PRINCIPAL = SystemPrincipal("public-bridge")
+
 
 async def bridge_internal_event_to_public(
-        event: InternalProcessEvent,
-        settings: Annotated["PottoSettings", Context()],
-        external_publishers: Annotated[ExternalPublishers, Context()],
-):
+    event: AnyInternalProcessEvent,
+    settings: Annotated["PottoSettings", Context()],
+    external_publishers: Annotated[ExternalPublishers, Context()],
+) -> None:
+    """Republish a process event to the external broker, once per audience topic."""
     logger.debug(f"received event {event=}")
-
-    process_manager = settings.get_process_manager()
-    if (
-            process := await process_manager.get_process(
-                event.process_identifier, event.initiated_by)
-    ) is None:
-        logger.debug(f"process {event.process_identifier} not found")
+    try:
+        external_event_type = ExternalProcessEventType(event.event_type.value)
+    except ValueError:
         return
 
-    if event.event_type not in (
-            InternalProcessEventType.CREATED,
-            InternalProcessEventType.DELETED,
-            InternalProcessEventType.UPDATED,
-            InternalProcessEventType.DEPLOYED,
-            InternalProcessEventType.UNDEPLOYED,
-
-    ):
-        return
-
-    if process.is_public:
-        await external_publishers.public_processes.publish(
-            ExternalPublicProcessEvent(
-                event_type=ExternalProcessEventType(event.event_type.value),
-                process_identifier=event.process_identifier,
-                timestamp=event.timestamp,
-            ),
-            topic="/".join(
-                (
-                    PROCESS_EXTERNAL_PUBLIC_TOPIC_PREFIX,
-                    event.process_identifier,
-                    event.event_type.value,
-                )
-            )
+    if isinstance(event, InternalProcessDeletionEvent):
+        # since process is already gone, its audience travels with the event
+        audience = event.audience
+    elif (
+        process := await settings.get_process_manager().get_process(
+            event.process_identifier, _BRIDGE_PRINCIPAL
         )
+    ) is not None:
+        audience = await resolve_process_audience(process, settings)
     else:
-        await external_publishers.private_processes.publish(
-            ExternalPrivateProcessEvent(
-                event_type=ExternalProcessEventType(event.event_type.value),
-                process_identifier=event.process_identifier,
-                timestamp=event.timestamp,
-            ),
-            topic="/".join(
-                (
-                    PROCESS_EXTERNAL_PRIVATE_TOPIC_PREFIX.format(user_id=event.initiated_by.identifier),
-                    event.process_identifier,
-                    event.event_type.value,
+        logger.debug(
+            f"Process {event.process_identifier!r} not found, not publishing "
+            f"its {event.event_type.value!r} event"
+        )
+        return
+
+    external_event = ExternalProcessEvent(
+        event_type=external_event_type,
+        process_identifier=event.process_identifier,
+        timestamp=event.timestamp,
+        links=(
+            [
+                ExternalEventLink(
+                    href=f"{settings.public_url}/api/processes/{event.process_identifier}",
+                    rel=LinkRelation.SELF.value,
+                    type=MediaType.JSON.value,
                 )
+            ]
+            if external_event_type != ExternalProcessEventType.DELETED
+            else []
+        ),
+    )
+    if audience.is_public:
+        await external_publishers.public_processes.publish(
+            external_event,
+            topic=public_process_topic(
+                event.process_identifier, external_event_type.value
+            ),
+            qos=QoS.AT_LEAST_ONCE,
+            correlation_id=event.correlation_id,
+        )
+        return
+    for user_id in audience.user_ids:
+        if not is_valid_topic_user_id(user_id):
+            logger.warning(
+                f"User id {user_id!r} cannot be used in a topic, not publishing "
+                f"event for process {event.process_identifier!r} to it"
             )
+            continue
+        await external_publishers.private_processes.publish(
+            external_event,
+            topic=private_process_topic(
+                user_id, event.process_identifier, external_event_type.value
+            ),
+            qos=QoS.AT_LEAST_ONCE,
+            correlation_id=event.correlation_id,
         )
 
 
 async def internal_handle_process_event(
-    event: InternalProcessEvent, settings: Annotated["PottoSettings", Context()]
+    event: AnyInternalProcessEvent, settings: Annotated["PottoSettings", Context()]
 ) -> None:
     """Handles a process-related event"""
     logger.debug(f"received event {event=}")

@@ -22,6 +22,8 @@ and its dependencies , and syncs local source code changes live into the running
     echo 'POTTO_DATA_ROOT="/path/to/your/local/data/directory"' > docker/local.env
     ```
 
+    Then add the pub/sub secrets to it, as described in [Pub/Sub secrets].
+
 2.  Start the stack:
 
     ```shell
@@ -115,6 +117,8 @@ remotes:
     echo 'POTTO_DATA_ROOT="/path/to/your/local/data/directory"' > docker/local.env
     ```
 
+    Then add the pub/sub secrets to it, as described in [Pub/Sub secrets].
+
 2.  Start the dev stack - this builds the potto image, brings up `db` and `test-db`, and starts the potto server
     itself, syncing local source code changes into the running container:
 
@@ -183,6 +187,73 @@ docker compose \
     -f docker/compose.dev.yaml \
     exec -ti potto bash
 ```
+
+
+## Pub/Sub
+
+The dev stack runs potto's public MQTT broker in the `potto-broker` service (see
+[ADR-0018](decisions/0018-public-mqtt-broker-and-authorization.md)). It has two listeners:
+
+- a public listener, published on the host at `localhost:11884`, where external clients subscribe to events;
+- an internal listener on port `1885`, reachable only from inside the compose network, where potto's worker
+  publishes events by authenticating with a shared secret.
+
+### Pub/Sub secrets
+
+The pub/sub services need a token signing key pair and a publisher password. Each developer generates their own and
+keeps them in `docker/local.env`, next to `POTTO_DATA_ROOT`, so they are never committed:
+
+| Variable in `docker/local.env`    | What it is                                               | Given to                     |
+|-----------------------------------|----------------------------------------------------------|------------------------------|
+| `POTTO_PUBSUB_TOKEN_SIGNING_KEY`  | PEM-encoded Ed25519 private key for signing client tokens | `potto`, `potto-cite`        |
+| `POTTO_PUBSUB_TOKEN_PUBLIC_KEY`   | The matching PEM-encoded public key                       | `potto-broker`               |
+| `POTTO_PUBSUB_PUBLISHER_PASSWORD` | Shared secret for publishing to the broker               | `potto-worker`, `potto-broker` |
+
+Generate them and append them to `docker/local.env` with:
+
+```shell
+key=$(openssl genpkey -algorithm ed25519)
+{
+    printf 'POTTO_PUBSUB_TOKEN_SIGNING_KEY="%s"\n' "${key}"
+    printf 'POTTO_PUBSUB_TOKEN_PUBLIC_KEY="%s"\n' "$(printf '%s\n' "${key}" | openssl pkey -pubout)"
+    printf 'POTTO_PUBSUB_PUBLISHER_PASSWORD="%s"\n' "$(openssl rand -hex 24)"
+} >> docker/local.env
+```
+
+The keys span several lines, which `docker compose` accepts in an env file as long as they are wrapped in double
+quotes, as above.
+
+!!! note "These are passed as compose secrets, not as environment variables"
+
+    `docker compose` reads these values from `docker/local.env` (hence the `--env-file` flag in every command of this
+    guide) and hands them to the containers as compose secrets: files mounted under `/run/secrets`, only into the
+    services listed above. They never appear in any container's environment, just as in a production deployment
+    - see [Configuration](configuration.md) for how potto reads settings from `/run/secrets`.
+
+    If one of the variables is missing, `docker compose` refuses to start the services that need it, e.g.
+    `environment variable "POTTO_PUBSUB_PUBLISHER_PASSWORD" required by secret "potto_pubsub-publisher-password" is
+    not set`. Other services, such as `potto-test`, are not affected.
+
+[Pub/Sub secrets]: #pubsub-secrets
+
+### Subscribing to events
+
+To subscribe to events, get a token and connect with any MQTT 3.1.1 client, such as the `amqtt_sub` CLI that
+ships with amqtt:
+
+```shell
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:3001/api/login \
+    -d username=<username> -d password=<password> | jq -r .access_token)
+curl -s -X POST http://localhost:3001/api/pubsub/token -H "Authorization: Bearer ${ACCESS_TOKEN}"
+
+# events for resources that you are allowed to see
+uv run amqtt_sub --url "mqtt://<user_id>:<token>@localhost:11884" -t "users/<user_id>/#"
+
+# events for public resources, no authentication needed
+uv run amqtt_sub --url "mqtt://localhost:11884" -t "public/#"
+```
+
+See [Pub/Sub](pubsub.md) for how pub/sub works from a client's perspective, and for the broker's configuration.
 
 
 ## Rebuilding the docker image
