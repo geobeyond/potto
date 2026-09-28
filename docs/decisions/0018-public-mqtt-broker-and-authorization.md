@@ -10,8 +10,8 @@ decision-makers: Ricardo
 
 Following the adoption of an event-driven architecture ([ADR-0016](0016-adopt-event-driven-architecture.md)), potto publishes domain events
 (e.g. `collection_item_added`, job status changes) through a [FastStream] app. Internally, a [Mosquitto] broker
-([ADR-internal-broker]) running MQTT v5 distributes work to worker groups using shared subscriptions. External clients also need to receive
-event notifications, through a separate public broker.
+([ADR-internal-broker]) running MQTT v5 distributes work to worker groups using shared subscriptions. External clients 
+also need to receive event notifications, through a separate public broker.
 
 Every resource in potto has an owner, and not all resources are public. Ownership is defined at the collection level
 for collections and at the process level for processes, and job events belong to the user who submitted the job.

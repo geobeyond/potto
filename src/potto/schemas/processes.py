@@ -12,7 +12,7 @@ from typing import (
 
 import pydantic
 
-from .auth import Principal, PottoUser
+from .auth import PottoUser
 from .base import (
     MaybeDescription,
     MaybeKeywords,
@@ -315,27 +315,6 @@ class ProcessUpdate(pydantic.BaseModel):
         | Annotated[ExecutionUnitOtherUpdate, pydantic.Tag("other")],
         pydantic.Discriminator(_execution_unit_type_tag),
     ]
-
-
-class ProcessEventType(enum.StrEnum):
-    CREATED = "created"
-    UPDATED = "updated"
-    DELETED = "deleted"
-    DEPLOYED = "deployed"
-    UNDEPLOYED = "undeployed"
-    CREATION_FAILED = "creation_failed"
-    UPDATE_FAILED = "update_failed"
-    DELETION_FAILED = "deletion_failed"
-    DEPLOYMENT_FAILED = "deployment_failed"
-    UNDEPLOYMENT_FAILED = "undeployment_failed"
-
-
-class ProcessEvent(pydantic.BaseModel):
-    event_type: ProcessEventType
-    process_identifier: str
-    initiated_by: Principal
-    timestamp: pydantic.AwareDatetime
-    correlation_id: str
 
 
 @dataclasses.dataclass(frozen=True)

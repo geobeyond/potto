@@ -26,7 +26,7 @@ from .schemas import (
     pagination as pagination_schemas,
     processes as process_schemas,
     features as feature_schemas,
-    system as system_schemas,
+    system as system_schemas, events,
 )
 from .util import (
     create_correlation_id,
@@ -286,7 +286,7 @@ class Potto:
         created = await process_manager.create_process(to_create, user)
         await self.publish_internal_process_event(
             created.identifier,
-            process_schemas.ProcessEventType.CREATED,
+            events.InternalProcessEventType.CREATED,
             user,
             correlation_id=correlation_id or create_correlation_id(),
         )
@@ -313,7 +313,7 @@ class Potto:
         updated = await process_manager.update_process(process, to_update, user)
         await self.publish_internal_process_event(
             updated.identifier,
-            process_schemas.ProcessEventType.UPDATED,
+            events.InternalProcessEventType.UPDATED,
             user,
             correlation_id=correlation_id or create_correlation_id(),
         )
@@ -335,7 +335,7 @@ class Potto:
         await process_manager.delete_process(process_id, user)
         await self.publish_internal_process_event(
             process_id,
-            process_schemas.ProcessEventType.DELETED,
+            events.InternalProcessEventType.DELETED,
             user,
             correlation_id=correlation_id or create_correlation_id(),
         )
@@ -412,11 +412,11 @@ class Potto:
     async def publish_internal_process_event(
         self,
         process_id: str,
-        event_type: process_schemas.ProcessEventType,
+        event_type: events.InternalProcessEventType,
         initiated_by: Principal,
         correlation_id: str | None = None,
     ):
-        event = process_schemas.ProcessEvent(
+        event = events.InternalProcessEvent(
             event_type=event_type,
             process_identifier=process_id,
             timestamp=dt.datetime.now(dt.timezone.utc),

@@ -172,6 +172,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     )
 
     _internal_broker: MQTTBroker | None = None
+    _external_broker: MQTTBroker | None = None
     _collection_manager: CollectionManagerProtocol | None = None
     _server_metadata_manager: ServerMetadataProtocol | None = None
     _user_account_manager: UserAccountProtocol | None = None
@@ -227,6 +228,22 @@ class PottoSettings(pydantic_settings.BaseSettings):
             )
 
         return self._internal_broker
+
+    def get_external_broker(self) -> MQTTBroker:
+        if self._external_broker is None:
+            self._external_broker = MQTTBroker(
+                self.external_mqtt_broker.url.unicode_string(),
+                version="3.1.1",
+                client_id=f"potto-public-api-{socket.gethostname()}",
+                clean_session=True,
+                # Retry forever with exponential backoff instead of giving up after
+                # zmqtt's default of 5 attempts - the api role connects in a
+                # non-blocking background task (see webapp/main.py's lifespan) and
+                # keeps trying even if the broker is unreachable for a while.
+                reconnect=zmqtt.ReconnectConfig(max_attempts=None),
+            )
+
+        return self._external_broker
 
     def get_collection_manager(self) -> CollectionManagerProtocol:
         if self._collection_manager is None:
