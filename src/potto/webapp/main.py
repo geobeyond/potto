@@ -50,8 +50,8 @@ async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
     # it is unreachable - the broker is configured for unlimited reconnect
     # attempts (see config.py's get_internal_broker), so this task keeps
     # retrying in the background for as long as the app runs.
-    internal_connect_task = asyncio.create_task(internal_broker.connect())
-    internal_connect_task.add_done_callback(_log_broker_connect_failure)
+    internal_broker_connect_task = asyncio.create_task(internal_broker.connect())
+    internal_broker_connect_task.add_done_callback(_log_broker_connect_failure)
     try:
         yield AppState(
             settings=settings,
@@ -61,9 +61,9 @@ async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
             authorizer=settings.get_authorizer(),
         )
     finally:
-        internal_connect_task.cancel()
+        internal_broker_connect_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await internal_connect_task
+            await internal_broker_connect_task
         await internal_broker.stop()
 
 

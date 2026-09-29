@@ -35,6 +35,21 @@ usual.
 
 The design behind this is described in [ADR-0018](decisions/0018-public-mqtt-broker-and-authorization.md).
 
+!!! tip "AsyncAPI document"
+
+    potto describes its broker's topics and event payloads in an [AsyncAPI] 3.0 document, which is served by the API:
+
+    - `/api/pubsub/docs` - interactive docs
+    - `/api/pubsub/asyncapi.json` and `/api/pubsub/asyncapi.yaml` - the document itself, which can be used with
+      AsyncAPI tooling, e.g. for generating clients
+
+    The document describes what potto _sends_, so its operations are the ones that clients subscribe to.
+
+    As advised by the draft OGC API - Pub/Sub standard, the API landing page links to the document with
+    `rel: service-desc` and `type: application/asyncapi+json`, and to the interactive docs with `rel: service-doc`.
+
+[AsyncAPI]: https://www.asyncapi.com/
+
 
 ## Topics
 

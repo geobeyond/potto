@@ -24,6 +24,7 @@ class MediaType(str, enum.Enum):
     OAS30 = "application/vnd.oai.openapi+json;version=3.0"
     GEO_JSON = "application/geo+json"
     JSON_SCHEMA = "application/schema+json"
+    ASYNCAPI_JSON = "application/asyncapi+json"
 
 
 class LinkRelation(str, enum.Enum):

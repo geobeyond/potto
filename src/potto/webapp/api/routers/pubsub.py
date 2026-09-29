@@ -4,9 +4,17 @@ from fastapi import (
     APIRouter,
     HTTPException,
 )
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    Response,
+)
+from faststream.specification.asyncapi.site import get_asyncapi_html
 
 from .. import responses
+from ....constants import MediaType
 from ....pubsub import tokens
+from ....pubsub.asyncapi import build_asyncapi_document
 from ....pubsub.topics import (
     private_topic_prefix,
     public_topic_prefix,
@@ -49,4 +57,35 @@ async def issue_pubsub_token(
         topic_prefix=private_topic_prefix(user.id),
         public_topic_prefix=public_topic_prefix(),
         broker_url=broker_settings.get_public_url(),
+    )
+
+
+@router.get("/pubsub/asyncapi.json", name="pubsub-asyncapi", include_in_schema=False)
+async def get_asyncapi_json(settings: SettingsDependency) -> JSONResponse:
+    """AsyncAPI document of potto's MQTT broker."""
+    return JSONResponse(
+        build_asyncapi_document(settings).to_jsonable(),
+        media_type=MediaType.ASYNCAPI_JSON.value,
+    )
+
+
+@router.get(
+    "/pubsub/asyncapi.yaml", name="pubsub-asyncapi-yaml", include_in_schema=False
+)
+async def get_asyncapi_yaml(settings: SettingsDependency) -> Response:
+    """AsyncAPI document of potto's MQTT broker, as YAML."""
+    return Response(
+        build_asyncapi_document(settings).to_yaml(), media_type="application/yaml"
+    )
+
+
+@router.get("/pubsub/docs", name="pubsub-docs", include_in_schema=False)
+async def get_asyncapi_docs(settings: SettingsDependency) -> HTMLResponse:
+    """Interactive docs for potto's MQTT broker."""
+    return HTMLResponse(
+        get_asyncapi_html(
+            build_asyncapi_document(settings),
+            # clients cannot publish, so there is nothing to try out
+            try_it_out_path=None,
+        )
     )

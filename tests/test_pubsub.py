@@ -31,9 +31,14 @@ from potto.exceptions import MissingConfigurationError
 from potto.constants import EXTERNAL_BROKER_INTERNAL_LISTENER_NAME
 from potto.eventhandlers.processes import bridge_internal_event_to_public
 from potto.pubsub import tokens
+from potto.pubsub.asyncapi import build_asyncapi_document
 from potto.pubsub.broker import (
     PottoBroker,
     build_broker_config,
+)
+from potto.pubsub.publishers import (
+    PRIVATE_PROCESS_TOPIC_TEMPLATE,
+    PUBLIC_PROCESS_TOPIC_TEMPLATE,
 )
 from potto.pubsub.plugins import (
     EXPIRY_ATTRIBUTE,
@@ -47,6 +52,10 @@ from potto.pubsub.plugins import (
 from potto.schemas.auth import (
     PottoUser,
     SystemPrincipal,
+)
+from potto.pubsub.topics import (
+    private_process_topic,
+    public_process_topic,
 )
 from potto.schemas.events import (
     AnyInternalProcessEvent,
@@ -697,6 +706,75 @@ def test_pubsub_token_is_issued(
     assert body["broker_url"] == TEST_PUBSUB_PUBLIC_URL
     claims = tokens.verify_mqtt_token(body["token"], public_key)
     assert claims["sub"] == admin_user.id
+
+
+@pytest.mark.integration
+def test_asyncapi_document_is_served(db, webapp_test_client):
+    response = webapp_test_client.get("/api/pubsub/asyncapi.json")
+    assert response.status_code == 200
+    assert response.json()["servers"]["potto"]["host"] == "localhost:1884"
+    response = webapp_test_client.get("/api/pubsub/asyncapi.yaml")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/yaml")
+    response = webapp_test_client.get("/api/pubsub/docs")
+    assert response.status_code == 200
+    assert "private-process-events" in response.text
+
+
+@pytest.mark.integration
+def test_api_landing_page_links_to_asyncapi_document(db, webapp_test_client):
+    links = webapp_test_client.get("/api/").json()["links"]
+    service_descs = {li["type"]: li for li in links if li["rel"] == "service-desc"}
+    assert set(service_descs) == {
+        "application/vnd.oai.openapi+json;version=3.0",
+        "application/asyncapi+json",
+    }
+    service_docs = [li["href"] for li in links if li["rel"] == "service-doc"]
+    assert any(href.endswith("/api/pubsub/docs") for href in service_docs)
+    response = webapp_test_client.get(
+        service_descs["application/asyncapi+json"]["href"]
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/asyncapi+json"
+
+
+def test_asyncapi_document_describes_only_the_public_broker():
+    settings = config.PottoSettings(
+        external_mqtt_broker=config.ExternalMqttBrokerSettings(
+            internal_url="mqtt://internal-broker:1999",
+            public_url="mqtt://broker.example.org:1884",
+            publisher_password=PUBLISHER_PASSWORD,
+        ),
+    )
+    document = build_asyncapi_document(settings).to_jsonable()
+    assert list(document["servers"]) == ["potto"]
+    assert document["servers"]["potto"]["host"] == "broker.example.org:1884"
+    assert {channel["address"] for channel in document["channels"].values()} == {
+        PRIVATE_PROCESS_TOPIC_TEMPLATE,
+        PUBLIC_PROCESS_TOPIC_TEMPLATE,
+    }
+    assert {operation["action"] for operation in document["operations"].values()} == {
+        "send"
+    }
+    assert "ExternalProcessEvent" in document["components"]["schemas"]
+    private_channel = document["channels"]["private-process-events"]
+    assert set(private_channel["parameters"]) == {
+        "user_id",
+        "process_identifier",
+        "event_type",
+    }
+    serialized = build_asyncapi_document(settings).to_json()
+    assert PUBLISHER_PASSWORD not in serialized
+    assert "internal-broker" not in serialized
+
+
+def test_asyncapi_topic_templates_match_published_topics():
+    assert PRIVATE_PROCESS_TOPIC_TEMPLATE.format(
+        user_id="u1", process_identifier="p1", event_type="created"
+    ) == private_process_topic("u1", "p1", "created")
+    assert PUBLIC_PROCESS_TOPIC_TEMPLATE.format(
+        process_identifier="p1", event_type="created"
+    ) == public_process_topic("p1", "created")
 
 
 @pytest.mark.parametrize(

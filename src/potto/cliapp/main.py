@@ -157,6 +157,11 @@ async def run_faststream_worker(
     *,
     settings: Annotated[PottoSettings, cyclopts.Parameter(parse=False)],
 ):
+    """Run a potto worker.
+
+    Potto workers consume internal events, handle them appropriately, and
+    publish public events.
+    """
     potto_app.console.print(BANNER)
     table = Table(title="Potto faststream worker configuration")
     table.add_column("Parameter")

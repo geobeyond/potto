@@ -53,6 +53,18 @@ class JsonLanding(pydantic.BaseModel):
                 title="API documentation",
             ),
             Link(
+                type=MediaType.ASYNCAPI_JSON,
+                rel=LinkRelation.SERVICE_DESC,
+                href=str(url_resolver("api:pubsub-asyncapi")),
+                title="AsyncAPI document of the pub/sub broker",
+            ),
+            Link(
+                type=MediaType.HTML,
+                rel=LinkRelation.SERVICE_DOC,
+                href=str(url_resolver("api:pubsub-docs")),
+                title="Pub/sub broker documentation",
+            ),
+            Link(
                 type=MediaType.JSON,
                 rel=LinkRelation.CONFORMANCE,
                 href=str(url_resolver("api:conformance-page")),

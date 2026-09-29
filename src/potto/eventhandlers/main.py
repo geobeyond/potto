@@ -12,7 +12,7 @@ from faststream.mqtt import (
 
 from ..config import PottoSettings
 from ..constants import PROCESS_INTERNAL_TOPIC_PREFIX
-from ..schemas.events import ExternalPublishers
+from ..pubsub.publishers import declare_external_publishers
 from . import processes as process_handlers
 
 logger = logging.getLogger(__name__)
@@ -52,13 +52,7 @@ def create_worker_app_from_settings(settings: "PottoSettings") -> FastStream:
         )
     )
     external_broker = settings.get_external_broker()
-    external_publishers = ExternalPublishers(
-        private_collections=external_broker.publisher("users/{user_id}/collections"),
-        private_processes=external_broker.publisher("users/{user_id}/processes"),
-        private_jobs=external_broker.publisher("users/{user_id}/jobs"),
-        public_collections=external_broker.publisher("public/collections"),
-        public_processes=external_broker.publisher("public/processes"),
-    )
+    external_publishers = declare_external_publishers(external_broker)
     app = FastStream(internal_broker, external_broker)
 
     @app.on_startup
