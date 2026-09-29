@@ -11,11 +11,12 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
-    from ..schemas.auth import PottoUser
     from ..schemas.processes import (
         Process,
         ProcessCreate,
+        ProcessDeploymentStatusValue,
         ProcessFilter,
         ProcessManagerCapabilities,
         ProcessUpdate,
@@ -44,13 +45,13 @@ class ProcessManagerProtocol(Protocol):
     async def get_process(
         self,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> "Process | None":
         """Retrieve a process."""
 
     async def paginated_list_processes(
         self,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -62,7 +63,7 @@ class ProcessManagerProtocol(Protocol):
     async def create_process(
         self,
         to_create: "ProcessCreate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Process":
         """Create a new process.
 
@@ -74,9 +75,22 @@ class ProcessManagerProtocol(Protocol):
         self,
         process: "Process",
         to_update: "ProcessUpdate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Process":
         """Update an existing process.
+
+        When the manager does not support updating processes this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+
+    async def set_process_deployment_status(
+        self,
+        process: "Process",
+        value: "ProcessDeploymentStatusValue",
+        user: "Principal",
+        detail: str | None = None,
+    ) -> "Process":
+        """update a process' deployment status.
 
         When the manager does not support updating processes this should raise
         ``potto.exceptions.CapabilityNotSupported``.
@@ -85,7 +99,7 @@ class ProcessManagerProtocol(Protocol):
     async def delete_process(
         self,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
         """Delete a process.
 
@@ -96,7 +110,7 @@ class ProcessManagerProtocol(Protocol):
     async def grant_process_access(
         self,
         *,
-        granting_user: "PottoUser",
+        granting_user: "Principal",
         target_user_id: str,
         process: "Process",
         role: str,
@@ -110,7 +124,7 @@ class ProcessManagerProtocol(Protocol):
     async def revoke_process_access(
         self,
         *,
-        revoking_user: "PottoUser",
+        revoking_user: "Principal",
         target_user_id: str,
         process: "Process",
     ) -> None:

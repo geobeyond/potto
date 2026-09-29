@@ -17,6 +17,7 @@ from .....schemas.processes import (
     ExecutionUnitOtherCreate,
     ExecutionUnitOtherUpdate,
     ProcessCreate,
+    ProcessDeploymentStatus,
     ProcessUpdate,
 )
 from ..models import Process
@@ -133,6 +134,23 @@ async def create_process(session: AsyncSession, to_create: ProcessCreate) -> Pro
     if (created := await get_process(session, cast(int, instance.id))) is None:
         raise CannotCreateResourceException("error creating process")
     return created
+
+
+async def set_process_deployment_status(
+    session: AsyncSession,
+    db_process: Process,
+    deployment_status: ProcessDeploymentStatus,
+) -> Process:
+    status_dict = dataclasses.asdict(deployment_status)
+    if status_dict["changed_at"] is not None:
+        status_dict["changed_at"] = status_dict["changed_at"].isoformat()
+    db_process.deployment_status = status_dict
+    session.add(db_process)
+    await session.commit()
+    await session.refresh(db_process)
+    if (updated := await get_process(session, cast(int, db_process.id))) is None:
+        raise CannotUpdateResourceException(f"error updating process {db_process.id}")
+    return updated
 
 
 async def update_process(

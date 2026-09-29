@@ -155,24 +155,24 @@ class CollectionView(_PottoAdminModelView):
             pk = request.path_params.get("pk")
             if pk is not None:
                 user = cast(PottoUser, request.user)
-                auth_backend = settings.get_authorization_backend()
+                authorizer = settings.get_authorizer()
                 if (
                     collection := await collection_manager.get_collection(
                         identifier=pk, user=user
                     )
                 ) is not None:
-                    return await auth_backend.can_edit_collection(user, collection)
+                    return await authorizer.can_edit_collection(user, collection)
         return await super().is_row_action_allowed(request, name)
 
     async def find_by_pk(self, request: Request, pk: Any) -> Any:
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
         collection_manager = settings.get_collection_manager()
-        auth_backend = settings.get_authorization_backend()
+        authorizer = settings.get_authorizer()
         collection = await collection_manager.get_collection(pk, user)
         if collection is None:
             return None
-        if not await auth_backend.can_view_collection(user, collection):
+        if not await authorizer.can_view_collection(user, collection):
             return None
         user_account_manager = settings.get_user_account_manager()
         editors = await user_account_manager.list_resource_editors(
@@ -235,9 +235,9 @@ class CollectionView(_PottoAdminModelView):
             capabilities = await collection_manager.get_collection_capabilities()
             can_edit = capabilities.supports_modification
 
-            auth_backend = settings.get_authorization_backend()
+            authorizer = settings.get_authorizer()
             result["_meta"]["can_edit"] = can_edit and (
-                await auth_backend.can_edit_collection(user, obj)
+                await authorizer.can_edit_collection(user, obj)
             )
         return result
 

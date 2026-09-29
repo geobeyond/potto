@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     import cyclopts
     from starlette_admin.views import BaseModelView
 
+    from ..authz.authorizer import Principal
     from ..config import PottoSettings
-    from ..schemas.auth import PottoUser
     from ..schemas.collections import (
         Collection,
         CollectionCreate,
@@ -44,13 +44,13 @@ class CollectionManagerProtocol(Protocol):
     async def get_collection(
         self,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> "Collection | None":
         """Retrieve a collection."""
 
     async def paginated_list_collections(
         self,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -62,7 +62,7 @@ class CollectionManagerProtocol(Protocol):
     async def create_collection(
         self,
         to_create: "CollectionCreate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Collection":
         """Create a new collection.
 
@@ -74,7 +74,7 @@ class CollectionManagerProtocol(Protocol):
         self,
         collection: "Collection",
         to_update: "CollectionUpdate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Collection":
         """Update an existing collection.
 
@@ -85,7 +85,7 @@ class CollectionManagerProtocol(Protocol):
     async def delete_collection(
         self,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
         """Delete a collection.
 
@@ -96,7 +96,7 @@ class CollectionManagerProtocol(Protocol):
     async def grant_collection_access(
         self,
         *,
-        granting_user: "PottoUser",
+        granting_user: "Principal",
         target_user_id: str,
         collection: "Collection",
         role: str,
@@ -110,7 +110,7 @@ class CollectionManagerProtocol(Protocol):
     async def revoke_collection_access(
         self,
         *,
-        revoking_user: "PottoUser",
+        revoking_user: "Principal",
         target_user_id: str,
         collection: "Collection",
     ) -> None:

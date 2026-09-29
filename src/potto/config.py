@@ -1,18 +1,34 @@
+import socket
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import (
+    Any,
+    Literal,
+    TypeVar,
+)
 
 import jinja2
 import pydantic
 import pydantic_settings
+import zmqtt
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from faststream.mqtt import MQTTBroker
+from faststream.security import SASLPlaintext
 from pygeoapi import __version__ as pygeoapi_version
 from starlette_babel import get_translator
 from starlette_babel.contrib.jinja import configure_jinja_env
 
 from . import jinjafilters
+from .constants import EXTERNAL_BROKER_PUBLISHER_USERNAME
+from .exceptions import MissingConfigurationError
+from .pubsub.tokens import (
+    parse_public_key,
+    parse_signing_key,
+)
 from .authn.oidc import OIDCProvider
-from .authz.protocols import AuthorizationBackendProtocol
+from .authz.authorizer import PottoAuthorizer
 from .authz.backend import LocalAuthorizationBackend
+from .authz.protocols import AuthorizationBackendProtocol
 from .authz.opa import OPAAuthorizationBackend
 from .managers.collections import (
     CollectionManagerProtocol,
@@ -32,6 +48,9 @@ from .managers.useraccounts import (
 )
 from .managers.postgis.config import PostgisManagerConfiguration
 from .managers.postgis.manager import get_postgis_manager
+
+_T = TypeVar("_T")
+
 
 warnings.filterwarnings(
     "ignore",
@@ -92,12 +111,135 @@ class ProcessManagerSettings(pydantic.BaseModel):
     )
 
 
+class InternalMqttBrokerSettings(pydantic.BaseModel):
+    url: pydantic.AnyUrl = pydantic.AnyUrl("mqtt://localhost:1883")
+
+
+class ExternalMqttBrokerSettings(pydantic.BaseModel):
+    internal_url: pydantic.AnyUrl = pydantic.AnyUrl("mqtt://localhost:1885")
+    public_bind: str = "0.0.0.0:1884"
+    # The following settings are each required by some of potto's processes only,
+    # so they have no default and each process checks for the ones it needs when
+    # it starts - see ``validate_for()``.
+    # URL advertised to external clients in the pubsub token response - API server
+    public_url: str | None = pydantic.Field(default=None, min_length=1)
+    # shared secret for publishing on the internal listener - worker and broker
+    publisher_password: pydantic.SecretStr | None = pydantic.Field(
+        default=None, min_length=1
+    )
+    # PEM-encoded Ed25519 private key for signing pubsub tokens - API server
+    token_signing_key: pydantic.SecretStr | None = None
+    # PEM-encoded Ed25519 public key for verifying pubsub tokens - broker
+    token_public_key: str | None = None
+    token_lifetime_minutes: int = pydantic.Field(default=30, ge=15, le=60)
+    expiry_check_interval_seconds: int = pydantic.Field(default=10, gt=0)
+
+    def validate_for(self, role: Literal["api", "worker", "broker"]) -> None:
+        """Check that the settings needed by a potto process are configured.
+
+        Raises ``MissingConfigurationError`` naming each missing setting.
+        """
+        required = {
+            "api": ("public_url", "token_signing_key"),
+            "worker": ("publisher_password",),
+            "broker": ("publisher_password", "token_public_key"),
+        }[role]
+        if missing := [name for name in required if getattr(self, name) is None]:
+            raise MissingConfigurationError(
+                ", ".join(
+                    f"POTTO__EXTERNAL_MQTT_BROKER__{name.upper()}" for name in missing
+                )
+                + f" must be set in order to run potto's {role}"
+            )
+
+    def get_public_url(self) -> str:
+        return self._require("public_url", self.public_url)
+
+    def get_publisher_password(self) -> str:
+        return self._require(
+            "publisher_password", self.publisher_password
+        ).get_secret_value()
+
+    def get_token_signing_key(self) -> Ed25519PrivateKey:
+        return parse_signing_key(
+            self._require(
+                "token_signing_key", self.token_signing_key
+            ).get_secret_value()
+        )
+
+    def get_token_public_key(self) -> str:
+        """Return the PEM-encoded public key for verifying pubsub tokens."""
+        return self._require("token_public_key", self.token_public_key)
+
+    @staticmethod
+    def _require(name: str, value: _T | None) -> _T:
+        if value is None:
+            raise MissingConfigurationError(
+                f"POTTO__EXTERNAL_MQTT_BROKER__{name.upper()} must be set"
+            )
+        return value
+
+    @pydantic.field_validator("internal_url")
+    @classmethod
+    def validate_internal_url(cls, value: pydantic.AnyUrl) -> pydantic.AnyUrl:
+        if value.port is None:
+            raise ValueError("internal_url must include an explicit port")
+        return value
+
+    @pydantic.field_validator("token_signing_key")
+    @classmethod
+    def validate_token_signing_key(
+        cls, value: pydantic.SecretStr | None
+    ) -> pydantic.SecretStr | None:
+        if value is not None:
+            try:
+                parse_signing_key(value.get_secret_value())
+            except ValueError as err:
+                raise ValueError(
+                    "token_signing_key must be a PEM-encoded Ed25519 private key"
+                ) from err
+        return value
+
+    @pydantic.field_validator("token_public_key")
+    @classmethod
+    def validate_token_public_key(cls, value: str | None) -> str | None:
+        if value is not None:
+            try:
+                parse_public_key(value)
+            except ValueError as err:
+                raise ValueError(
+                    "token_public_key must be a PEM-encoded Ed25519 public key"
+                ) from err
+        return value
+
+
 class PottoSettings(pydantic_settings.BaseSettings):
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="potto__",
         env_nested_delimiter="__",
+        # each file in the secrets dir holds one setting and is named like its
+        # environment variable, e.g. potto__external_mqtt_broker__token_signing_key
+        # (nested settings use the same delimiter as environment variables)
         secrets_dir="/run/secrets",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[pydantic_settings.BaseSettings],
+        init_settings: pydantic_settings.PydanticBaseSettingsSource,
+        env_settings: pydantic_settings.PydanticBaseSettingsSource,
+        dotenv_settings: pydantic_settings.PydanticBaseSettingsSource,
+        file_secret_settings: pydantic_settings.PydanticBaseSettingsSource,
+    ) -> tuple[pydantic_settings.PydanticBaseSettingsSource, ...]:
+        # the default secrets source only reads top-level settings, whereas the
+        # nested one also reads settings of nested models from their own file
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            pydantic_settings.NestedSecretsSettingsSource(file_secret_settings),
+        )
 
     bind_host: str = "127.0.0.1"
     bind_port: int = 3001
@@ -116,6 +258,8 @@ class PottoSettings(pydantic_settings.BaseSettings):
     local_data_root: Path = Path.home() / "potto_data"
     oidc: OIDCSettings | None = None
     opa: OPASettings | None = None
+    internal_mqtt_broker: InternalMqttBrokerSettings = InternalMqttBrokerSettings()
+    external_mqtt_broker: ExternalMqttBrokerSettings = ExternalMqttBrokerSettings()
 
     # these use default_factory in order to defer construction until PottoSettings() is actually called,
     # by which point the model_rebuild() calls below have resolved these settings models' forward
@@ -154,6 +298,8 @@ class PottoSettings(pydantic_settings.BaseSettings):
         ),
     )
 
+    _internal_broker: MQTTBroker | None = None
+    _external_broker: MQTTBroker | None = None
     _collection_manager: CollectionManagerProtocol | None = None
     _server_metadata_manager: ServerMetadataProtocol | None = None
     _user_account_manager: UserAccountProtocol | None = None
@@ -190,6 +336,44 @@ class PottoSettings(pydantic_settings.BaseSettings):
             else:
                 self._authorization_backend = LocalAuthorizationBackend()
         return self._authorization_backend
+
+    def get_authorizer(self) -> PottoAuthorizer:
+        return PottoAuthorizer(self.get_authorization_backend())
+
+    def get_internal_broker(self, role: Literal["api", "worker"]) -> MQTTBroker:
+        if self._internal_broker is None:
+            self._internal_broker = MQTTBroker(
+                self.internal_mqtt_broker.url.unicode_string(),
+                version="5.0",
+                client_id=f"potto-{role}-{socket.gethostname()}",
+                clean_session=True if role == "api" else False,
+                # Retry forever with exponential backoff instead of giving up after
+                # zmqtt's default of 5 attempts - the api role connects in a
+                # non-blocking background task (see webapp/main.py's lifespan) and
+                # must keep trying even if mosquitto is unreachable for a while.
+                reconnect=zmqtt.ReconnectConfig(max_attempts=None),
+            )
+
+        return self._internal_broker
+
+    def get_external_broker(self) -> MQTTBroker:
+        if self._external_broker is None:
+            self._external_broker = MQTTBroker(
+                self.external_mqtt_broker.internal_url.unicode_string(),
+                version="3.1.1",
+                client_id=f"potto-worker-publisher-{socket.gethostname()}",
+                clean_session=True,
+                security=SASLPlaintext(
+                    username=EXTERNAL_BROKER_PUBLISHER_USERNAME,
+                    password=self.external_mqtt_broker.get_publisher_password(),
+                ),
+                # Retry forever with exponential backoff instead of giving up after
+                # zmqtt's default of 5 attempts, so that the worker keeps trying
+                # even if the broker is unreachable for a while.
+                reconnect=zmqtt.ReconnectConfig(max_attempts=None),
+            )
+
+        return self._external_broker
 
     def get_collection_manager(self) -> CollectionManagerProtocol:
         if self._collection_manager is None:

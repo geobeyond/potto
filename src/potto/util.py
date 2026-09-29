@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import typing
+import uuid
 from typing import (
     cast,
     Coroutine,
@@ -79,3 +80,7 @@ def interpolate_configuration_value(value: str, env_whitelist: list[str]) -> str
         return env_variable_value
 
     return re.sub(r"\${?(\w+)}?", make_replacement, value)
+
+
+def create_correlation_id() -> str:
+    return str(uuid.uuid4())

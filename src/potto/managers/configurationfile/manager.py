@@ -10,7 +10,10 @@ import bcrypt
 import pydantic
 import shapely
 
-from ...authz.protocols import AuthorizationBackendProtocol
+from ...authz.authorizer import (
+    PottoAuthorizer,
+    Principal,
+)
 from ...exceptions import (
     CapabilityNotSupported,
     PottoCannotViewUserException,
@@ -32,6 +35,7 @@ from ...schemas.metadata import (
 )
 from ...schemas.processes import (
     Process,
+    ProcessDeploymentStatusValue,
     ProcessFilter,
     ProcessManagerCapabilities,
 )
@@ -85,7 +89,7 @@ class ConfigurationFileManager:
     - UserAccountManagerProtocol
     """
 
-    authorization_backend: AuthorizationBackendProtocol
+    authorizer: PottoAuthorizer
     config: ConfigurationFileManagerConfiguration
     collections: dict[str, Collection]
     processes: dict[str, Process]
@@ -96,9 +100,9 @@ class ConfigurationFileManager:
     def __init__(
         self,
         config: ConfigurationFileManagerConfiguration,
-        authorization_backend: AuthorizationBackendProtocol,
+        authorizer: PottoAuthorizer,
     ) -> None:
-        self.authorization_backend = authorization_backend
+        self.authorizer = authorizer
         self.config = config
         raw_configuration = tomllib.loads(config.config_file.read_text())
         self.user_accounts, self._hashed_passwords = parsing.parse_user_accounts(
@@ -131,24 +135,30 @@ class ConfigurationFileManager:
 
     async def get_collection_capabilities(self) -> CollectionManagerCapabilities:
         """Return the manager's capabilities."""
-        return CollectionManagerCapabilities()
+        return CollectionManagerCapabilities(
+            supports_creation=False,
+            supports_modification=False,
+            supports_deletion=False,
+            supports_granting_access=False,
+            supports_revoking_access=False,
+        )
 
     async def get_collection(
         self,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> Collection | None:
         """Retrieve a collection."""
         if (collection := self.collections.get(identifier)) is None:
             return None
-        if await self.authorization_backend.can_view_collection(user, collection):
+        if await self.authorizer.can_view_collection(user, collection):
             return collection
         else:
             return None
 
     async def paginated_list_collections(
         self,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -174,9 +184,7 @@ class ConfigurationFileManager:
                     or shapely.intersects(c.spatial_extent, filter_.spatial_intersect)
                 ]
         accessible = [
-            c
-            for c in candidates
-            if await self.authorization_backend.can_view_collection(user, c)
+            c for c in candidates if await self.authorizer.can_view_collection(user, c)
         ]
         total = len(accessible) if include_total else None
         return _paginate(accessible, page, page_size), total
@@ -184,13 +192,9 @@ class ConfigurationFileManager:
     async def create_collection(
         self,
         to_create: "CollectionCreate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Collection":
-        """Create a new collection.
-
-        When the manager does not support creating collections this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Create a new collection."""
         raise CapabilityNotSupported(
             "Creating collections is not supported by the configuration file manager."
         )
@@ -199,13 +203,9 @@ class ConfigurationFileManager:
         self,
         collection: "Collection",
         to_update: "CollectionUpdate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Collection":
-        """Update an existing collection.
-
-        When the manager does not support updating collections this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Update an existing collection."""
         raise CapabilityNotSupported(
             "Updating collections is not supported by the configuration file manager."
         )
@@ -213,13 +213,9 @@ class ConfigurationFileManager:
     async def delete_collection(
         self,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
-        """Delete a collection.
-
-        When the manager does not support deleting collections this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Delete a collection."""
         raise CapabilityNotSupported(
             "Deleting collections is not supported by the configuration file manager."
         )
@@ -227,16 +223,12 @@ class ConfigurationFileManager:
     async def grant_collection_access(
         self,
         *,
-        granting_user: "PottoUser",
+        granting_user: "Principal",
         target_user_id: str,
         collection: "Collection",
         role: str,
     ) -> None:
-        """Grant a role on the input collection to the target user.
-
-        When the manager does not support granting collection access this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Grant a role on the input collection to the target user."""
         raise CapabilityNotSupported(
             "Granting collection access is not supported by the "
             "configuration file manager."
@@ -245,15 +237,11 @@ class ConfigurationFileManager:
     async def revoke_collection_access(
         self,
         *,
-        revoking_user: "PottoUser",
+        revoking_user: "Principal",
         target_user_id: str,
         collection: "Collection",
     ) -> None:
-        """Revoke a user's access to a collection.
-
-        When the manager does not support revoking collection access this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Revoke a user's access to a collection."""
         raise CapabilityNotSupported(
             "Revoking collection access is not supported by the configuration file manager."
         )
@@ -264,24 +252,30 @@ class ConfigurationFileManager:
 
     async def get_process_capabilities(self) -> ProcessManagerCapabilities:
         """Return the manager's capabilities."""
-        return ProcessManagerCapabilities()
+        return ProcessManagerCapabilities(
+            supports_creation=False,
+            supports_modification=False,
+            supports_deletion=False,
+            supports_granting_access=False,
+            supports_revoking_access=False,
+        )
 
     async def get_process(
         self,
         identifier: str,
-        user: "PottoUser | None",
+        user: "Principal | None",
     ) -> Process | None:
         """Retrieve a process."""
         if (process := self.processes.get(identifier)) is None:
             return None
-        if await self.authorization_backend.can_view_process(user, process):
+        if await self.authorizer.can_view_process(user, process):
             return process
         else:
             return None
 
     async def paginated_list_processes(
         self,
-        user: "PottoUser | None",
+        user: "Principal | None",
         *,
         page: int = 1,
         page_size: int = 20,
@@ -294,9 +288,7 @@ class ConfigurationFileManager:
             identifiers = set(filter_.identifiers)
             candidates = [p for p in candidates if p.identifier in identifiers]
         accessible = [
-            p
-            for p in candidates
-            if await self.authorization_backend.can_view_process(user, p)
+            p for p in candidates if await self.authorizer.can_view_process(user, p)
         ]
         total = len(accessible) if include_total else None
         return _paginate(accessible, page, page_size), total
@@ -304,7 +296,7 @@ class ConfigurationFileManager:
     async def create_process(
         self,
         to_create: "ProcessCreate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Process":
         """Create a new process.
 
@@ -319,13 +311,21 @@ class ConfigurationFileManager:
         self,
         process: "Process",
         to_update: "ProcessUpdate",
-        user: "PottoUser",
+        user: "Principal",
     ) -> "Process":
-        """Update an existing process.
+        """Update an existing process."""
+        raise CapabilityNotSupported(
+            "Updating processes is not supported by the configuration file manager."
+        )
 
-        When the manager does not support updating processes this should raise
-        ``CapabilityNotSupported``.
-        """
+    async def set_process_deployment_status(
+        self,
+        process: "Process",
+        value: "ProcessDeploymentStatusValue",
+        user: "Principal",
+        detail: str | None = None,
+    ) -> "Process":
+        """update a process' deployment status."""
         raise CapabilityNotSupported(
             "Updating processes is not supported by the configuration file manager."
         )
@@ -333,13 +333,9 @@ class ConfigurationFileManager:
     async def delete_process(
         self,
         identifier: str,
-        user: "PottoUser",
+        user: "Principal",
     ) -> None:
-        """Delete a process.
-
-        When the manager does not support deleting processes this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Delete a process."""
         raise CapabilityNotSupported(
             "Deleting processes is not supported by the configuration file manager."
         )
@@ -347,16 +343,12 @@ class ConfigurationFileManager:
     async def grant_process_access(
         self,
         *,
-        granting_user: "PottoUser",
+        granting_user: "Principal",
         target_user_id: str,
         process: "Process",
         role: str,
     ) -> None:
-        """Grant a role on the input process to the target user.
-
-        When the manager does not support granting process access this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Grant a role on the input process to the target user."""
         raise CapabilityNotSupported(
             "Granting process access is not supported by the "
             "configuration file manager."
@@ -365,15 +357,11 @@ class ConfigurationFileManager:
     async def revoke_process_access(
         self,
         *,
-        revoking_user: "PottoUser",
+        revoking_user: "Principal",
         target_user_id: str,
         process: "Process",
     ) -> None:
-        """Revoke a user's access to a process.
-
-        When the manager does not support revoking process access this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Revoke a user's access to a process."""
         raise CapabilityNotSupported(
             "Revoking process access is not supported by the configuration file manager."
         )
@@ -386,7 +374,7 @@ class ConfigurationFileManager:
         self,
     ) -> ServerMetadataManagerCapabilities:
         """Return the manager's capabilities."""
-        return ServerMetadataManagerCapabilities()
+        return ServerMetadataManagerCapabilities(supports_modification=False)
 
     async def get_server_metadata(self) -> ServerMetadata:
         """Return pre-existing server metadata, creating a default record if none exists."""
@@ -395,13 +383,9 @@ class ConfigurationFileManager:
     async def update_server_metadata(
         self,
         to_update: "ServerMetadataUpdate",
-        user: PottoUser | None,
+        user: Principal | None,
     ) -> ServerMetadata:
-        """Update the server's metadata.
-
-        When the manager does not support updating metadata this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Update the server's metadata."""
         raise CapabilityNotSupported(
             "Updating server metadata is not supported by the configuration file manager."
         )
@@ -412,15 +396,19 @@ class ConfigurationFileManager:
 
     async def get_user_account_capabilities(self) -> UserAccountManagerCapabilities:
         """Return the manager's capabilities."""
-        return UserAccountManagerCapabilities()
+        return UserAccountManagerCapabilities(
+            supports_creation=False,
+            supports_modification=False,
+            supports_deletion=False,
+        )
 
     async def get_user(
         self,
         user_id: str,
-        requesting_user: PottoUser | None,
+        requesting_user: Principal | None,
     ) -> PottoUser | None:
         """Retrieve a user by id."""
-        if not await self.authorization_backend.can_view_user(requesting_user):
+        if not await self.authorizer.can_view_user(requesting_user):
             raise PottoCannotViewUserException(
                 "User does not have permission to view user accounts."
             )
@@ -429,10 +417,10 @@ class ConfigurationFileManager:
     async def get_user_by_username(
         self,
         username: str,
-        requesting_user: PottoUser | None,
+        requesting_user: Principal | None,
     ) -> PottoUser | None:
         """Retrieve a user by username."""
-        if not await self.authorization_backend.can_view_user(requesting_user):
+        if not await self.authorizer.can_view_user(requesting_user):
             raise PottoCannotViewUserException(
                 "User does not have permission to view user accounts."
             )
@@ -448,10 +436,10 @@ class ConfigurationFileManager:
         page_size: int = 20,
         include_total: bool = False,
         filter_: UserFilter | None = None,
-        requesting_user: PottoUser | None,
+        requesting_user: Principal | None,
     ) -> tuple[list[PottoUser], int | None]:
         """Retrieve a list of users."""
-        if not await self.authorization_backend.can_view_user(requesting_user):
+        if not await self.authorizer.can_view_user(requesting_user):
             raise PottoCannotViewUserException(
                 "User does not have permission to view user accounts."
             )
@@ -470,13 +458,9 @@ class ConfigurationFileManager:
     async def create_user(
         self,
         to_create: "UserCreate",
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser":
-        """Create a new local user.
-
-        When the manager does not support creating users this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Create a new local user."""
         raise CapabilityNotSupported(
             "Creating users is not supported by the configuration file manager."
         )
@@ -485,13 +469,9 @@ class ConfigurationFileManager:
         self,
         user_id: str,
         to_update: "UserUpdate",
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> "PottoUser":
-        """Update an existing user.
-
-        When the manager does not support updating users this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Update an existing user."""
         raise CapabilityNotSupported(
             "Updating users is not supported by the configuration file manager."
         )
@@ -499,13 +479,9 @@ class ConfigurationFileManager:
     async def delete_user(
         self,
         user_id: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> None:
-        """Delete a user.
-
-        When the manager does not support deleting users this should raise
-        ``CapabilityNotSupported``.
-        """
+        """Delete a user."""
         raise CapabilityNotSupported(
             "Deleting users is not supported by the configuration file manager."
         )
@@ -518,11 +494,7 @@ class ConfigurationFileManager:
         )
 
     async def authenticate(self, username: str, password: str) -> "PottoUser | None":
-        """Verify a local username/password pair.
-
-        Returns None on any failure (unknown user, inactive, no local password set,
-        wrong password).
-        """
+        """Verify a local username/password pair."""
         user = next(
             (u for u in self.user_accounts.values() if u.username == username), None
         )
@@ -541,10 +513,10 @@ class ConfigurationFileManager:
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> list["PottoUser"]:
         """Return the users who hold the editor role on the given resource."""
-        if not await self.authorization_backend.can_view_user(requesting_user):
+        if not await self.authorizer.can_view_user(requesting_user):
             raise PottoCannotViewUserException(
                 "User does not have permission to view resource editors."
             )
@@ -562,10 +534,10 @@ class ConfigurationFileManager:
         self,
         resource_type: str,
         resource_identifier: str,
-        requesting_user: "PottoUser | None",
+        requesting_user: "Principal | None",
     ) -> list["PottoUser"]:
         """Return the users who hold the viewer role on the given resource."""
-        if not await self.authorization_backend.can_view_user(requesting_user):
+        if not await self.authorizer.can_view_user(requesting_user):
             raise PottoCannotViewUserException(
                 "User does not have permission to view resource viewers."
             )
@@ -591,6 +563,6 @@ def get_configuration_file_manager(
     key = str(config.config_file)
     if key not in _manager_cache:
         _manager_cache[key] = ConfigurationFileManager(
-            config, settings.get_authorization_backend()
+            config, settings.get_authorizer()
         )
     return _manager_cache[key]

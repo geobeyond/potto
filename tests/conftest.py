@@ -20,6 +20,10 @@ from potto.schemas import (
 )
 from potto.webapp.main import create_app_from_settings
 from potto.webapp.api import dependencies
+from pubsub_testing import (
+    TEST_PUBSUB_PUBLIC_URL,
+    get_session_key_pair,
+)
 
 pytest_plugins = ("live_server", "manager_contract")
 
@@ -46,6 +50,11 @@ def settings() -> config.PottoSettings:
         manager_settings.settings_model["database_dsn"] = (
             postgis_settings.test_database_dsn.unicode_string()
         )
+    # the API server requires these in order to issue pubsub tokens
+    original_settings.external_mqtt_broker.public_url = TEST_PUBSUB_PUBLIC_URL
+    original_settings.external_mqtt_broker.token_signing_key = SecretStr(
+        get_session_key_pair()[0]
+    )
     return original_settings
 
 

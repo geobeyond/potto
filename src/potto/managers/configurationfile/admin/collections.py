@@ -91,11 +91,11 @@ class CollectionView(_PottoAdminModelView):
         user = cast(PottoUser, request.user)
         settings = cast("PottoSettings", request.app.state.SETTINGS)
         collection_manager = settings.get_collection_manager()
-        auth_backend = settings.get_authorization_backend()
+        authorizer = settings.get_authorizer()
         collection = await collection_manager.get_collection(pk, user)
         if collection is None:
             return None
-        if not await auth_backend.can_view_collection(user, collection):
+        if not await authorizer.can_view_collection(user, collection):
             return None
         user_account_manager = settings.get_user_account_manager()
         editors = await user_account_manager.list_resource_editors(

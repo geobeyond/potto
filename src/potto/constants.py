@@ -24,6 +24,7 @@ class MediaType(str, enum.Enum):
     OAS30 = "application/vnd.oai.openapi+json;version=3.0"
     GEO_JSON = "application/geo+json"
     JSON_SCHEMA = "application/schema+json"
+    ASYNCAPI_JSON = "application/asyncapi+json"
 
 
 class LinkRelation(str, enum.Enum):
@@ -83,3 +84,13 @@ GREGORIAN: typing.Final[str] = "http://www.opengis.net/def/uom/ISO-8601/0/Gregor
 FEATURE_COLLECTION_ITEM_TYPE: typing.Final[str] = "feature"
 
 PYGEOAPI_F_JSON: typing.Final[str] = "json"
+
+PROCESS_INTERNAL_TOPIC_PREFIX: typing.Final[str] = "processes"
+EXTERNAL_PUBLIC_TOPIC_PREFIX: typing.Final[str] = "public"
+EXTERNAL_PRIVATE_TOPIC_PREFIX: typing.Final[str] = "users/{user_id}"
+PROCESS_EXTERNAL_PRIVATE_TOPIC_PREFIX: typing.Final[str] = "users/{user_id}/processes"
+PROCESS_EXTERNAL_PUBLIC_TOPIC_PREFIX: typing.Final[str] = "public/processes"
+EXTERNAL_BROKER_PUBLISHER_USERNAME: typing.Final[str] = "potto-publisher"
+EXTERNAL_BROKER_INTERNAL_LISTENER_NAME: typing.Final[str] = "internal"
+MQTT_TOKEN_ISSUER: typing.Final[str] = "potto"
+MQTT_TOKEN_AUDIENCE: typing.Final[str] = "potto-mqtt"

@@ -94,6 +94,14 @@ jobs:
           labels: |
             ${{ steps.docker_metadata.outputs.labels }}
 
+      - name: "Generate ephemeral pubsub token signing key"
+        run: |
+          {
+            echo 'POTTO_PUBSUB_TOKEN_SIGNING_KEY<<EOF'
+            openssl genpkey -algorithm ed25519
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
       - name: "Stand up compose stack for testing"
         run: |
           docker compose --file docker/compose.ci.yaml up --detach --wait

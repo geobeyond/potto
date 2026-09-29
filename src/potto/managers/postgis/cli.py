@@ -10,8 +10,8 @@ import alembic.util.exc
 import cyclopts
 import yaml
 
-from ...cliapp._shared import get_cli_system_user
 from ...exceptions import PottoException
+from ...schemas.auth import SystemPrincipal
 from .operations import (
     collections as collection_ops,
     users as user_ops,
@@ -95,8 +95,8 @@ def build_cli_group(manager: "PostgisManager") -> cyclopts.App:
                 total_admins,
             ) = await user_ops.paginated_list_users(
                 session,
-                get_cli_system_user(),
-                manager.authorization_backend,
+                SystemPrincipal(name="cli"),
+                manager.authorizer,
                 include_total=True,
                 admin_filter=True,
             )
@@ -131,7 +131,7 @@ def build_cli_group(manager: "PostgisManager") -> cyclopts.App:
                     await collection_ops.import_pygeoapi_collection(
                         session,
                         collection_owner,
-                        manager.authorization_backend,
+                        manager.authorizer,
                         identifier,
                         relevant_collection,
                         manager.settings,

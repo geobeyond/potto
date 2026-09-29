@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import logging
 from typing import AsyncIterator
@@ -31,19 +32,39 @@ from .admin.main import create_admin_app_from_settings
 logger = logging.getLogger(__name__)
 
 
+def _log_broker_connect_failure(task: "asyncio.Task[object]") -> None:
+    if task.cancelled():
+        return
+    if (err := task.exception()) is not None:
+        logger.error("MQTT broker connection failed", exc_info=err)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncIterator[AppState]:
     settings: config.PottoSettings = app.state.settings
     oidc_provider = settings.get_oidc_provider()
     if oidc_provider is not None:
         await oidc_provider.get_discovery()
-    yield AppState(
-        settings=settings,
-        templates=Jinja2Templates(env=settings.get_jinja_env()),
-        potto=Potto(settings),
-        oidc_provider=oidc_provider,
-        authorization_backend=settings.get_authorization_backend(),
-    )
+    internal_broker = settings.get_internal_broker(role="api")
+    # Connecting to the broker must not block API startup or crash it if
+    # it is unreachable - the broker is configured for unlimited reconnect
+    # attempts (see config.py's get_internal_broker), so this task keeps
+    # retrying in the background for as long as the app runs.
+    internal_broker_connect_task = asyncio.create_task(internal_broker.connect())
+    internal_broker_connect_task.add_done_callback(_log_broker_connect_failure)
+    try:
+        yield AppState(
+            settings=settings,
+            templates=Jinja2Templates(env=settings.get_jinja_env()),
+            potto=Potto(settings),
+            oidc_provider=oidc_provider,
+            authorizer=settings.get_authorizer(),
+        )
+    finally:
+        internal_broker_connect_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await internal_broker_connect_task
+        await internal_broker.stop()
 
 
 def create_app() -> Starlette:
@@ -52,6 +73,7 @@ def create_app() -> Starlette:
 
 
 def create_app_from_settings(settings: config.PottoSettings) -> Starlette:
+    settings.external_mqtt_broker.validate_for("api")
     if settings.static_dir is not None:
         settings.static_dir.mkdir(parents=True, exist_ok=True)
     oidc_provider = settings.get_oidc_provider()

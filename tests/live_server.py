@@ -20,6 +20,11 @@ from potto import config
 from potto.managers.postgis.config import PostgisManagerConfiguration
 import sqlmodel
 
+from pubsub_testing import (
+    TEST_PUBSUB_PUBLIC_URL,
+    get_session_key_pair,
+)
+
 _LIVE_SERVER_USERNAME = "e2e-admin"
 _LIVE_SERVER_PASSWORD = "e2e-testpass"
 
@@ -108,6 +113,9 @@ def live_server(request):
         "POTTO__BIND_PORT": str(port),
         "POTTO__PUBLIC_URL": base_url,
         "POTTO__UVICORN_NUM_WORKERS": "1",
+        # the API server requires these in order to issue pubsub tokens
+        "POTTO__EXTERNAL_MQTT_BROKER__PUBLIC_URL": TEST_PUBSUB_PUBLIC_URL,
+        "POTTO__EXTERNAL_MQTT_BROKER__TOKEN_SIGNING_KEY": get_session_key_pair()[0],
     }
     # Creating the admin user via the CLI, rather than an in-process async
     # `create_user()` call, avoids touching pytest-asyncio's own event loop
