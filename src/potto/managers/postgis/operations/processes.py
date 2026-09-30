@@ -107,14 +107,14 @@ async def create_process(
     to_create: ProcessCreate,
 ) -> ProcessSchema:
     if not await authorizer.can_create_process(user):
-        raise exceptions.CannotCreateResourceException(
+        raise exceptions.CannotCreateResourceError(
             "User does not have permission to create a process."
         )
     try:
         created = await process_commands.create_process(session, to_create)
     except DatabaseError as err:
         await session.rollback()
-        raise exceptions.CannotCreateResourceException(str(err)) from err
+        raise exceptions.CannotCreateResourceError(str(err)) from err
     return created.to_potto()
 
 
@@ -127,7 +127,7 @@ async def set_process_deployment_status(
     detail: str | None = None,
 ) -> ProcessSchema:
     if not await authorizer.can_edit_process(user, process):
-        raise exceptions.CannotUpdateResourceException(
+        raise exceptions.CannotUpdateResourceError(
             f"User does not have permission to edit process {process.identifier!r}."
         )
     try:
@@ -135,7 +135,7 @@ async def set_process_deployment_status(
             session, process.identifier
         )
         if db_process is None:
-            raise exceptions.ResourceNotFoundException(
+            raise exceptions.ResourceNotFoundError(
                 f"process {process.identifier!r} not found"
             )
         updated = await process_commands.set_process_deployment_status(
@@ -150,7 +150,7 @@ async def set_process_deployment_status(
         )
         return updated.to_potto()
     except DatabaseError as err:
-        raise exceptions.CannotUpdateResourceException(str(err)) from err
+        raise exceptions.CannotUpdateResourceError(str(err)) from err
 
 
 async def update_process(
@@ -161,7 +161,7 @@ async def update_process(
     to_update: ProcessUpdate,
 ) -> ProcessSchema:
     if not await authorizer.can_edit_process(user, process):
-        raise exceptions.CannotUpdateResourceException(
+        raise exceptions.CannotUpdateResourceError(
             f"User does not have permission to edit process {process.identifier!r}."
         )
     if (
@@ -178,13 +178,13 @@ async def update_process(
             session, process.identifier
         )
         if db_process is None:
-            raise exceptions.ResourceNotFoundException(
+            raise exceptions.ResourceNotFoundError(
                 f"process {process.identifier!r} not found"
             )
         updated = await process_commands.update_process(session, db_process, to_update)
         return updated.to_potto()
     except DatabaseError as err:
-        raise exceptions.CannotUpdateResourceException(str(err)) from err
+        raise exceptions.CannotUpdateResourceError(str(err)) from err
 
 
 async def delete_process(
@@ -197,14 +197,14 @@ async def delete_process(
         session, identifier
     )
     if db_process is None:
-        raise exceptions.ResourceNotFoundException(
+        raise exceptions.ResourceNotFoundError(
             f"process {identifier!r} does not exist."
         )
     if not await authorizer.can_edit_process(user, db_process.to_potto()):
-        raise exceptions.CannotDeleteResourceException(
+        raise exceptions.CannotDeleteResourceError(
             f"User does not have permission to delete process {identifier!r}."
         )
     try:
         return await process_commands.delete_process(session, cast(int, db_process.id))
     except DatabaseError as err:
-        raise exceptions.CannotDeleteResourceException(str(err)) from err
+        raise exceptions.CannotDeleteResourceError(str(err)) from err

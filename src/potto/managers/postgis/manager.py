@@ -17,9 +17,11 @@ from ...authz.authorizer import (
     PottoAuthorizer,
     Principal,
 )
+from ... import exceptions
 from ...schemas import (
     auth as auth_schemas,
     collections as collection_schemas,
+    jobs as job_schemas,
     metadata as metadata_schemas,
     processes as process_schemas,
 )
@@ -501,6 +503,113 @@ class PostgisManager:
                 target_user_id,
                 process,
             )
+
+    async def get_job_admin_view(self) -> BaseModelView | None:
+        """Return a starlette_admin view suitable for use in potto's admin ui."""
+        raise NotImplementedError
+
+    async def get_job_capabilities(self) -> job_schemas.JobManagerCapabilities:
+        """Return the manager's capabilities."""
+        return job_schemas.JobManagerCapabilities(
+            supports_deletion=True,
+            supports_deployment=True,
+            supports_undeployment=True
+        )
+
+    @property
+    def supported_deployment_types(self) -> tuple[Literal["cwl", "oci"] | str, ...]:
+        """Report which deployment types are supported by the manager."""
+        return "cwl", "oci"
+
+    async def deploy_process(
+            self,
+            process: process_schemas.Process
+    ) -> process_schemas.ProcessDeploymentStatus:
+        """Deploy a process.
+
+        This is a potential long-running task and should thus be called from a background worker.
+
+        Raise DeploymentFailedException when the deployment cannot be done or fails.
+        """
+        match process.execution_unit:
+            case process_schemas.ProcessExecutionUnitOci():
+                return await self._deploy_oci_process(process)
+            case process_schemas.ProcessExecutionUnitCwl():
+                return await self._deploy_cwl_process(process)
+            case _ as unsupported_type:
+                raise exceptions.ProcessExecutionUnitNotSupportedError(
+                    f"process execution unit "
+                    f"{unsupported_type.type_ if unsupported_type else unsupported_type !r} "
+                    f"is not supported "
+                )
+
+    async def _deploy_oci_process(
+            self,
+            process: process_schemas.Process
+    ) -> process_schemas.ProcessDeploymentStatus:
+        raise NotImplementedError
+
+    async def _deploy_cwl_process(
+            self,
+            process: process_schemas.Process
+    ) -> process_schemas.ProcessDeploymentStatus:
+        raise NotImplementedError
+
+    async def undeploy_process(
+            self,
+            process: process_schemas.Process
+    ) -> process_schemas.ProcessDeploymentStatus:
+        """Undeploy a process.
+
+        This is a potential long-running task and should thus be called
+        from a background worker.
+
+        Raise DeploymentFailedException when the deployment cannot be done or fails.
+        """
+        raise NotImplementedError
+
+    async def get_job(
+        self,
+        identifier: str,
+        user: Principal | None,
+    ) -> job_schemas.Job | None:
+        """Retrieve a job."""
+        raise NotImplementedError
+
+    async def paginated_list_jobs(
+        self,
+        user: Principal | None,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        include_total: bool = False,
+        filter_: job_schemas.JobFilter | None = None,
+    ) -> tuple[list[job_schemas.Job], int | None]:
+        """Retrieve a list of jobs"""
+        raise NotImplementedError
+
+    async def create_job(
+        self,
+        to_create: job_schemas.JobCreate,
+        user: Principal,
+    ) -> job_schemas.Job:
+        """Create a new job.
+
+        This implicitly means that execution is also scheduled to start.
+        """
+        raise NotImplementedError
+
+    async def delete_job(
+        self,
+        identifier: str,
+        user: Principal,
+    ) -> None:
+        """Delete a job.
+
+        When the manager does not support deleting jobs this should raise
+        ``potto.exceptions.CapabilityNotSupported``.
+        """
+        raise NotImplementedError
 
 
 _manager_cache: dict[str, PostgisManager] = {}

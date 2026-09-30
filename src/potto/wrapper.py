@@ -313,7 +313,7 @@ class Potto:
         """
         process_manager = self._settings.get_process_manager()
         if (process := await process_manager.get_process(process_id, user)) is None:
-            raise potto_exceptions.CannotUpdateResourceException(
+            raise potto_exceptions.CannotUpdateResourceError(
                 f"process {process_id} not found"
             )
         updated = await process_manager.update_process(process, to_update, user)
@@ -346,7 +346,7 @@ class Potto:
                 process_id, SystemPrincipal("process-deleter")
             )
         ) is None:
-            raise potto_exceptions.CannotDeleteResourceException(
+            raise potto_exceptions.CannotDeleteResourceError(
                 f"process {process_id} not found"
             )
         # the audience must be resolved before deleting, as it can no longer be

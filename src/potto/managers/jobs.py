@@ -51,21 +51,19 @@ class JobManagerProtocol(Protocol):
     async def deploy_process(self, process: "Process") -> "ProcessDeploymentStatus":
         """Deploy a process.
 
-        This is a potentially long-running task and should thus be called from a background worker.
+        This is a potential long-running task and should thus be called from a background worker.
 
         Raise DeploymentFailedException when the deployment cannot be done or fails.
         """
-        ...
 
     async def undeploy_process(self, process: "Process") -> "ProcessDeploymentStatus":
         """Undeploy a process.
 
-        This is a potentially long-running task and should thus be called
+        This is a potential long-running task and should thus be called
         from a background worker.
 
         Raise DeploymentFailedException when the deployment cannot be done or fails.
         """
-        ...
 
     async def get_job(
         self,
@@ -90,7 +88,10 @@ class JobManagerProtocol(Protocol):
         to_create: "JobCreate",
         user: "Principal",
     ) -> "Job":
-        """Create a new job. This implicitly means that execution is also scheduled to start."""
+        """Create a new job.
+
+        This implicitly means that execution is also scheduled to start.
+        """
 
     async def delete_job(
         self,

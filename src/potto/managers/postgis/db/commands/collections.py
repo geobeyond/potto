@@ -4,9 +4,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from ..... import constants
 from .....exceptions import (
-    CannotCreateResourceException,
-    CannotUpdateResourceException,
-    ResourceNotFoundException,
+    CannotCreateResourceError,
+    CannotUpdateResourceError,
+    ResourceNotFoundError,
 )
 from .....schemas.collections import (
     CollectionCreate,
@@ -34,7 +34,7 @@ async def create_collection(
     await session.refresh(instance)
     assert instance.id is not None
     if (created := await get_collection(session, instance.id)) is None:
-        raise CannotCreateResourceException("error creating collection")
+        raise CannotCreateResourceError("error creating collection")
     return created
 
 
@@ -64,7 +64,7 @@ async def update_collection(
     await session.refresh(db_collection)
     assert db_collection.id is not None
     if (updated := await get_collection(session, db_collection.id)) is None:
-        raise CannotUpdateResourceException(
+        raise CannotUpdateResourceError(
             f"error updating collection {db_collection.id}"
         )
     return updated
@@ -78,6 +78,6 @@ async def delete_collection(
         await session.delete(instance)
         await session.commit()
     else:
-        raise ResourceNotFoundException(
+        raise ResourceNotFoundError(
             f"Collection with id {collection_id} does not exist."
         )

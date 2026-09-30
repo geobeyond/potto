@@ -9,6 +9,7 @@ from ..schemas.auth import (
 if TYPE_CHECKING:
     from ..schemas.collections import Collection
     from ..schemas.processes import Process
+    from ..schemas.jobs import Job
 
 
 class PottoAuthorizer:
@@ -223,3 +224,53 @@ class PottoAuthorizer:
                 return True
             case _:
                 return await self._authorization_backend.can_create_process(principal)
+
+
+    async def can_view_job(self, principal: Principal | None, job: "Job") -> bool:
+        """Return True if the user is allowed to view the job.
+
+        A None user represents an unauthenticated (anonymous) visitor.
+        """
+        match principal:
+            case SystemPrincipal():
+                return True
+            case _:
+                return await self._authorization_backend.can_view_job(
+                    principal, job
+                )
+
+
+    async def get_accessible_job_identifiers(
+            self, principal: Principal | None
+    ) -> list[int] | None:
+        """Return identifiers of jobs accessible to the user.
+
+        A None user represents an unauthenticated (anonymous) visitor.
+        Returns None if the user has unrestricted access (e.g. admin), or a list of
+        job identifiers the user can explicitly access.
+        """
+        match principal:
+            case SystemPrincipal():
+                return None
+            case _:
+                return await self._authorization_backend.get_accessible_job_identifiers(
+                    principal
+                )
+
+    async def can_create_job(self, principal: Principal | None) -> bool:
+        """Return True if user is allowed to create a new job."""
+        match principal:
+            case SystemPrincipal():
+                return True
+            case _:
+                return await self._authorization_backend.can_create_job(principal)
+
+    async def can_delete_job(self, principal: Principal | None, job: "Job") -> bool:
+        """Return True if requesting_user is allowed to delete a job."""
+        match principal:
+            case SystemPrincipal():
+                return True
+            case _:
+                return await self._authorization_backend.can_delete_job(
+                    principal, job
+                )

@@ -5,9 +5,9 @@ from typing import cast
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .....exceptions import (
-    CannotCreateResourceException,
-    CannotUpdateResourceException,
-    ResourceNotFoundException,
+    CannotCreateResourceError,
+    CannotUpdateResourceError,
+    ResourceNotFoundError,
 )
 from .....schemas.processes import (
     ExecutionUnitCwlCreate,
@@ -132,7 +132,7 @@ async def create_process(session: AsyncSession, to_create: ProcessCreate) -> Pro
     await session.commit()
     await session.refresh(instance)
     if (created := await get_process(session, cast(int, instance.id))) is None:
-        raise CannotCreateResourceException("error creating process")
+        raise CannotCreateResourceError("error creating process")
     return created
 
 
@@ -149,7 +149,7 @@ async def set_process_deployment_status(
     await session.commit()
     await session.refresh(db_process)
     if (updated := await get_process(session, cast(int, db_process.id))) is None:
-        raise CannotUpdateResourceException(f"error updating process {db_process.id}")
+        raise CannotUpdateResourceError(f"error updating process {db_process.id}")
     return updated
 
 
@@ -184,7 +184,7 @@ async def update_process(
     await session.commit()
     await session.refresh(db_process)
     if (updated := await get_process(session, cast(int, db_process.id))) is None:
-        raise CannotUpdateResourceException(f"error updating process {db_process.id}")
+        raise CannotUpdateResourceError(f"error updating process {db_process.id}")
     return updated
 
 
@@ -196,4 +196,4 @@ async def delete_process(
         await session.delete(instance)
         await session.commit()
     else:
-        raise ResourceNotFoundException(f"Process with id {process_id} does not exist.")
+        raise ResourceNotFoundError(f"Process with id {process_id} does not exist.")

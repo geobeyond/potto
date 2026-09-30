@@ -2,7 +2,11 @@ import datetime as dt
 import logging
 import uuid
 from functools import partial
-from typing import Any
+from typing import (
+    Annotated,
+    Any,
+    Literal,
+)
 
 import pydantic
 import shapely
@@ -30,6 +34,7 @@ from ....constants import (
 from ....schemas.auth import PottoUser
 from ....schemas import (
     collections as collection_schemas,
+    jobs as job_schemas,
     metadata as metadata_schemas,
     processes as process_schemas,
 )
@@ -203,6 +208,7 @@ class Process(SQLModel, table=True):
     deployment_status: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
 
     owner: "User" = Relationship(back_populates="owned_processes")
+    jobs: list["Job"] = Relationship(back_populates="process")
 
     def to_potto(self) -> process_schemas.Process:
         match self.execution_unit:
@@ -262,6 +268,63 @@ class Process(SQLModel, table=True):
                     value=process_schemas.ProcessDeploymentStatusValue.FAILED
                 )
             ),
+        )
+
+
+class Job(SQLModel, table=True):
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+    id: int | None = Field(
+        default=None,
+        primary_key=True,
+    )
+    owner_id: str = Field(foreign_key="user.id", ondelete="CASCADE")
+    process_id: str = Field(foreign_key="process.id", ondelete="CASCADE")
+    is_public: bool = Field(default=False)
+    status: job_schemas.JobStatus
+    response_type: Annotated[
+        Literal["document", "raw"],
+        Field(default="raw", nullable=False)
+    ]
+    additional_links: list[dict[str, str | dict[str, str]]] | None = Field(
+        default=None, sa_type=JSONB, nullable=True
+    )
+    created_at: dt.datetime = Field(default_factory=now_)
+    updated_at: dt.datetime | None = Field(
+        sa_column=Column(DateTime(), onupdate=func.now())
+    )
+    started_at: dt.datetime | None = None
+    finished_at: dt.datetime | None = None
+    processing_entity_type: str
+    message: str | None = Field(default=None, nullable=True)
+    exception: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+    progress: int | None = Field(default=None, nullable=True)
+    inputs: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+    outputs: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+    callback_uris: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
+
+    owner: "User" = Relationship(back_populates="owned_jobs")
+    process: Process = Relationship(back_populates="jobs")
+
+    def to_potto(self) -> job_schemas.Job:
+        return job_schemas.Job(
+            identifier=str(self.id) or "unknown",
+            status=self.status,
+            process=self.process.to_potto(),
+            created_at=self.created_at,  # ty: ignore[invalid-argument-type]
+            updated_at=self.updated_at or self.created_at,  # ty: ignore[invalid-argument-type]
+            started_at=self.started_at,
+            finished_at=self.finished_at,
+            owner=self.owner.to_potto(),
+            is_public=self.is_public,
+            additional_links=self.additional_links,
+            inputs={k: v for k, v in self.inputs.items()} if self.inputs else {},
+            outputs={k: v for k, v in self.outputs.items()} if self.outputs else {},
+            response_type=self.response_type,
+            callback_uris=(
+                job_schemas.JobCallbackUris(**self.callback_uris)
+                if self.callback_uris else None
+            )
         )
 
 
