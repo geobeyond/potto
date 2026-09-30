@@ -175,7 +175,9 @@ def test_token_with_invalid_claims_is_rejected(signing_key, public_key, override
 
 def test_tampered_token_is_rejected(signing_key, public_key):
     header, payload, signature = _issue(signing_key).split(".")
-    tampered = ".".join((header, payload, signature[:-2] + "AA"))
+    # the last base64url char of a 64-byte signature carries padding bits, so tamper with the first
+    replacement = "B" if signature[0] == "A" else "A"
+    tampered = ".".join((header, payload, replacement + signature[1:]))
     with pytest.raises(jwt.InvalidTokenError):
         tokens.verify_mqtt_token(tampered, public_key)
 
