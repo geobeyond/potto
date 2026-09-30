@@ -42,6 +42,7 @@ nav = [
             { "0019 - Toggle the admin UI" = "decisions/0019-allow-toggling-admin-ui.md" },
             { "0020 - Toggle the web UI" = "decisions/0020-allow-toggling-web-ui.md" },
             { "0021 - Toggle OGC API standards" = "decisions/0021-allow-toggling-ogc-api-standards.md" },
+            { "0022 - Job ownership and access" = "decisions/0022-job-ownership-and-access.md" },
         ] },
     ]},
     { "Motivation" = "motivation.md" },

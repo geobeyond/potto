@@ -56,8 +56,8 @@ The design:
   the API records the intent (e.g. deployment status `queued`, or a new job), answers immediately, and the work is
   carried out by background workers triggered by events ([ADR-events], [ADR-internal-broker]). Workers update the
   process's deployment status through the process manager, and job status through the job manager;
-- Jobs belong to the user who submitted them. Job status notifications go to the submitter only
-  ([ADR-public-broker]);
+- Jobs are owned, can be shared and made public, and by default inherit the sharing of their parent process.
+  Access to job results follows access to the job ([ADR-job-access]);
 - Job *results* live behind a separate `managers/jobresults.py::JobResultManagerProtocol` (`get_job_result`,
   `paginated_list_job_results`, `delete_job_result`), so results can be stored (e.g. in object storage) independently
   of where jobs run.
@@ -86,4 +86,4 @@ still stubs. -->
 [ADR-managers]: 0007-mediate-top-level-resource-access-via-pluggable-managers.md
 [ADR-events]: 0016-adopt-event-driven-architecture.md
 [ADR-internal-broker]: 0017-use-internal-event-broker.md
-[ADR-public-broker]: 0018-public-mqtt-broker-and-authorization.md
+[ADR-job-access]: 0022-job-ownership-and-access.md

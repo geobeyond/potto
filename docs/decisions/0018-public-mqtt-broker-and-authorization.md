@@ -14,7 +14,8 @@ Following the adoption of an event-driven architecture ([ADR-0016](0016-adopt-ev
 also need to receive event notifications, through a separate public broker.
 
 Every resource in potto has an owner, and not all resources are public. Ownership is defined at the collection level
-for collections and at the process level for processes, and job events belong to the user who submitted the job.
+for collections and at the process level for processes. Jobs have an owner too, and by default inherit the sharing
+of their parent process ([ADR-job-access]).
 So not every subscriber to a topic such as `collections/{collection_id}/items/+` may receive every
 event: authorization has to apply to each event, not just to each connection. potto's authentication layer supports
 both OIDC and local accounts, so broker authentication must not depend on any single identity provider.
@@ -49,7 +50,8 @@ The design:
   - `public/...` for public resources;
   - `users/{user_id}/collections/{cid}/...` for the owners, editors and viewers of private collections;
   - `users/{user_id}/processes/{pid}/...` for the owners, editors and viewers of private processes;
-  - `users/{submitter_id}/processes/{pid}/jobs/{jid}` for job events, which go to the submitter only.
+  - `users/{user_id}/processes/{pid}/jobs/{jid}` for the owners, editors and viewers of private jobs. Public jobs
+    publish no events.
 
   Events on public resources go to `public/...`. For private resources, the audience is decided by potto's
   authorizer - the same one that the API uses - which is asked which of the resource's owner and sharing members
@@ -83,8 +85,8 @@ The design:
 - User IDs used in topics - These must be stable, opaque and never contain `/`, `+` or `#`;
 - Operations - The `potto run-broker` CLI command runs the public broker as its own process
   or container, configured from potto's settings;
-- Anonymous job notifications are not offered. Anonymous users poll `/jobs/{jobId}` or use the OGC API – Processes
-  callback URIs.
+- Public jobs, including all jobs created anonymously, send no notifications. Their users poll `/jobs/{jobId}` or
+  use the OGC API – Processes callback URIs ([ADR-job-access]).
 
 ### Consequences
 
@@ -101,8 +103,8 @@ The design:
   enforced by the plugin;
 - Bad, because amqtt is a pure-Python asyncio broker, less mature and lower-throughput than Mosquitto. It must be
   load-tested at expected subscriber counts;
-- Bad, because audience fan-out duplicates each event once per recipient. This is cheap for jobs (one recipient)
-  but grows with the number of editors per collection;
+- Bad, because audience fan-out duplicates each event once per recipient. This grows with the number of users a
+  collection, process or job is shared with;
 - Bad, because the audience of private resources is limited to their owner and sharing members, so authorization
   rules that grant access more broadly (e.g. group-based OPA policies) are not reflected in notifications;
 - Bad, because visibility and membership changes apply to events published afterwards, not to events already delivered;
@@ -127,3 +129,4 @@ Options not chosen, and why:
 [Mosquitto]: https://mosquitto.org/
 [mosquitto-go-auth]: https://github.com/iegomez/mosquitto-go-auth
 [ADR-internal-broker]: 0017-use-internal-event-broker.md
+[ADR-job-access]: 0022-job-ownership-and-access.md
