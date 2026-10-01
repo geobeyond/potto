@@ -327,6 +327,7 @@ class ConfigurationFileManager:
         user: "Principal",
         detail: str | None = None,
         *,
+        deployed_reference: str | None = None,
         from_values: "AbcCollection[ProcessDeploymentStatusValue] | None" = None,
         expected_definition_hash: str | None = None,
     ) -> "Process":

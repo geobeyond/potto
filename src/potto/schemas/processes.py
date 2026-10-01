@@ -121,6 +121,9 @@ class ProcessDeploymentStatus:
     detail: str | None = None
     definition_hash: str | None = None
     changed_at: dt.datetime | None = None
+    # what the job manager produced when deploying the process, for running its
+    # jobs later - e.g. a local image reference
+    deployed_reference: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -289,6 +292,16 @@ def _execution_unit_type_tag(value: Any) -> str:
         value.get("type_") if isinstance(value, dict) else getattr(value, "type_", None)
     )
     return type_ if type_ in ("oci", "cwl") else "other"
+
+
+ExecutionUnitInput = (
+    ExecutionUnitOciCreate
+    | ExecutionUnitOciUpdate
+    | ExecutionUnitCwlCreate
+    | ExecutionUnitCwlUpdate
+    | ExecutionUnitOtherCreate
+    | ExecutionUnitOtherUpdate
+)
 
 
 class ProcessCreate(pydantic.BaseModel):

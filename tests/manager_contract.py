@@ -114,7 +114,11 @@ async def postgis_contract_harness(db, settings) -> ManagerContractHarness:
         bootstrap_user,
     )
     owner_user = await user_manager.create_user(
-        UserCreate(username="contract-owner", password=SecretStr("ownerpass1")),
+        UserCreate(
+            username="contract-owner",
+            password=SecretStr("ownerpass1"),
+            scopes=[PottoScope.PROCESS_CREATOR],
+        ),
         admin_user,
     )
     viewer_user = await user_manager.create_user(

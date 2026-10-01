@@ -19,6 +19,7 @@ dependencies = [
     "bcrypt>=5.0.0",
     "cryptography>=50.0.0",
     "cyclopts>=4.2.4",
+    "docker>=7.2.0",
     "duckdb>=1.5.3",
     "fastapi[standard]>=0.128.0",
     "faststream[mqtt]>=0.7.6",

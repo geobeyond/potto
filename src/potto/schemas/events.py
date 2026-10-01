@@ -10,6 +10,7 @@ import pydantic
 from faststream.mqtt.publisher.usecase import MQTTPublisher
 
 from .auth import Principal
+from .processes import Process
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,13 +69,15 @@ class InternalProcessDeletionEvent(_BaseInternalProcessEvent):
     """The deletion of a process.
 
     Since the process no longer exists, the event carries the audience that the
-    process had, as resolved just before it was deleted.
+    process had, as resolved just before it was deleted, and a snapshot of the
+    process itself, which is needed for undeploying it.
     """
 
     event_type: Literal[InternalProcessEventType.DELETED] = (
         InternalProcessEventType.DELETED
     )
     audience: ResourceAudience
+    process: Process
 
 
 # Both kinds of event are published on the same topics, so consumers receive

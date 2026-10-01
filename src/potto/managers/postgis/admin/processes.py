@@ -402,16 +402,16 @@ class ProcessView(_PottoAdminModelView):
         if process is None:
             raise PottoException(f"Process {pk} not found")
         try:
-            updated = await process_manager.update_process(
-                process,
-                ProcessUpdate.model_validate(
-                    {
-                        "processDescription": process_description,
-                        "execution_unit": execution_unit,
-                    }
-                ),
-                user,
+            to_update = ProcessUpdate.model_validate(
+                {
+                    "processDescription": process_description,
+                    "execution_unit": execution_unit,
+                }
             )
+            await settings.get_job_manager().validate_execution_unit(
+                to_update.execution_unit
+            )
+            updated = await process_manager.update_process(process, to_update, user)
         except (pydantic.ValidationError, PottoException) as err:
             return self.handle_exception(err)
 
@@ -474,14 +474,15 @@ class ProcessView(_PottoAdminModelView):
             "outputs": outputs,
         }
         try:
-            return await process_manager.create_process(
-                ProcessCreate.model_validate(
-                    {
-                        "processDescription": process_description,
-                        "execution_unit": execution_unit,
-                    }
-                ),
-                user,
+            to_create = ProcessCreate.model_validate(
+                {
+                    "processDescription": process_description,
+                    "execution_unit": execution_unit,
+                }
             )
+            await settings.get_job_manager().validate_execution_unit(
+                to_create.execution_unit
+            )
+            return await process_manager.create_process(to_create, user)
         except (pydantic.ValidationError, PottoException) as err:
             return self.handle_exception(err)

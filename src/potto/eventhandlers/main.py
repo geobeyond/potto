@@ -39,20 +39,17 @@ def create_worker_app_from_settings(settings: "PottoSettings") -> FastStream:
             # as it does not work together with shared subscriptions:
             # https://faststream.ag2.ai/latest/mqtt/shared/
             handlers=(
+                # A single subscriber for all process events, which takes care of
+                # everything that needs doing with them. faststream (0.7.6) does
+                # not deliver a message to more than one subscriber of the same
+                # broker connection when their topics overlap, regardless of their
+                # shared subscription groups
                 MQTTRoute(
-                    process_handlers.internal_handle_process_event,
+                    process_handlers.handle_internal_process_event,
                     "/".join(
                         (PROCESS_INTERNAL_TOPIC_PREFIX, "{identifier}/{event_type}")
                     ),
-                    shared="process-lifecycle",
-                    qos=QoS.AT_LEAST_ONCE,
-                ),
-                MQTTRoute(
-                    process_handlers.bridge_internal_event_to_public,
-                    "/".join(
-                        (PROCESS_INTERNAL_TOPIC_PREFIX, "{identifier}/{event_type}")
-                    ),
-                    shared="bridge-to-public",
+                    shared="process-events",
                     qos=QoS.AT_LEAST_ONCE,
                 ),
                 MQTTRoute(

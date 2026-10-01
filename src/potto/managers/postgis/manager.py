@@ -1,8 +1,11 @@
 import asyncio
+import json
 import logging
 from typing import (
     Any,
+    Callable,
     Collection,
+    TypeVar,
     cast,
     Literal,
     TYPE_CHECKING,
@@ -12,6 +15,8 @@ import alembic.config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 import cyclopts
+import docker
+import docker.errors
 from sqlalchemy import create_engine
 from starlette_admin.views import BaseModelView
 
@@ -36,6 +41,7 @@ from .admin.users import UserView
 from .cli import build_cli_group
 from .config import PostgisManagerConfiguration
 from .db.alembic_utils import build_alembic_config
+from . import oci
 from .operations import (
     collections as collection_ops,
     jobs as job_ops,
@@ -48,6 +54,8 @@ if TYPE_CHECKING:
     from ...config import PottoSettings
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class PostgisManager:
@@ -454,6 +462,7 @@ class PostgisManager:
         user: Principal,
         detail: str | None = None,
         *,
+        deployed_reference: str | None = None,
         from_values: Collection[process_schemas.ProcessDeploymentStatusValue]
         | None = None,
         expected_definition_hash: str | None = None,
@@ -467,6 +476,7 @@ class PostgisManager:
                 process,
                 value=value,
                 detail=detail,
+                deployed_reference=deployed_reference,
                 from_values=from_values,
                 expected_definition_hash=expected_definition_hash,
             )
@@ -557,24 +567,102 @@ class PostgisManager:
     async def _deploy_oci_process(
         self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
-        raise NotImplementedError
+        execution_unit = cast(
+            process_schemas.ProcessExecutionUnitOci, process.execution_unit
+        )
+        try:
+            reference = oci.parse_image_reference(execution_unit.image)
+            oci.ensure_registry_allowed(reference, self.config.oci)
+        except oci.OciImageReferenceError as err:
+            raise exceptions.DeploymentFailedException(str(err)) from err
+        repository = oci.process_repository(process)
+        deployed = await self._run_with_docker_client(
+            oci.pull_and_tag,
+            reference,
+            oci.get_auth_config(reference, self.config.oci),
+            repository,
+            process.get_deployment_hash(),
+        )
+        # earlier deployments of the process are no longer needed
+        released = await self._run_with_docker_client(
+            oci.release_tags, repository, deployed.local_reference
+        )
+        if released:
+            logger.info(
+                f"released earlier deployments of process {process.identifier!r}: "
+                f"{released}"
+            )
+        return process_schemas.ProcessDeploymentStatus(
+            value=process_schemas.ProcessDeploymentStatusValue.DEPLOYED,
+            detail=(
+                f"pulled {deployed.upstream_digest}"
+                if deployed.upstream_digest
+                else f"pulled {reference.repository}:{reference.tag_or_digest}"
+            ),
+            deployed_reference=deployed.local_reference,
+        )
 
     async def _deploy_cwl_process(
         self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
         raise NotImplementedError
 
-    async def undeploy_process(
-        self, process: process_schemas.Process
-    ) -> process_schemas.ProcessDeploymentStatus:
-        """Undeploy a process.
+    async def undeploy_process(self, process: process_schemas.Process) -> None:
+        """Undeploy a process, releasing whatever its deployment produced."""
+        match process.execution_unit:
+            case process_schemas.ProcessExecutionUnitOci():
+                released = await self._run_with_docker_client(
+                    oci.release_tags, oci.process_repository(process)
+                )
+                logger.info(f"undeployed process {process.identifier!r}: {released}")
+            case _:
+                logger.debug(f"process {process.identifier!r} has nothing to undeploy")
 
-        This is a potential long-running task and should thus be called
-        from a background worker.
+    async def validate_execution_unit(
+        self, execution_unit: process_schemas.ExecutionUnitInput
+    ) -> None:
+        """Check whether this manager would accept an execution unit for deployment."""
+        match execution_unit:
+            case process_schemas.ExecutionUnitOciCreate(image=image) | (
+                process_schemas.ExecutionUnitOciUpdate(image=str() as image)
+            ):
+                try:
+                    oci.ensure_registry_allowed(
+                        oci.parse_image_reference(image), self.config.oci
+                    )
+                except oci.OciImageReferenceError as err:
+                    raise exceptions.ProcessExecutionUnitRejectedError(
+                        str(err)
+                    ) from err
+            case _:
+                return None
 
-        Raise DeploymentFailedException when the deployment cannot be done or fails.
-        """
-        raise NotImplementedError
+    async def _run_with_docker_client(
+        self, function: Callable[..., T], *args: Any
+    ) -> T:
+        """Run a synchronous function that takes a docker client, in a thread."""
+
+        def run() -> T:
+            settings = self.config.oci
+            try:
+                client = (
+                    docker.DockerClient(
+                        base_url=settings.docker_base_url,
+                        timeout=settings.docker_timeout_seconds,
+                    )
+                    if settings.docker_base_url
+                    else docker.from_env(timeout=settings.docker_timeout_seconds)
+                )
+            except docker.errors.DockerException as err:
+                raise exceptions.DeploymentFailedException(
+                    f"could not connect to the container engine: {err}"
+                ) from err
+            try:
+                return function(client, *args)
+            finally:
+                client.close()
+
+        return await asyncio.to_thread(run)
 
     async def get_job(
         self,
@@ -745,7 +833,10 @@ def get_postgis_manager(
     # ProcessManagerFactoryProtocol/ServerMetadataManagerFactoryProtocol/
     # UserAccountManagerFactoryProtocol at once - no separate wrapper per protocol needed.
     config = PostgisManagerConfiguration.model_validate(raw_config)
-    key = config.database_dsn.unicode_string()
+    # keyed on the whole configuration, rather than just the DSN, so that e.g. a
+    # job manager configured with OCI settings does not end up sharing an instance
+    # that was created from some other manager's configuration
+    key = json.dumps(raw_config, sort_keys=True, default=str)
     if key not in _manager_cache:
         _manager_cache[key] = PostgisManager(config, settings)
     return _manager_cache[key]

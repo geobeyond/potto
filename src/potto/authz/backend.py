@@ -166,7 +166,14 @@ class LocalAuthorizationBackend:
         return user.id == process.owner.id
 
     async def can_create_process(self, user: PottoUser | None) -> bool:
-        return user is not None
+        # creating a process means potto may later pull and run its image, which is
+        # why this is restricted to explicitly trusted users
+        if user is None:
+            return False
+        return (
+            PottoScope.ADMIN.value in user.scopes
+            or PottoScope.PROCESS_CREATOR.value in user.scopes
+        )
 
     @staticmethod
     def _is_job_editor(user: PottoUser, job: Job) -> bool:

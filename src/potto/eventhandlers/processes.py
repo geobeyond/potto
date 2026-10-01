@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import (
     Annotated,
@@ -38,6 +39,35 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _BRIDGE_PRINCIPAL = SystemPrincipal("public-bridge")
+
+
+async def handle_internal_process_event(
+    event: AnyInternalProcessEvent,
+    settings: Annotated["PottoSettings", Context()],
+    external_publishers: Annotated[ExternalPublishers, Context()],
+) -> None:
+    """Handle a process event: reconcile the process and bridge the event.
+
+    Both are done concurrently, so that a long-running deployment does not delay
+    notifying the event, and independently, so that a failure in one does not
+    prevent the other.
+    """
+    steps = {
+        "reconciling the process": internal_handle_process_event(event, settings),
+        "bridging the event to the public broker": bridge_internal_event_to_public(
+            event, settings, external_publishers
+        ),
+    }
+    results = await asyncio.gather(*steps.values(), return_exceptions=True)
+    for description, result in zip(steps, results, strict=True):
+        if isinstance(result, Exception):
+            logger.error(
+                f"{description} failed for the {event.event_type.value!r} event of "
+                f"process {event.process_identifier!r}",
+                exc_info=result,
+            )
+        elif isinstance(result, BaseException):
+            raise result
 
 
 async def bridge_internal_event_to_public(
@@ -116,6 +146,13 @@ async def internal_handle_process_event(
 ) -> None:
     """Handles a process-related event"""
     logger.debug(f"received event {event=}")
+    if isinstance(event, InternalProcessDeletionEvent):
+        await Potto(settings).undeploy_process(
+            event.process,
+            user=SystemPrincipal("process-undeployer"),
+            correlation_id=event.correlation_id,
+        )
+        return None
     await _reconcile_process(
         event.process_identifier, event.correlation_id, settings=settings
     )
@@ -129,10 +166,8 @@ async def _reconcile_process(
     process = await potto.get_process(identifier, user=principal)
 
     if process is None:
-        # ensure there is no deployment leftover for the process - not sure how yet
-        await potto.undeploy_process(
-            identifier, user=principal, correlation_id=correlation_id
-        )
+        # the process has been deleted meanwhile - undeploying it is taken care of
+        # when handling its deletion event
         return None
 
     desired = process.get_deployment_hash()

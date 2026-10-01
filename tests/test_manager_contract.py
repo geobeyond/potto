@@ -18,6 +18,7 @@ from pydantic import SecretStr
 
 from potto.constants import CollectionType
 from potto.exceptions import (
+    CannotCreateResourceError,
     CannotUpdateResourceError,
     CapabilityNotSupported,
     PottoCannotDeleteUserException,
@@ -436,6 +437,29 @@ class TestProcessMutationCapabilities:
         else:
             with pytest.raises(CapabilityNotSupported):
                 await manager.create_process(to_create, contract_harness.owner_user)
+
+    @pytest.mark.asyncio
+    async def test_create_process_requires_process_creator_scope(
+        self, contract_harness
+    ):
+        manager = contract_harness.manager
+        capabilities = await manager.get_process_capabilities()
+        if not capabilities.supports_creation:
+            pytest.skip("manager does not support creating processes")
+        with pytest.raises(CannotCreateResourceError):
+            await manager.create_process(
+                ProcessCreate(
+                    processDescription=ProcessDescriptionCreate(
+                        identifier="contract-unprivileged-process",
+                        title="Process created without the scope",
+                        owner_id=contract_harness.other_user.id,
+                        is_public=True,
+                        version="1.0.0",
+                    ),
+                    execution_unit=ExecutionUnitOtherCreate(type_="other", value={}),
+                ),
+                contract_harness.other_user,
+            )
 
     @pytest.mark.asyncio
     async def test_update_process(self, contract_harness):

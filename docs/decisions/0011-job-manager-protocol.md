@@ -42,11 +42,22 @@ The design:
   - `supported_deployment_types`: which execution unit types the manager can run (`"oci"`, `"cwl"` or custom
     strings matching `ProcessExecutionUnitOther.type_`). potto checks a process's execution unit against it before
     asking for a deployment;
-  - `deploy_process(process) -> ProcessDeploymentStatus` and `undeploy_process(process) -> ProcessDeploymentStatus`:
-    prepare or tear down whatever the execution environment needs to run the process (pull images, register
-    workflows, create templates, ...). They raise `DeploymentFailedException` when this cannot be done;
-  - `create_job(to_create, user) -> Job`: create a job for a deployed process. Creating a job implicitly schedules its
-    execution;
+  - `deploy_process(process) -> ProcessDeploymentStatus`: prepare whatever the execution environment needs to run the
+    process (pull images, register workflows, create templates, ...). The returned status may carry a
+    `deployed_reference` (e.g. a local image reference), which potto records with the process' deployment status,
+    for running its jobs later;
+  - `undeploy_process(process) -> None`: tear down what deploying the process produced. As in OGC API - Processes -
+    Part 2, where undeploying a process means deleting it, processes are undeployed when they are deleted. The
+    deletion event carries a snapshot of the process, taken just before its deletion, which the worker passes to
+    this method. It must be idempotent. A successful redeployment also releases what earlier deployments of the
+    process produced. Both methods raise `DeploymentFailedException` when they fail;
+  - `validate_execution_unit(execution_unit) -> None`: a cheap check, which must not contact the execution
+    environment, of whether the manager would accept an execution unit for deployment. potto calls it before
+    creating or updating a process, so that problems surface immediately rather than as a failed deployment. It
+    raises `ProcessExecutionUnitRejectedError`;
+  - `create_job(process_identifier, to_create, user) -> Job`: create a job for a deployed process. Creating a job
+    implicitly schedules its execution: potto's worker then calls `execute_job(identifier, user)`, which reports
+    progress via `set_job_status(...)`;
   - `get_job(identifier, user)` and `paginated_list_jobs(user, ..., filter_)` with a `JobFilter`;
   - `delete_job(identifier, user)`, gated by `JobManagerCapabilities.supports_deletion`, raising
     `CapabilityNotSupported` otherwise;

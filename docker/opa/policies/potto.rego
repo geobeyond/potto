@@ -271,11 +271,20 @@ can_change_process_owner if {
 }
 
 # --- can_create_process ---
+#
+# Creating a process means potto may later pull and run its image, so this is
+# restricted to admins and to users with the process:creator scope.
 
 default can_create_process := false
 
 can_create_process if {
     input.user != null
+    "admin" in input.user.scopes
+}
+
+can_create_process if {
+    input.user != null
+    "process:creator" in input.user.scopes
 }
 
 # --- can_create_job ---

@@ -2,25 +2,42 @@
 
 Deploying a process involves the process manager, which records the deployment
 status, and the job manager, which does the actual deployment. These tests use the
-postgis process manager together with a fake job manager.
+postgis process manager together with either a fake job manager, or the postgis job
+manager talking to a fake container engine.
 """
 
 import asyncio
+import datetime as dt
 from unittest import mock
 
+import docker
 import pytest
+from fake_docker import FakeDockerClient
 
 from potto.eventhandlers import processes as process_handlers
 from potto.exceptions import (
     DeploymentAlreadyInProgressError,
     ProcessDeploymentStatusConflictError,
+    ProcessExecutionUnitRejectedError,
 )
 from potto.schemas.auth import SystemPrincipal
-from potto.schemas.events import InternalProcessEventType
+from potto.schemas.events import (
+    InternalProcessDeletionEvent,
+    InternalProcessEvent,
+    InternalProcessEventType,
+)
 from potto.schemas.processes import (
+    ExecutionUnitOciConfigCreate,
+    ExecutionUnitOciConfigUpdate,
+    ExecutionUnitOciCreate,
+    ExecutionUnitOciUpdate,
     ExecutionUnitOtherUpdate,
+    OciBindingsCreate,
+    OciBindingsUpdate,
+    ProcessCreate,
     ProcessDeploymentStatus,
     ProcessDeploymentStatusValue,
+    ProcessDescriptionCreate,
     ProcessDescriptionUpdate,
     ProcessUpdate,
 )
@@ -35,9 +52,13 @@ _Value = ProcessDeploymentStatusValue
 class _FakeJobManager:
     def __init__(self, deploy):
         self.deploy = mock.AsyncMock(side_effect=deploy)
+        self.undeploy = mock.AsyncMock()
 
     async def deploy_process(self, process):
         return await self.deploy(process)
+
+    async def undeploy_process(self, process):
+        return await self.undeploy(process)
 
 
 async def _deployed(process):
@@ -244,3 +265,237 @@ async def test_reconciler_ignores_deployments_already_in_progress(settings):
             "some-process", "some-correlation-id", settings=settings
         )
     potto_class.return_value.deploy_process.assert_awaited_once()
+
+
+def _oci_process_create(identifier, owner, image="docker.io/library/alpine:3.20"):
+    return ProcessCreate(
+        processDescription=ProcessDescriptionCreate(
+            identifier=identifier,
+            title="An OCI process",
+            owner_id=owner.id,
+            is_public=False,
+            version="1.0.0",
+        ),
+        execution_unit=ExecutionUnitOciCreate(
+            image=image,
+            config=ExecutionUnitOciConfigCreate(),
+            bindings=OciBindingsCreate(inputs={}, outputs={}),
+        ),
+    )
+
+
+def _use_docker(client):
+    return mock.patch.object(docker, "from_env", return_value=client)
+
+
+def _restrict_registries(settings, allowed):
+    return mock.patch.object(
+        settings.get_job_manager().config.oci, "allowed_registries", allowed
+    )
+
+
+class TestOciDeployment:
+    @pytest.mark.asyncio
+    async def test_deploy_through_potto(
+        self, postgis_contract_harness, settings, potto
+    ):
+        client = FakeDockerClient()
+        with _capture_events(potto):
+            process = await potto.create_process(
+                _oci_process_create("oci-process", postgis_contract_harness.owner_user),
+                user=postgis_contract_harness.owner_user,
+            )
+            with _use_docker(client):
+                deployed = await potto.deploy_process(process.identifier, user=_SYSTEM)
+        status = deployed.deployment_status
+        assert status.value == _Value.DEPLOYED
+        assert status.deployed_reference.startswith("localhost/potto/process-")
+        assert status.deployed_reference in client.image_names()
+        assert "docker.io/library/alpine@sha256:" in status.detail
+
+    @pytest.mark.asyncio
+    async def test_redeploy_releases_earlier_deployment(
+        self, postgis_contract_harness, settings, potto
+    ):
+        client = FakeDockerClient()
+        process_manager = settings.get_process_manager()
+        with _capture_events(potto):
+            process = await potto.create_process(
+                _oci_process_create("oci-process", postgis_contract_harness.owner_user),
+                user=postgis_contract_harness.owner_user,
+            )
+            with _use_docker(client):
+                first = await potto.deploy_process(process.identifier, user=_SYSTEM)
+                # redeploying needs a definition change, which the reconciler
+                # would also react to
+                await process_manager.update_process(
+                    first,
+                    ProcessUpdate(
+                        processDescription=ProcessDescriptionUpdate(),
+                        execution_unit=ExecutionUnitOciUpdate(
+                            image="docker.io/library/alpine:3.21",
+                            config=ExecutionUnitOciConfigUpdate(),
+                            bindings=OciBindingsUpdate(),
+                        ),
+                    ),
+                    _SYSTEM,
+                )
+                second = await potto.deploy_process(process.identifier, user=_SYSTEM)
+        names = client.image_names()
+        assert first.deployment_status.deployed_reference not in names
+        assert second.deployment_status.deployed_reference in names
+        assert "alpine:3.20" not in names
+
+    @pytest.mark.asyncio
+    async def test_registry_disallowed_at_deploy_time_fails(
+        self, postgis_contract_harness, settings, potto
+    ):
+        client = FakeDockerClient()
+        with _capture_events(potto):
+            process = await potto.create_process(
+                _oci_process_create("oci-process", postgis_contract_harness.owner_user),
+                user=postgis_contract_harness.owner_user,
+            )
+            with _use_docker(client), _restrict_registries(settings, ["ghcr.io"]):
+                deployed = await potto.deploy_process(process.identifier, user=_SYSTEM)
+        assert deployed.deployment_status.value == _Value.FAILED
+        assert "docker.io" in deployed.deployment_status.detail
+        assert client.images.pulls == []
+
+    @pytest.mark.asyncio
+    async def test_disallowed_image_is_rejected_on_creation(
+        self, postgis_contract_harness, settings, potto
+    ):
+        with (
+            _capture_events(potto) as publish,
+            _restrict_registries(settings, ["ghcr.io"]),
+        ):
+            with pytest.raises(ProcessExecutionUnitRejectedError):
+                await potto.create_process(
+                    _oci_process_create(
+                        "oci-process", postgis_contract_harness.owner_user
+                    ),
+                    user=postgis_contract_harness.owner_user,
+                )
+        assert (
+            await settings.get_process_manager().get_process("oci-process", _SYSTEM)
+            is None
+        )
+        publish.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_disallowed_image_is_rejected_on_update(
+        self, postgis_contract_harness, settings, potto
+    ):
+        with _capture_events(potto):
+            process = await potto.create_process(
+                _oci_process_create(
+                    "oci-process",
+                    postgis_contract_harness.owner_user,
+                    image="ghcr.io/acme/tool:1",
+                ),
+                user=postgis_contract_harness.owner_user,
+            )
+            with _restrict_registries(settings, ["ghcr.io"]):
+                with pytest.raises(ProcessExecutionUnitRejectedError):
+                    await potto.update_process(
+                        process.identifier,
+                        ProcessUpdate(
+                            processDescription=ProcessDescriptionUpdate(),
+                            execution_unit=ExecutionUnitOciUpdate(
+                                image="docker.io/library/alpine:3.20",
+                                config=ExecutionUnitOciConfigUpdate(),
+                                bindings=OciBindingsUpdate(),
+                            ),
+                        ),
+                        user=postgis_contract_harness.owner_user,
+                    )
+        current = await settings.get_process_manager().get_process(
+            process.identifier, _SYSTEM
+        )
+        assert current.execution_unit.image == "ghcr.io/acme/tool:1"
+
+
+class TestUndeployment:
+    @pytest.mark.asyncio
+    async def test_deletion_event_carries_process_snapshot(
+        self, postgis_contract_harness, potto
+    ):
+        process = postgis_contract_harness.private_process
+        with _capture_events(potto) as publish:
+            await potto.delete_process(
+                process.identifier, user=postgis_contract_harness.owner_user
+            )
+        (event,), _ = publish.await_args
+        assert isinstance(event, InternalProcessDeletionEvent)
+        assert event.process.identifier == process.identifier
+        assert event.process.created_at == process.created_at
+
+    @pytest.mark.asyncio
+    async def test_deleting_a_deployed_process_undeploys_it(
+        self, postgis_contract_harness, settings, potto
+    ):
+        client = FakeDockerClient()
+        with _capture_events(potto) as publish:
+            process = await potto.create_process(
+                _oci_process_create("oci-process", postgis_contract_harness.owner_user),
+                user=postgis_contract_harness.owner_user,
+            )
+            with _use_docker(client):
+                await potto.deploy_process(process.identifier, user=_SYSTEM)
+            await potto.delete_process(
+                process.identifier, user=postgis_contract_harness.owner_user
+            )
+            (deletion_event,), _ = publish.await_args
+            publish.reset_mock()
+            with _use_docker(client):
+                await process_handlers.internal_handle_process_event(
+                    deletion_event, settings
+                )
+        assert client.images.images == {}
+        publish.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_event_for_a_missing_process_does_nothing(self, db, settings):
+        job_manager = _FakeJobManager(_deployed)
+        event = InternalProcessEvent(
+            event_type=InternalProcessEventType.UPDATED,
+            process_identifier="does-not-exist",
+            initiated_by=_SYSTEM,
+            timestamp=dt.datetime.now(dt.timezone.utc),
+            correlation_id="some-correlation-id",
+        )
+        with _use_job_manager(settings, job_manager):
+            await process_handlers.internal_handle_process_event(event, settings)
+        job_manager.deploy.assert_not_awaited()
+        job_manager.undeploy.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_process_deleted_while_deploying_is_undeployed(
+        self, postgis_contract_harness, settings, potto
+    ):
+        process = postgis_contract_harness.private_process
+        process_manager = settings.get_process_manager()
+
+        async def deploy_while_deleted(process):
+            await process_manager.delete_process(process.identifier, _SYSTEM)
+            return ProcessDeploymentStatus(
+                value=_Value.DEPLOYED, deployed_reference="localhost/potto/x:y"
+            )
+
+        job_manager = _FakeJobManager(deploy_while_deleted)
+        with _use_job_manager(settings, job_manager), _capture_events(potto) as publish:
+            await potto.deploy_process(process.identifier, user=_SYSTEM)
+        job_manager.undeploy.assert_awaited_once()
+        (undeployed,), _ = job_manager.undeploy.await_args
+        assert undeployed.identifier == process.identifier
+        publish.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_undeploy_failures_are_not_raised(self, settings, potto):
+        job_manager = _FakeJobManager(_deployed)
+        job_manager.undeploy.side_effect = RuntimeError("engine is down")
+        snapshot = mock.Mock(identifier="some-process")
+        with _use_job_manager(settings, job_manager):
+            await potto.undeploy_process(snapshot, user=_SYSTEM)
+        job_manager.undeploy.assert_awaited_once_with(snapshot)

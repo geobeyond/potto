@@ -256,6 +256,97 @@ uv run amqtt_sub --url "mqtt://localhost:11884" -t "public/#"
 See [Pub/Sub](pubsub.md) for how pub/sub works from a client's perspective, and for the broker's configuration.
 
 
+## Deploying OCI processes
+
+Deploying a process whose execution unit is an OCI image means pulling that image with a container engine. potto's
+worker does this through the Docker API, which is offered both by Docker and by [podman]. The dev stack does not
+give the worker access to any engine by default. It is opt-in, via the `docker/compose.container-engine.yaml`
+overlay.
+
+The overlay is meant for a **rootless** engine, e.g. rootless podman. Whoever can use an engine's socket can run
+containers with the privileges of the engine's user, so mounting the socket of a rootful engine, such as
+`/var/run/docker.sock`, would give the worker root access on the host. With a rootless engine, the worker only gets
+the privileges of the unprivileged user that runs the engine.
+
+!!! warning "potto treats the engine's image store as its own"
+
+    Undeploying a process deletes its image once no other potto process uses it, including the image's upstream
+    name (e.g. `docker.io/library/alpine:3.20`). Images pulled into the same store by something other than potto
+    may thus be deleted. In a shared environment, run the engine as a dedicated user.
+
+### Setting up rootless podman
+
+1.  Install podman and enable its Docker-compatible API socket for your user:
+
+    ```shell
+    systemctl --user enable --now podman.socket
+    ```
+
+2.  Find out the socket's path and its group id:
+
+    ```shell
+    socket="${XDG_RUNTIME_DIR}/podman/podman.sock"
+    ls -l "${socket}"
+    stat -c %g "${socket}"
+    ```
+
+    The worker container's user reaches the socket through that group, so the socket must be group-accessible
+    (`srw-rw----`). If it is not, set its mode with a drop-in for the socket unit, e.g. via
+    `systemctl --user edit podman.socket`:
+
+    ```ini
+    [Socket]
+    SocketMode=0660
+    ```
+
+3.  Add the socket and its group id to `docker/local.env`:
+
+    ```shell
+    {
+        printf 'POTTO_CONTAINER_ENGINE_SOCKET="%s"\n' "${socket}"
+        printf 'POTTO_CONTAINER_ENGINE_GID="%s"\n' "$(stat -c %g "${socket}")"
+    } >> docker/local.env
+    ```
+
+4.  Add `-f docker/compose.container-engine.yaml` after `-f docker/compose.dev.yaml` in the commands of this guide,
+    e.g. for starting the stack:
+
+    ```shell
+    CURRENT_GIT_BRANCH=$(git branch --show-current | tr '/' '-') \
+        CURRENT_GIT_COMMIT=$(git rev-parse --short HEAD) \
+        docker compose \
+            --env-file docker/local.env \
+            -f docker/compose.dev.yaml \
+            -f docker/compose.container-engine.yaml \
+            up --watch --build
+    ```
+
+    The overlay applies to the `potto-worker` and `potto-test` services only, as the API server never contacts the
+    engine. With it, the test suite also runs the tests that need a live engine, which are otherwise skipped.
+
+On hosts with SELinux, the mounted socket may additionally need `security_opt: [label=disable]` on those services.
+
+### Image registries
+
+Images must be referenced by their fully qualified name, including their registry (e.g.
+`docker.io/library/alpine:3.20`, not `alpine:3.20`). Which registries can be used, and how to authenticate to them,
+is part of the job manager's configuration:
+
+| Setting                                                     | What it is                                                                                    |
+|-------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `POTTO__JOB_MANAGER__SETTINGS_MODEL__OCI__ALLOWED_REGISTRIES`   | JSON list of registries processes may use, e.g. `["docker.io", "ghcr.io"]`. Unset means any |
+| `POTTO__JOB_MANAGER__SETTINGS_MODEL__OCI__REGISTRY_CREDENTIALS` | JSON list of `{"registry", "username", "password"}` objects                                 |
+
+Registries without credentials use the engine's own configuration (e.g. `podman login`, or credential helpers). As
+the credentials are secret, pass them in a file named `potto__job_manager__settings_model__oci__registry_credentials`
+under `/run/secrets`, e.g. as a compose secret, rather than as an environment variable.
+
+Creating processes requires the `process:creator` scope (or being an admin), since anyone who can create a process
+can make potto pull, and later run, any image from the allowed registries.
+
+[podman]: https://podman.io/
+
+
 ## Rebuilding the docker image
 
 Usually potto's development docker images are built remotely, when the continuous integration pipeline is run.

@@ -1,0 +1,25 @@
+# Opt-in overlay giving potto's worker access to a rootless container engine, which
+# is needed for deploying (and later running) processes whose execution unit is an
+# OCI image. Use it on top of compose.dev.yaml:
+#
+#   docker compose --env-file docker/local.env \
+#       -f docker/compose.dev.yaml -f docker/compose.container-engine.yaml ...
+#
+# The engine's socket must be set in docker/local.env, together with the group
+# that is allowed to use it - see docs/development.md for how to set up rootless
+# podman. The socket of a rootful engine (e.g. /var/run/docker.sock) must not be
+# used here, as that would give the worker root access on the host.
+
+x-container-engine: &container-engine
+  volumes:
+    - type: bind
+      source: ${POTTO_CONTAINER_ENGINE_SOCKET:?set POTTO_CONTAINER_ENGINE_SOCKET in docker/local.env to the rootless container engine socket}
+      target: /run/potto/container-engine.sock
+  group_add:
+    - ${POTTO_CONTAINER_ENGINE_GID:?set POTTO_CONTAINER_ENGINE_GID in docker/local.env to the group id of the container engine socket}
+  environment:
+    POTTO__JOB_MANAGER__SETTINGS_MODEL__OCI__DOCKER_BASE_URL: unix:///run/potto/container-engine.sock
+
+services:
+  potto-worker: *container-engine
+  potto-test: *container-engine
