@@ -1,6 +1,8 @@
 import asyncio
+import logging
 from typing import (
     Any,
+    Collection,
     cast,
     Literal,
     TYPE_CHECKING,
@@ -18,6 +20,7 @@ from ...authz.authorizer import (
     Principal,
 )
 from ... import exceptions
+from ...schemas.base import OgcApiException
 from ...schemas import (
     auth as auth_schemas,
     collections as collection_schemas,
@@ -35,6 +38,7 @@ from .config import PostgisManagerConfiguration
 from .db.alembic_utils import build_alembic_config
 from .operations import (
     collections as collection_ops,
+    jobs as job_ops,
     metadata as metadata_ops,
     processes as process_ops,
     users as user_ops,
@@ -43,6 +47,8 @@ from .operations import (
 if TYPE_CHECKING:
     from ...config import PottoSettings
 
+logger = logging.getLogger(__name__)
+
 
 class PostgisManager:
     """A potto manager backed by a PostGIS DB.
@@ -50,8 +56,10 @@ class PostgisManager:
     This implements the following potto manager protocols:
 
     - ``CollectionManagerProtocol``,
+    - ``JobManagerProtocol``,
     - ``ProcessManagerProtocol``,
-    - ``ServerMetadataProtocol``
+    - ``ServerMetadataProtocol``,
+    - ``UserAccountProtocol``
     """
 
     authorizer: PottoAuthorizer
@@ -445,6 +453,10 @@ class PostgisManager:
         value: process_schemas.ProcessDeploymentStatusValue,
         user: Principal,
         detail: str | None = None,
+        *,
+        from_values: Collection[process_schemas.ProcessDeploymentStatusValue]
+        | None = None,
+        expected_definition_hash: str | None = None,
     ) -> process_schemas.Process:
         """update a process' deployment status."""
         async with self.config.get_db_session_maker()() as db_session:
@@ -455,6 +467,8 @@ class PostgisManager:
                 process,
                 value=value,
                 detail=detail,
+                from_values=from_values,
+                expected_definition_hash=expected_definition_hash,
             )
 
     async def delete_process(
@@ -506,14 +520,12 @@ class PostgisManager:
 
     async def get_job_admin_view(self) -> BaseModelView | None:
         """Return a starlette_admin view suitable for use in potto's admin ui."""
-        raise NotImplementedError
+        return None
 
     async def get_job_capabilities(self) -> job_schemas.JobManagerCapabilities:
         """Return the manager's capabilities."""
         return job_schemas.JobManagerCapabilities(
-            supports_deletion=True,
-            supports_deployment=True,
-            supports_undeployment=True
+            supports_deletion=True, supports_deployment=True, supports_undeployment=True
         )
 
     @property
@@ -522,8 +534,7 @@ class PostgisManager:
         return "cwl", "oci"
 
     async def deploy_process(
-            self,
-            process: process_schemas.Process
+        self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
         """Deploy a process.
 
@@ -539,25 +550,22 @@ class PostgisManager:
             case _ as unsupported_type:
                 raise exceptions.ProcessExecutionUnitNotSupportedError(
                     f"process execution unit "
-                    f"{unsupported_type.type_ if unsupported_type else unsupported_type !r} "
+                    f"{unsupported_type.type_ if unsupported_type else unsupported_type!r} "
                     f"is not supported "
                 )
 
     async def _deploy_oci_process(
-            self,
-            process: process_schemas.Process
+        self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
         raise NotImplementedError
 
     async def _deploy_cwl_process(
-            self,
-            process: process_schemas.Process
+        self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
         raise NotImplementedError
 
     async def undeploy_process(
-            self,
-            process: process_schemas.Process
+        self, process: process_schemas.Process
     ) -> process_schemas.ProcessDeploymentStatus:
         """Undeploy a process.
 
@@ -574,7 +582,8 @@ class PostgisManager:
         user: Principal | None,
     ) -> job_schemas.Job | None:
         """Retrieve a job."""
-        raise NotImplementedError
+        async with self.config.get_db_session_maker()() as db_session:
+            return await job_ops.get_job(db_session, user, self.authorizer, identifier)
 
     async def paginated_list_jobs(
         self,
@@ -586,30 +595,142 @@ class PostgisManager:
         filter_: job_schemas.JobFilter | None = None,
     ) -> tuple[list[job_schemas.Job], int | None]:
         """Retrieve a list of jobs"""
-        raise NotImplementedError
+        async with self.config.get_db_session_maker()() as db_session:
+            return await job_ops.paginated_list_jobs(
+                db_session,
+                user,
+                self.authorizer,
+                page=page,
+                page_size=page_size,
+                include_total=include_total,
+                identifiers_filter=filter_.identifiers if filter_ else None,
+            )
 
     async def create_job(
         self,
+        process_identifier: str,
         to_create: job_schemas.JobCreate,
+        user: Principal | None,
+    ) -> job_schemas.Job:
+        """Create a new job for the process.
+
+        The job is only recorded here - it gets executed later, when potto's
+        background worker calls ``execute_job()``.
+        """
+        async with self.config.get_db_session_maker()() as db_session:
+            return await job_ops.create_job(
+                db_session, user, self.authorizer, process_identifier, to_create
+            )
+
+    async def execute_job(
+        self,
+        identifier: str,
         user: Principal,
     ) -> job_schemas.Job:
-        """Create a new job.
+        """Execute a job, running it to completion."""
+        async with self.config.get_db_session_maker()() as db_session:
+            job, claimed = await job_ops.set_job_status(
+                db_session,
+                user,
+                self.authorizer,
+                identifier,
+                job_schemas.JobStatus.RUNNING,
+                from_statuses={job_schemas.JobStatus.ACCEPTED},
+            )
+        if not claimed:
+            logger.debug(
+                f"job {identifier!r} has status {job.status!r}, not executing it"
+            )
+            return job
+        message: str | None = None
+        progress: int | None = None
+        exception: OgcApiException | None = None
+        try:
+            await self._run_job(job)
+        except Exception as err:
+            logger.exception(f"job {identifier!r} failed")
+            outcome = job_schemas.JobStatus.FAILED
+            message = str(err) or err.__class__.__name__
+            exception = OgcApiException(
+                type_=err.__class__.__name__,
+                title="Job execution failed",
+                detail=str(err) or None,
+            )
+        else:
+            outcome = job_schemas.JobStatus.SUCCESSFUL
+            progress = 100
+        async with self.config.get_db_session_maker()() as db_session:
+            # only a job that is still running gets its outcome recorded - it
+            # may have been dismissed in the meantime
+            job, finished = await job_ops.set_job_status(
+                db_session,
+                user,
+                self.authorizer,
+                identifier,
+                outcome,
+                from_statuses={job_schemas.JobStatus.RUNNING},
+                message=message,
+                progress=progress,
+                exception=exception,
+            )
+        if not finished:
+            logger.info(
+                f"job {identifier!r} changed to status {job.status!r} while "
+                f"running, not recording the outcome of its execution"
+            )
+        return job
 
-        This implicitly means that execution is also scheduled to start.
-        """
-        raise NotImplementedError
+    async def _run_job(self, job: job_schemas.Job) -> None:
+        match job.process.execution_unit:
+            case process_schemas.ProcessExecutionUnitOci():
+                raise NotImplementedError(
+                    "Execution of OCI processes is not implemented yet"
+                )
+            case process_schemas.ProcessExecutionUnitCwl():
+                raise NotImplementedError(
+                    "Execution of CWL processes is not implemented yet"
+                )
+            case _ as unsupported_type:
+                raise exceptions.ProcessExecutionUnitNotSupportedError(
+                    f"process execution unit "
+                    f"{unsupported_type.type_ if unsupported_type else unsupported_type!r} "
+                    f"is not supported "
+                )
+
+    async def set_job_status(
+        self,
+        identifier: str,
+        status: job_schemas.JobStatus,
+        user: Principal,
+        *,
+        message: str | None = None,
+        progress: int | None = None,
+        exception: OgcApiException | None = None,
+    ) -> job_schemas.Job:
+        """Update a job's status."""
+        async with self.config.get_db_session_maker()() as db_session:
+            job, _ = await job_ops.set_job_status(
+                db_session,
+                user,
+                self.authorizer,
+                identifier,
+                status,
+                message=message,
+                progress=progress,
+                exception=exception,
+            )
+        return job
 
     async def delete_job(
         self,
         identifier: str,
         user: Principal,
     ) -> None:
-        """Delete a job.
-
-        When the manager does not support deleting jobs this should raise
-        ``potto.exceptions.CapabilityNotSupported``.
-        """
-        raise NotImplementedError
+        """Delete a job."""
+        async with self.config.get_db_session_maker()() as db_session:
+            return await job_ops.delete_job(
+                db_session, user, self.authorizer, identifier
+            )
 
 
 _manager_cache: dict[str, PostgisManager] = {}
@@ -619,8 +740,9 @@ def get_postgis_manager(
     raw_config: dict[str, Any],
     settings: "PottoSettings",
 ) -> PostgisManager:
-    # PostgisManager implements all three ...Protocol types, so this one factory
-    # satisfies CollectionManagerFactoryProtocol/ServerMetadataManagerFactoryProtocol/
+    # PostgisManager implements several ...Protocol types, so this one factory
+    # satisfies CollectionManagerFactoryProtocol/JobManagerFactoryProtocol/
+    # ProcessManagerFactoryProtocol/ServerMetadataManagerFactoryProtocol/
     # UserAccountManagerFactoryProtocol at once - no separate wrapper per protocol needed.
     config = PostgisManagerConfiguration.model_validate(raw_config)
     key = config.database_dsn.unicode_string()

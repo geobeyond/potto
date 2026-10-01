@@ -76,13 +76,17 @@ class AuthorizationBackendProtocol(Protocol):
     async def can_delete_user(self, requesting_user: "PottoUser | None") -> bool:
         """Return True if requesting_user is allowed to delete another user's account."""
 
-    async def can_view_process(self, user: "PottoUser | None", process: "Process") -> bool:
+    async def can_view_process(
+        self, user: "PottoUser | None", process: "Process"
+    ) -> bool:
         """Return True if the user is allowed to view the process.
 
         A None user represents an unauthenticated (anonymous) visitor.
         """
 
-    async def can_edit_process(self, user: "PottoUser | None", process: "Process") -> bool:
+    async def can_edit_process(
+        self, user: "PottoUser | None", process: "Process"
+    ) -> bool:
         """Return True if the user is allowed to edit the process.
 
         A None user represents an unauthenticated (anonymous) visitor.
@@ -105,22 +109,31 @@ class AuthorizationBackendProtocol(Protocol):
 
     async def can_create_process(self, user: "PottoUser | None") -> bool:
         """Return True if user is allowed to create a new process."""
-    
-    async def can_create_job(self, user: "PottoUser | None"):
-        """Return True if user is allowed to create a new job."""
 
-    async def can_view_job(self, user: "PottoUser | None", job: "Job"):
-        """Return True if user is allowed to view the job."""
+    async def can_create_job(
+        self, user: "PottoUser | None", process: "Process"
+    ) -> bool:
+        """Return True if user is allowed to create a new job of the process."""
 
-    async def can_delete_job(self, user: "PottoUser | None", job: "Job"):
-        """Return True if user is allowed to delete a job."""
+    async def can_view_job(self, user: "PottoUser | None", job: "Job") -> bool:
+        """Return True if user is allowed to view the job and its results."""
 
-    async def get_accessible_job_identifiers(
+    async def can_cancel_job(self, user: "PottoUser | None", job: "Job") -> bool:
+        """Return True if user is allowed to cancel the job."""
+
+    async def can_delete_job(self, user: "PottoUser | None", job: "Job") -> bool:
+        """Return True if user is allowed to delete the job and its results."""
+
+    async def can_update_job_status(self, user: "PottoUser | None", job: "Job") -> bool:
+        """Return True if user is allowed to update the job's execution status."""
+
+    async def get_accessible_private_job_identifiers(
         self, user: "PottoUser | None"
     ) -> list[str] | None:
-        """Return identifiers of jobs accessible to the user.
+        """Return identifiers of private jobs that are accessible to the user.
 
         A None user represents an unauthenticated (anonymous) visitor.
         Returns None if the user has unrestricted access (e.g. admin), or a list of
-        process resource identifiers the user can explicitly access.
+        job identifiers the user has been explicitly granted access to. Access
+        inherited from the parent process is not included.
         """

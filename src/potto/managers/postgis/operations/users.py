@@ -39,6 +39,7 @@ from ..db.commands import auth as auth_commands
 from ..db.queries import (
     auth as auth_queries,
     collections as collection_queries,
+    jobs as job_queries,
     processes as process_queries,
 )
 
@@ -248,6 +249,8 @@ async def list_resource_editors(
         editors = await process_queries.get_process_editors(
             session, resource_identifier
         )
+    elif resource_type == "job":
+        editors = await job_queries.get_job_editors(session, resource_identifier)
     else:
         raise NotImplementedError(
             f"Resource type {resource_type!r} is not supported yet."
@@ -274,6 +277,8 @@ async def list_resource_viewers(
         viewers = await process_queries.get_process_viewers(
             session, resource_identifier
         )
+    elif resource_type == "job":
+        viewers = await job_queries.get_job_viewers(session, resource_identifier)
     else:
         raise NotImplementedError(
             f"Resource type {resource_type!r} is not supported yet."

@@ -28,6 +28,14 @@ class DeploymentFailedException(PottoException): ...
 class DeploymentAlreadyInProgressError(PottoException): ...
 
 
+class ProcessDeploymentStatusConflictError(PottoException):
+    """A conditional update of a process' deployment status was not applied.
+
+    Raised when the process' current deployment status does not match the
+    conditions the update was made with.
+    """
+
+
 class ProcessExecutionUnitNotSupportedError(PottoException): ...
 
 

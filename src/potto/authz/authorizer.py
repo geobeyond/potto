@@ -225,7 +225,6 @@ class PottoAuthorizer:
             case _:
                 return await self._authorization_backend.can_create_process(principal)
 
-
     async def can_view_job(self, principal: Principal | None, job: "Job") -> bool:
         """Return True if the user is allowed to view the job.
 
@@ -235,15 +234,12 @@ class PottoAuthorizer:
             case SystemPrincipal():
                 return True
             case _:
-                return await self._authorization_backend.can_view_job(
-                    principal, job
-                )
+                return await self._authorization_backend.can_view_job(principal, job)
 
-
-    async def get_accessible_job_identifiers(
-            self, principal: Principal | None
-    ) -> list[int] | None:
-        """Return identifiers of jobs accessible to the user.
+    async def get_accessible_private_job_identifiers(
+        self, principal: Principal | None
+    ) -> list[str] | None:
+        """Return identifiers of private jobs accessible to the user.
 
         A None user represents an unauthenticated (anonymous) visitor.
         Returns None if the user has unrestricted access (e.g. admin), or a list of
@@ -253,17 +249,46 @@ class PottoAuthorizer:
             case SystemPrincipal():
                 return None
             case _:
-                return await self._authorization_backend.get_accessible_job_identifiers(
+                return await self._authorization_backend.get_accessible_private_job_identifiers(
                     principal
                 )
 
-    async def can_create_job(self, principal: Principal | None) -> bool:
-        """Return True if user is allowed to create a new job."""
+    async def can_create_job(
+        self, principal: Principal | None, process: "Process"
+    ) -> bool:
+        """Return True if user is allowed to create a new job of the process."""
         match principal:
             case SystemPrincipal():
                 return True
             case _:
-                return await self._authorization_backend.can_create_job(principal)
+                return await self._authorization_backend.can_create_job(
+                    principal, process
+                )
+
+    async def can_cancel_job(self, principal: Principal | None, job: "Job") -> bool:
+        """Return True if requesting_user is allowed to cancel a job."""
+        match principal:
+            case SystemPrincipal():
+                return True
+            case _:
+                return await self._authorization_backend.can_cancel_job(principal, job)
+
+    async def can_update_job_status(
+        self, principal: Principal | None, job: "Job"
+    ) -> bool:
+        """Return True if requesting_user is allowed to update a job's status.
+
+        Job status reflects the job's execution, which is carried out by potto
+        itself (or by the job manager on its behalf), hence only system principals
+        are expected to be allowed to update it.
+        """
+        match principal:
+            case SystemPrincipal():
+                return True
+            case _:
+                return await self._authorization_backend.can_update_job_status(
+                    principal, job
+                )
 
     async def can_delete_job(self, principal: Principal | None, job: "Job") -> bool:
         """Return True if requesting_user is allowed to delete a job."""
@@ -271,6 +296,4 @@ class PottoAuthorizer:
             case SystemPrincipal():
                 return True
             case _:
-                return await self._authorization_backend.can_delete_job(
-                    principal, job
-                )
+                return await self._authorization_backend.can_delete_job(principal, job)

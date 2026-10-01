@@ -7,6 +7,7 @@ from typing import (
 from faststream import Context
 from faststream.mqtt import QoS
 
+from ..exceptions import DeploymentAlreadyInProgressError
 from ..constants import (
     LinkRelation,
     MediaType,
@@ -142,6 +143,11 @@ async def _reconcile_process(
     ):
         return None  # already converged, nothing to do
 
-    await potto.deploy_process(
-        identifier, user=principal, correlation_id=correlation_id
-    )
+    try:
+        await potto.deploy_process(
+            identifier, user=principal, correlation_id=correlation_id
+        )
+    except DeploymentAlreadyInProgressError:
+        # whoever is deploying the process publishes an event when done, which
+        # triggers reconciling it again
+        logger.debug(f"process {identifier!r} is already being deployed")

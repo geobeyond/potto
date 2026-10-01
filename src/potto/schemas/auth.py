@@ -8,7 +8,7 @@ from jinja2 import Template
 from starlette.authentication import BaseUser
 from starlette.requests import Request
 
-_DYNAMIC_SCOPE_PATTERN = re.compile(r"^(collection|process)-.+:(editor|viewer)$")
+_DYNAMIC_SCOPE_PATTERN = re.compile(r"^(collection|process|job)-.+:(editor|viewer)$")
 
 
 class PottoScope(str, enum.Enum):
@@ -33,6 +33,14 @@ class PottoScope(str, enum.Enum):
     def process_viewer(identifier: str) -> str:
         return f"process-{identifier}:viewer"
 
+    @staticmethod
+    def job_editor(identifier: str) -> str:
+        return f"job-{identifier}:editor"
+
+    @staticmethod
+    def job_viewer(identifier: str) -> str:
+        return f"job-{identifier}:viewer"
+
 
 def _validate_scope(scope: str) -> str:
     fixed_values = {s.value for s in PottoScope}
@@ -42,7 +50,7 @@ def _validate_scope(scope: str) -> str:
         return scope
     raise ValueError(
         f"Invalid scope {scope!r}. Must be one of {sorted(fixed_values)} "
-        f"or match pattern '(collection|process)-<identifier>:(editor|viewer)'"
+        f"or match pattern '(collection|process|job)-<identifier>:(editor|viewer)'"
     )
 
 

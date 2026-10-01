@@ -85,6 +85,49 @@ AnyInternalProcessEvent = Annotated[
 ]
 
 
+class InternalJobEventType(enum.StrEnum):
+    CREATED = "created"
+    DELETED = "deleted"
+    STATUS_CHANGED = "status_changed"
+
+
+class _BaseInternalJobEvent(pydantic.BaseModel):
+    job_identifier: str
+    # None represents an unauthenticated (anonymous) visitor, which may create
+    # jobs for public processes
+    initiated_by: Principal | None
+    timestamp: pydantic.AwareDatetime
+    correlation_id: str
+
+
+class InternalJobEvent(_BaseInternalJobEvent):
+    """An event on a job that still exists - anything but its deletion."""
+
+    event_type: Literal[
+        InternalJobEventType.CREATED,
+        InternalJobEventType.STATUS_CHANGED,
+    ]
+
+
+class InternalJobDeletionEvent(_BaseInternalJobEvent):
+    """The deletion of a job.
+
+    Since the job no longer exists, the event carries the audience that the job
+    had, as resolved just before it was deleted.
+    """
+
+    event_type: Literal[InternalJobEventType.DELETED] = InternalJobEventType.DELETED
+    audience: ResourceAudience
+
+
+# Both kinds of event are published on the same topics, so consumers receive
+# either one - ``event_type`` tells them apart
+AnyInternalJobEvent = Annotated[
+    InternalJobEvent | InternalJobDeletionEvent,
+    pydantic.Field(discriminator="event_type"),
+]
+
+
 class ExternalProcessEventType(enum.StrEnum):
     CREATED = "created"
     UPDATED = "updated"

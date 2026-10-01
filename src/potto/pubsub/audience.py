@@ -8,6 +8,7 @@ from ..schemas.events import ResourceAudience
 
 if TYPE_CHECKING:
     from ..config import PottoSettings
+    from ..schemas.jobs import Job
     from ..schemas.processes import Process
 
 _PRINCIPAL = SystemPrincipal("pubsub-audience-resolver")
@@ -39,6 +40,54 @@ async def resolve_process_audience(
     authorizer = settings.get_authorizer()
     allowed = await asyncio.gather(
         *(authorizer.can_view_process(user, process) for user in candidates.values())
+    )
+    return ResourceAudience(
+        is_public=False,
+        user_ids=sorted(
+            user_id
+            for user_id, is_allowed in zip(candidates, allowed, strict=True)
+            if is_allowed
+        ),
+    )
+
+
+async def resolve_job_audience(
+    job: "Job", settings: "PottoSettings"
+) -> ResourceAudience:
+    """Resolve the audience for events on a job.
+
+    Public jobs, which include all jobs created anonymously, send no
+    notifications at all, so their audience is empty. For a private job, the
+    candidates are its owner, the users it has been shared with and, since jobs
+    inherit the sharing of their parent process, the process owner and the users
+    the process has been shared with. Potto's authorizer then decides which of
+    them are allowed to view the job.
+    """
+    if job.is_public:
+        return ResourceAudience(is_public=False)
+    user_account_manager = settings.get_user_account_manager()
+    shared_with = await asyncio.gather(
+        user_account_manager.list_resource_editors("job", job.identifier, _PRINCIPAL),
+        user_account_manager.list_resource_viewers("job", job.identifier, _PRINCIPAL),
+        user_account_manager.list_resource_editors(
+            "process", job.process.identifier, _PRINCIPAL
+        ),
+        user_account_manager.list_resource_viewers(
+            "process", job.process.identifier, _PRINCIPAL
+        ),
+    )
+    candidates = {
+        user.id: user
+        for user in (
+            job.owner,
+            job.process.owner,
+            *(user for users in shared_with for user in users),
+        )
+        if user.is_active
+    }
+    authorizer = settings.get_authorizer()
+    allowed = await asyncio.gather(
+        *(authorizer.can_view_job(user, job) for user in candidates.values())
     )
     return ResourceAudience(
         is_public=False,

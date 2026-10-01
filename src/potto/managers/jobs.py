@@ -18,7 +18,9 @@ if TYPE_CHECKING:
         JobCreate,
         JobFilter,
         JobManagerCapabilities,
+        JobStatus,
     )
+    from ..schemas.base import OgcApiException
     from ..schemas.processes import (
         Process,
         ProcessDeploymentStatus,
@@ -85,13 +87,62 @@ class JobManagerProtocol(Protocol):
 
     async def create_job(
         self,
+        process_identifier: str,
         to_create: "JobCreate",
+        user: "Principal | None",
+    ) -> "Job":
+        """Create a new job for the process.
+
+        Implementations should make this method return fast, possibly
+        deferring execution to when the ``execute_job()`` method is called. The
+        suggested workflow is something like this:
+
+        - potto wrapper calls ``manager.create_job()`` and immediately gets a
+          job object back with a suitable status to let the caller know whether
+          the job was accepted or rejected
+        - potto wrapper emits an internal 'job created' event
+        - upon handling the event, the potto background worker eventually calls
+          ``manager.execute_job()``, where job execution is then free to
+           occur and to take as long as it needs to.
+
+        Implementations are also free to implement ``create_job()`` in a way
+        that it already starts job execution using some other form of
+        background processing, just as long as ``create_job()`` returns fast.
+        ``execute_job()`` is still called by the potto background worker, in
+        which case, it could be a no-op.
+        """
+
+    async def execute_job(
+        self,
+        identifier: str,
         user: "Principal",
     ) -> "Job":
-        """Create a new job.
+        """Start executing a previously created job.
 
-        This implicitly means that execution is also scheduled to start.
+        This is called by potto's background worker after a job has been created.
+        It may return before the job's execution finishes - for example, a manager
+        that delegates execution to an external system will just submit the job
+        there and return, whereas a manager that runs jobs itself may run them to
+        completion. Either way, job status changes are to be recorded with
+        ``set_job_status()``.
+
+        Since potto's internal events are delivered at least once, this may be
+        called more than once for the same job. Implementations must only start
+        executing a job that is still ``accepted``, and otherwise return the job
+        as-is.
         """
+
+    async def set_job_status(
+        self,
+        identifier: str,
+        status: "JobStatus",
+        user: "Principal",
+        *,
+        message: str | None = None,
+        progress: int | None = None,
+        exception: "OgcApiException | None" = None,
+    ) -> "Job":
+        """Update a job's status."""
 
     async def delete_job(
         self,

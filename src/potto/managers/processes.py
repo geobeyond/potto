@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Callable,
+    Collection,
     Literal,
     Protocol,
     TypeAlias,
@@ -89,8 +90,22 @@ class ProcessManagerProtocol(Protocol):
         value: "ProcessDeploymentStatusValue",
         user: "Principal",
         detail: str | None = None,
+        *,
+        from_values: "Collection[ProcessDeploymentStatusValue] | None" = None,
+        expected_definition_hash: str | None = None,
     ) -> "Process":
         """update a process' deployment status.
+
+        The deployment status is recorded together with ``process``'s definition
+        hash, i.e. the hash of the definition that is being deployed.
+
+        The update can be made conditional on the process' current deployment
+        status, via ``from_values`` (its current value must be one of these) and
+        ``expected_definition_hash`` (its current definition hash must be this
+        one). Checking the conditions and applying the update must be atomic, as
+        concurrent workers rely on it to not deploy the same process at the same
+        time. When the conditions are not met this should raise
+        ``potto.exceptions.ProcessDeploymentStatusConflictError``.
 
         When the manager does not support updating processes this should raise
         ``potto.exceptions.CapabilityNotSupported``.

@@ -2,11 +2,7 @@ import datetime as dt
 import logging
 import uuid
 from functools import partial
-from typing import (
-    Annotated,
-    Any,
-    Literal,
-)
+from typing import Any
 
 import pydantic
 import shapely
@@ -39,6 +35,7 @@ from ....schemas import (
     processes as process_schemas,
 )
 from ....schemas.base import (
+    OgcApiException,
     PottoProvider,
     Title,
     MaybeDescription,
@@ -208,7 +205,7 @@ class Process(SQLModel, table=True):
     deployment_status: dict | None = Field(default=None, sa_type=JSONB, nullable=True)
 
     owner: "User" = Relationship(back_populates="owned_processes")
-    jobs: list["Job"] = Relationship(back_populates="process")
+    jobs: list["Job"] = Relationship(back_populates="process", cascade_delete=True)
 
     def to_potto(self) -> process_schemas.Process:
         match self.execution_unit:
@@ -278,14 +275,16 @@ class Job(SQLModel, table=True):
         default=None,
         primary_key=True,
     )
+    resource_identifier: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        index=True,
+        unique=True,
+    )
     owner_id: str = Field(foreign_key="user.id", ondelete="CASCADE")
-    process_id: str = Field(foreign_key="process.id", ondelete="CASCADE")
+    process_id: int = Field(foreign_key="process.id", ondelete="CASCADE")
     is_public: bool = Field(default=False)
     status: job_schemas.JobStatus
-    response_type: Annotated[
-        Literal["document", "raw"],
-        Field(default="raw", nullable=False)
-    ]
+    response_type: str = Field(default="raw")
     additional_links: list[dict[str, str | dict[str, str]]] | None = Field(
         default=None, sa_type=JSONB, nullable=True
     )
@@ -308,23 +307,35 @@ class Job(SQLModel, table=True):
 
     def to_potto(self) -> job_schemas.Job:
         return job_schemas.Job(
-            identifier=str(self.id) or "unknown",
+            identifier=self.resource_identifier,
             status=self.status,
             process=self.process.to_potto(),
-            created_at=self.created_at,  # ty: ignore[invalid-argument-type]
-            updated_at=self.updated_at or self.created_at,  # ty: ignore[invalid-argument-type]
+            created_at=self.created_at,
+            updated_at=self.updated_at or self.created_at,
             started_at=self.started_at,
             finished_at=self.finished_at,
             owner=self.owner.to_potto(),
             is_public=self.is_public,
             additional_links=self.additional_links,
-            inputs={k: v for k, v in self.inputs.items()} if self.inputs else {},
-            outputs={k: v for k, v in self.outputs.items()} if self.outputs else {},
-            response_type=self.response_type,
+            inputs=dict(self.inputs) if self.inputs else {},
+            outputs=(
+                {
+                    name: job_schemas.JobOutputDescription(**description)
+                    for name, description in self.outputs.items()
+                }
+                if self.outputs
+                else {}
+            ),
+            response_type=self.response_type,  # ty: ignore[invalid-argument-type]
             callback_uris=(
                 job_schemas.JobCallbackUris(**self.callback_uris)
-                if self.callback_uris else None
-            )
+                if self.callback_uris
+                else None
+            ),
+            processingEntityType=self.processing_entity_type,
+            message=self.message,
+            exception=(OgcApiException(**self.exception) if self.exception else None),
+            progress=self.progress,
         )
 
 
@@ -355,6 +366,11 @@ class User(SQLModel, table=True):
     )
 
     owned_processes: list[Process] = Relationship(
+        back_populates="owner",
+        cascade_delete=True,
+    )
+
+    owned_jobs: list[Job] = Relationship(
         back_populates="owner",
         cascade_delete=True,
     )

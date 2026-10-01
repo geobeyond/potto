@@ -34,6 +34,10 @@ from .managers.collections import (
     CollectionManagerProtocol,
     CollectionManagerFactoryProtocol,
 )
+from .managers.jobs import (
+    JobManagerProtocol,
+    JobManagerFactoryProtocol,
+)
 from .managers.processes import (
     ProcessManagerProtocol,
     ProcessManagerFactoryProtocol,
@@ -104,6 +108,15 @@ class UserAccountManagerSettings(pydantic.BaseModel):
 
 class ProcessManagerSettings(pydantic.BaseModel):
     manager_factory: pydantic.ImportString[ProcessManagerFactoryProtocol] = (
+        get_postgis_manager
+    )
+    settings_model: dict[str, Any] = pydantic.Field(
+        default_factory=lambda: PostgisManagerConfiguration().model_dump()
+    )
+
+
+class JobManagerSettings(pydantic.BaseModel):
+    manager_factory: pydantic.ImportString[JobManagerFactoryProtocol] = (
         get_postgis_manager
     )
     settings_model: dict[str, Any] = pydantic.Field(
@@ -276,6 +289,9 @@ class PottoSettings(pydantic_settings.BaseSettings):
     process_manager: ProcessManagerSettings = pydantic.Field(
         default_factory=lambda: ProcessManagerSettings()
     )
+    job_manager: JobManagerSettings = pydantic.Field(
+        default_factory=lambda: JobManagerSettings()
+    )
     page_size: int = 20
     page_size_max: int = 100
     use_oas30_fixes: bool = pydantic.Field(
@@ -304,6 +320,7 @@ class PottoSettings(pydantic_settings.BaseSettings):
     _server_metadata_manager: ServerMetadataProtocol | None = None
     _user_account_manager: UserAccountProtocol | None = None
     _process_manager: ProcessManagerProtocol | None = None
+    _job_manager: JobManagerProtocol | None = None
     _jinja_env: jinja2.Environment | None = None
     _oidc_provider: OIDCProvider | None = None
     _authorization_backend: AuthorizationBackendProtocol | None = None
@@ -405,6 +422,13 @@ class PottoSettings(pydantic_settings.BaseSettings):
             )
         return self._process_manager
 
+    def get_job_manager(self) -> JobManagerProtocol:
+        if self._job_manager is None:
+            self._job_manager = self.job_manager.manager_factory(
+                self.job_manager.settings_model, self
+            )
+        return self._job_manager
+
 
 # These each have a manager_factory field typed against a Callable whose signature
 # references "PottoSettings" as a forward reference (to avoid a circular imports.
@@ -414,6 +438,7 @@ CollectionManagerSettings.model_rebuild()
 ServerMetadataManagerSettings.model_rebuild()
 UserAccountManagerSettings.model_rebuild()
 ProcessManagerSettings.model_rebuild()
+JobManagerSettings.model_rebuild()
 
 
 def get_settings() -> PottoSettings:

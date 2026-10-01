@@ -7,7 +7,10 @@ models.
 
 import datetime as dt
 import logging
-from typing import cast
+from typing import (
+    Collection,
+    cast,
+)
 
 from sqlalchemy.exc import DatabaseError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -125,32 +128,43 @@ async def set_process_deployment_status(
     process: ProcessSchema,
     value: ProcessDeploymentStatusValue,
     detail: str | None = None,
+    *,
+    from_values: Collection[ProcessDeploymentStatusValue] | None = None,
+    expected_definition_hash: str | None = None,
 ) -> ProcessSchema:
     if not await authorizer.can_edit_process(user, process):
         raise exceptions.CannotUpdateResourceError(
             f"User does not have permission to edit process {process.identifier!r}."
         )
-    try:
-        db_process = await process_queries.get_process_by_resource_identifier(
-            session, process.identifier
+    db_process = await process_queries.get_process_by_resource_identifier(
+        session, process.identifier
+    )
+    if db_process is None:
+        raise exceptions.ResourceNotFoundError(
+            f"process {process.identifier!r} not found"
         )
-        if db_process is None:
-            raise exceptions.ResourceNotFoundError(
-                f"process {process.identifier!r} not found"
-            )
+    try:
         updated = await process_commands.set_process_deployment_status(
             session,
-            db_process,
+            cast(int, db_process.id),
             ProcessDeploymentStatus(
                 value=value,
                 detail=detail,
                 definition_hash=process.get_deployment_hash(),
                 changed_at=dt.datetime.now(dt.timezone.utc),
             ),
+            from_values=from_values,
+            expected_definition_hash=expected_definition_hash,
         )
-        return updated.to_potto()
     except DatabaseError as err:
+        await session.rollback()
         raise exceptions.CannotUpdateResourceError(str(err)) from err
+    if updated is None:
+        raise exceptions.ProcessDeploymentStatusConflictError(
+            f"deployment status of process {process.identifier!r} does not match "
+            f"the conditions for setting it to {value.value!r}"
+        )
+    return updated.to_potto()
 
 
 async def update_process(

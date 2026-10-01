@@ -5,10 +5,12 @@ from ..schemas.auth import (
     PottoUser,
 )
 from ..schemas.collections import Collection
+from ..schemas.jobs import Job
 from ..schemas.processes import Process
 
 _COLLECTION_SCOPE_RE = re.compile(r"^collection-(.+):(editor|viewer)$")
 _PROCESS_SCOPE_RE = re.compile(r"^process-(.+):(editor|viewer)$")
+_JOB_SCOPE_RE = re.compile(r"^job-(.+):(editor|viewer)$")
 
 
 class LocalAuthorizationBackend:
@@ -165,3 +167,63 @@ class LocalAuthorizationBackend:
 
     async def can_create_process(self, user: PottoUser | None) -> bool:
         return user is not None
+
+    @staticmethod
+    def _is_job_editor(user: PottoUser, job: Job) -> bool:
+        """Return True if user is a job editor, either directly or via the process."""
+        if PottoScope.ADMIN.value in user.scopes:
+            return True
+        if user.id == job.owner.id:
+            return True
+        if PottoScope.job_editor(job.identifier) in user.scopes:
+            return True
+        if user.id == job.process.owner.id:
+            return True
+        if PottoScope.process_editor(job.process.identifier) in user.scopes:
+            return True
+        return False
+
+    @classmethod
+    def _is_job_viewer(cls, user: PottoUser, job: Job) -> bool:
+        """Return True if user is a job viewer, either directly or via the process."""
+        if cls._is_job_editor(user, job):
+            return True
+        if PottoScope.job_viewer(job.identifier) in user.scopes:
+            return True
+        if PottoScope.process_viewer(job.process.identifier) in user.scopes:
+            return True
+        return False
+
+    async def can_create_job(self, user: PottoUser | None, process: Process) -> bool:
+        return await self.can_view_process(user, process)
+
+    async def can_view_job(self, user: PottoUser | None, job: Job) -> bool:
+        if job.is_public:
+            return True
+        if user is None:
+            return False
+        return self._is_job_viewer(user, job)
+
+    async def can_cancel_job(self, user: PottoUser | None, job: Job) -> bool:
+        if user is None:
+            return False
+        return self._is_job_editor(user, job)
+
+    async def can_delete_job(self, user: PottoUser | None, job: Job) -> bool:
+        if user is None:
+            return False
+        return self._is_job_editor(user, job)
+
+    async def can_update_job_status(self, user: PottoUser | None, job: Job) -> bool:
+        return False
+
+    async def get_accessible_private_job_identifiers(
+        self, user: PottoUser | None
+    ) -> list[str] | None:
+        if user is None:
+            return []
+        if PottoScope.ADMIN.value in user.scopes:
+            return None
+        return [
+            m.group(1) for scope in user.scopes if (m := _JOB_SCOPE_RE.match(scope))
+        ]
