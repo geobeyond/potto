@@ -64,9 +64,7 @@ async def update_collection(
     await session.refresh(db_collection)
     assert db_collection.id is not None
     if (updated := await get_collection(session, db_collection.id)) is None:
-        raise CannotUpdateResourceError(
-            f"error updating collection {db_collection.id}"
-        )
+        raise CannotUpdateResourceError(f"error updating collection {db_collection.id}")
     return updated
 
 
