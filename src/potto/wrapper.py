@@ -18,13 +18,18 @@ from .schemas.auth import SystemPrincipal
 from .constants import (
     ConformanceClass,
     CRS_84,
+    JOB_INTERNAL_TOPIC_PREFIX,
     PROCESS_INTERNAL_TOPIC_PREFIX,
 )
 from .config import PottoSettings
 from .providers.features import get_feature_provider
-from .pubsub.audience import resolve_process_audience
+from .pubsub.audience import (
+    resolve_job_audience,
+    resolve_process_audience,
+)
 from .schemas import (
     collections as collection_schemas,
+    jobs as job_schemas,
     pagination as pagination_schemas,
     processes as process_schemas,
     features as feature_schemas,
@@ -313,7 +318,7 @@ class Potto:
         """
         process_manager = self._settings.get_process_manager()
         if (process := await process_manager.get_process(process_id, user)) is None:
-            raise potto_exceptions.CannotUpdateResourceException(
+            raise potto_exceptions.CannotUpdateResourceError(
                 f"process {process_id} not found"
             )
         updated = await process_manager.update_process(process, to_update, user)
@@ -346,7 +351,7 @@ class Potto:
                 process_id, SystemPrincipal("process-deleter")
             )
         ) is None:
-            raise potto_exceptions.CannotDeleteResourceException(
+            raise potto_exceptions.CannotDeleteResourceError(
                 f"process {process_id} not found"
             )
         # the audience must be resolved before deleting, as it can no longer be
@@ -384,38 +389,70 @@ class Potto:
             raise potto_exceptions.DeploymentFailedException(
                 f"process {process_id} not found"
             )
-
-        if process.deployment_status.value in ("queued", "in-progress"):
-            raise potto_exceptions.DeploymentAlreadyInProgressError
-
-        # TODO: We may need to come up with some sort of ``process_manager.get_lock(process)``
+        status_value = process_schemas.ProcessDeploymentStatusValue
         process_manager = self._settings.get_process_manager()
-        await process_manager.set_process_deployment_status(
-            process,
-            value=process_schemas.ProcessDeploymentStatusValue.IN_PROGRESS,
-            user=user,
+        try:
+            # claiming the deployment is atomic, so that concurrent workers do not
+            # deploy the same process at the same time
+            claimed = await process_manager.set_process_deployment_status(
+                process,
+                value=status_value.IN_PROGRESS,
+                user=user,
+                from_values={
+                    status_value.QUEUED,
+                    status_value.DEPLOYED,
+                    status_value.FAILED,
+                },
+            )
+        except potto_exceptions.ProcessDeploymentStatusConflictError as err:
+            raise potto_exceptions.DeploymentAlreadyInProgressError(
+                f"process {process_id} is already being deployed"
+            ) from err
+
+        job_manager = self._settings.get_job_manager()
+        try:
+            deployment_status = await job_manager.deploy_process(claimed)
+            outcome, detail = deployment_status.value, deployment_status.detail
+        except Exception as err:
+            # the deployment must not be left in progress forever
+            logger.exception(f"failed to deploy process {process_id}")
+            outcome, detail = status_value.FAILED, str(err) or err.__class__.__name__
+
+        try:
+            # only the deployment that claimed the process gets to record its
+            # outcome - this guards against the outcome of a deployment that was
+            # started for an older definition overwriting that of a newer one
+            deployed = await process_manager.set_process_deployment_status(
+                claimed,
+                value=outcome,
+                user=user,
+                detail=detail,
+                from_values={status_value.IN_PROGRESS},
+                expected_definition_hash=claimed.deployment_status.definition_hash,
+            )
+        except potto_exceptions.ProcessDeploymentStatusConflictError:
+            logger.info(
+                f"deployment status of process {process_id} changed while it was "
+                f"being deployed, not recording the outcome of its deployment"
+            )
+            return claimed
+
+        # the event also triggers the process reconciler, which redeploys the
+        # process if its definition changed while it was being deployed
+        await self.publish_internal_process_event(
+            events.InternalProcessEvent(
+                event_type=(
+                    events.InternalProcessEventType.DEPLOYED
+                    if outcome == status_value.DEPLOYED
+                    else events.InternalProcessEventType.DEPLOYMENT_FAILED
+                ),
+                process_identifier=process_id,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id,
+            )
         )
-
-        # job_manager = self._settings.get_job_manager()
-        # deployment_status_value, detail = await job_manager.deploy_process(process.execution_unit)
-        # up_to_date_process = await process_manager.set_process_deployment_status(
-        #     process,
-        #     value=deployment_status_value,
-        #     detail=detail,
-        # )
-        # await self.publish_internal_process_event(
-        #     process_id,
-        #     (
-        #         process_schemas.ProcessEventType.DEPLOYED
-        #         if deployment_status_value == process_schemas.ProcessDeploymentStatusValue.DEPLOYED
-        #         else process_schemas.ProcessEventType.DEPLOYMENT_FAILED
-        #     ),
-        #     user,
-        #     correlation_id=correlation_id,
-        # )
-
-        # should be ``return up_to_date_process`` instead
-        return process
+        return deployed
 
     async def undeploy_process(
         self,
@@ -453,4 +490,148 @@ class Potto:
             logger.exception(
                 f"failed to publish {event.event_type.value} for process "
                 f"{event.process_identifier}"
+            )
+
+    async def list_jobs(
+        self,
+        *,
+        user: Principal | None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> job_schemas.JobList:
+        job_manager = self._settings.get_job_manager()
+        jobs, total = await job_manager.paginated_list_jobs(
+            user,
+            page=page,
+            page_size=page_size,
+            include_total=True,
+        )
+        return job_schemas.JobList(
+            jobs=jobs,
+            pagination=pagination_schemas.Pagination(
+                page=page,
+                page_size=len(jobs),
+                total=cast(int, total),
+            ),
+        )
+
+    async def get_job(
+        self,
+        job_id: str,
+        *,
+        user: Principal | None,
+    ) -> job_schemas.Job | None:
+        job_manager = self._settings.get_job_manager()
+        return await job_manager.get_job(job_id, user)
+
+    async def create_job(
+        self,
+        process_id: str,
+        to_create: job_schemas.JobCreate,
+        *,
+        user: Principal | None,
+        correlation_id: str | None = None,
+    ) -> job_schemas.Job:
+        """Create a new job, which is meant to eventually execute a process.
+
+        Upon successful job creation, this also publishes an ``InternalJobEvent``
+        to the ``jobs/{identifier}/created`` topic. The job is then executed by
+        potto's background worker, as a reaction to this event.
+        """
+        job_manager = self._settings.get_job_manager()
+        created = await job_manager.create_job(process_id, to_create, user)
+        await self.publish_internal_job_event(
+            events.InternalJobEvent(
+                event_type=events.InternalJobEventType.CREATED,
+                job_identifier=created.identifier,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id or create_correlation_id(),
+            )
+        )
+        return created
+
+    async def execute_job(
+        self,
+        job_id: str,
+        *,
+        user: Principal,
+        correlation_id: str | None = None,
+    ) -> job_schemas.Job:
+        """Execute a job.
+
+        This is a potentially long-running task and should thus be called from a
+        background worker.
+
+        If the job's status changes, this also publishes an ``InternalJobEvent``
+        to the ``jobs/{identifier}/status_changed`` topic.
+        """
+        job_manager = self._settings.get_job_manager()
+        if (job := await job_manager.get_job(job_id, user)) is None:
+            raise potto_exceptions.ResourceNotFoundError(f"job {job_id} not found")
+        executed = await job_manager.execute_job(job_id, user)
+        if executed.status != job.status:
+            await self.publish_internal_job_event(
+                events.InternalJobEvent(
+                    event_type=events.InternalJobEventType.STATUS_CHANGED,
+                    job_identifier=executed.identifier,
+                    initiated_by=user,
+                    timestamp=dt.datetime.now(dt.timezone.utc),
+                    correlation_id=correlation_id or create_correlation_id(),
+                )
+            )
+        return executed
+
+    async def delete_job(
+        self,
+        job_id: str,
+        *,
+        user: Principal,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Delete a job.
+
+        Upon successful job deletion, this also publishes an
+        ``InternalJobDeletionEvent`` to the ``jobs/{identifier}/deleted`` topic.
+        """
+        job_manager = self._settings.get_job_manager()
+        if (
+            job := await job_manager.get_job(job_id, SystemPrincipal("job-deleter"))
+        ) is None:
+            raise potto_exceptions.CannotDeleteResourceError(f"job {job_id} not found")
+        # the audience must be resolved before deleting, as it can no longer be
+        # resolved by looking up the job afterwards
+        audience = await resolve_job_audience(job, self._settings)
+        await job_manager.delete_job(job_id, user)
+        await self.publish_internal_job_event(
+            events.InternalJobDeletionEvent(
+                job_identifier=job_id,
+                initiated_by=user,
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                correlation_id=correlation_id or create_correlation_id(),
+                audience=audience,
+            )
+        )
+
+    async def publish_internal_job_event(
+        self,
+        event: events.InternalJobEvent | events.InternalJobDeletionEvent,
+    ) -> None:
+        broker = self._settings.get_internal_broker(role="api")
+        try:
+            await broker.publish(
+                message=event,
+                topic="/".join(
+                    (
+                        JOB_INTERNAL_TOPIC_PREFIX,
+                        event.job_identifier,
+                        event.event_type.value,
+                    )
+                ),
+                qos=QoS.AT_LEAST_ONCE,
+            )
+        except Exception:
+            logger.exception(
+                f"failed to publish {event.event_type.value} for job "
+                f"{event.job_identifier}"
             )

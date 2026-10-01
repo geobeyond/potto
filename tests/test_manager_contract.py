@@ -18,7 +18,7 @@ from pydantic import SecretStr
 
 from potto.constants import CollectionType
 from potto.exceptions import (
-    CannotUpdateResourceException,
+    CannotUpdateResourceError,
     CapabilityNotSupported,
     PottoCannotDeleteUserException,
     PottoCannotEditUserException,
@@ -465,7 +465,7 @@ class TestProcessMutationCapabilities:
         manager = contract_harness.manager
         capabilities = await manager.get_process_capabilities()
         if capabilities.supports_modification:
-            with pytest.raises(CannotUpdateResourceException):
+            with pytest.raises(CannotUpdateResourceError):
                 await manager.set_process_deployment_status(
                     contract_harness.private_process,
                     ProcessDeploymentStatusValue.DEPLOYED,

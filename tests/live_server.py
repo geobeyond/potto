@@ -109,6 +109,7 @@ def live_server(request):
         "POTTO__SERVER_METADATA_MANAGER__SETTINGS_MODEL__DATABASE_DSN": test_dsn,
         "POTTO__USER_ACCOUNT_MANAGER__SETTINGS_MODEL__DATABASE_DSN": test_dsn,
         "POTTO__PROCESS_MANAGER__SETTINGS_MODEL__DATABASE_DSN": test_dsn,
+        "POTTO__JOB_MANAGER__SETTINGS_MODEL__DATABASE_DSN": test_dsn,
         "POTTO__BIND_HOST": "127.0.0.1",
         "POTTO__BIND_PORT": str(port),
         "POTTO__PUBLIC_URL": base_url,

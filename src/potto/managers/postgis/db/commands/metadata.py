@@ -3,8 +3,8 @@ import logging
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .....exceptions import (
-    CannotCreateResourceException,
-    ResourceNotFoundException,
+    CannotCreateResourceError,
+    ResourceNotFoundError,
 )
 from .....schemas.metadata import (
     ServerMetadataCreate,
@@ -24,7 +24,7 @@ async def create_metadata(
     await session.commit()
     await session.refresh(instance)
     if (created := await get_metadata(session)) is None:
-        raise CannotCreateResourceException("error creating metadata")
+        raise CannotCreateResourceError("error creating metadata")
     return created
 
 
@@ -48,4 +48,4 @@ async def delete_metadata(
         await session.delete(instance)
         await session.commit()
     else:
-        raise ResourceNotFoundException("Server metadata not found.")
+        raise ResourceNotFoundError("Server metadata not found.")

@@ -43,6 +43,7 @@ def settings() -> config.PottoSettings:
         original_settings.server_metadata_manager,
         original_settings.user_account_manager,
         original_settings.process_manager,
+        original_settings.job_manager,
     ):
         postgis_settings = PostgisManagerConfiguration.model_validate(
             manager_settings.settings_model

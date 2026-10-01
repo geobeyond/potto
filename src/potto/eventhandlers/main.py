@@ -11,9 +11,16 @@ from faststream.mqtt import (
 )
 
 from ..config import PottoSettings
-from ..constants import PROCESS_INTERNAL_TOPIC_PREFIX
+from ..constants import (
+    JOB_INTERNAL_TOPIC_PREFIX,
+    PROCESS_INTERNAL_TOPIC_PREFIX,
+)
 from ..pubsub.publishers import declare_external_publishers
-from . import processes as process_handlers
+from ..schemas.events import InternalJobEventType
+from . import (
+    jobs as job_handlers,
+    processes as process_handlers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +53,18 @@ def create_worker_app_from_settings(settings: "PottoSettings") -> FastStream:
                         (PROCESS_INTERNAL_TOPIC_PREFIX, "{identifier}/{event_type}")
                     ),
                     shared="bridge-to-public",
+                    qos=QoS.AT_LEAST_ONCE,
+                ),
+                MQTTRoute(
+                    job_handlers.internal_handle_job_created,
+                    "/".join(
+                        (
+                            JOB_INTERNAL_TOPIC_PREFIX,
+                            "{identifier}",
+                            InternalJobEventType.CREATED.value,
+                        )
+                    ),
+                    shared="job-execution",
                     qos=QoS.AT_LEAST_ONCE,
                 ),
             )

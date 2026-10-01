@@ -5,6 +5,7 @@ import httpx
 
 from ..schemas.auth import PottoUser
 from ..schemas.collections import Collection
+from ..schemas.jobs import Job
 from ..schemas.processes import Process
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,14 @@ class OPAAuthorizationBackend:
             "identifier": process.identifier,
             "is_public": process.is_public,
             "owner_id": process.owner.id,
+        }
+
+    def _job_input(self, job: Job) -> dict:
+        return {
+            "identifier": job.identifier,
+            "is_public": job.is_public,
+            "owner_id": job.owner.id,
+            "process": self._process_input(job.process),
         }
 
     async def can_view_collection(
@@ -207,3 +216,65 @@ class OPAAuthorizationBackend:
             {"user": self._user_input(user)},
         )
         return bool(result)
+
+    async def can_create_job(self, user: PottoUser | None, process: Process) -> bool:
+        result = await self._query(
+            "can_create_job",
+            {
+                "user": self._user_input(user),
+                "process": self._process_input(process),
+            },
+        )
+        return bool(result)
+
+    async def can_view_job(self, user: PottoUser | None, job: Job) -> bool:
+        result = await self._query(
+            "can_view_job",
+            {
+                "user": self._user_input(user),
+                "job": self._job_input(job),
+            },
+        )
+        return bool(result)
+
+    async def can_cancel_job(self, user: PottoUser | None, job: Job) -> bool:
+        result = await self._query(
+            "can_cancel_job",
+            {
+                "user": self._user_input(user),
+                "job": self._job_input(job),
+            },
+        )
+        return bool(result)
+
+    async def can_delete_job(self, user: PottoUser | None, job: Job) -> bool:
+        result = await self._query(
+            "can_delete_job",
+            {
+                "user": self._user_input(user),
+                "job": self._job_input(job),
+            },
+        )
+        return bool(result)
+
+    async def can_update_job_status(self, user: PottoUser | None, job: Job) -> bool:
+        result = await self._query(
+            "can_update_job_status",
+            {
+                "user": self._user_input(user),
+                "job": self._job_input(job),
+            },
+        )
+        return bool(result)
+
+    async def get_accessible_private_job_identifiers(
+        self, user: PottoUser | None
+    ) -> list[str] | None:
+        result = await self._query(
+            "accessible_private_job_identifiers",
+            {"user": self._user_input(user)},
+        )
+        if result is None:
+            return None
+        result = cast(list[str], result)
+        return result

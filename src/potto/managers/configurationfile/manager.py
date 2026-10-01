@@ -46,6 +46,8 @@ from .admin.processes import ProcessView
 from .admin.users import UserView
 
 if TYPE_CHECKING:
+    from collections.abc import Collection as AbcCollection
+
     import cyclopts
     from starlette_admin.views import BaseModelView
 
@@ -324,6 +326,9 @@ class ConfigurationFileManager:
         value: "ProcessDeploymentStatusValue",
         user: "Principal",
         detail: str | None = None,
+        *,
+        from_values: "AbcCollection[ProcessDeploymentStatusValue] | None" = None,
+        expected_definition_hash: str | None = None,
     ) -> "Process":
         """update a process' deployment status."""
         raise CapabilityNotSupported(

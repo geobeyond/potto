@@ -103,6 +103,16 @@ MaybeKeywords = typing.Annotated[
 ]
 
 
+@dataclasses.dataclass(frozen=True)
+class OgcApiException:
+    type_: str
+    title: str | None = None
+    status: str | None = None
+    detail: str | None = None
+    instance: str | None = None
+    additional_properties: dict[str, typing.Any] | None = None
+
+
 @dataclasses.dataclass
 class CountedItems:
     matched: int

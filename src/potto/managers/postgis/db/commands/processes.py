@@ -1,13 +1,20 @@
 import dataclasses
 import logging
-from typing import cast
+from typing import (
+    Collection,
+    cast,
+)
 
+from sqlmodel import (
+    func,
+    update,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from .....exceptions import (
-    CannotCreateResourceException,
-    CannotUpdateResourceException,
-    ResourceNotFoundException,
+    CannotCreateResourceError,
+    CannotUpdateResourceError,
+    ResourceNotFoundError,
 )
 from .....schemas.processes import (
     ExecutionUnitCwlCreate,
@@ -18,6 +25,7 @@ from .....schemas.processes import (
     ExecutionUnitOtherUpdate,
     ProcessCreate,
     ProcessDeploymentStatus,
+    ProcessDeploymentStatusValue,
     ProcessUpdate,
 )
 from ..models import Process
@@ -132,24 +140,58 @@ async def create_process(session: AsyncSession, to_create: ProcessCreate) -> Pro
     await session.commit()
     await session.refresh(instance)
     if (created := await get_process(session, cast(int, instance.id))) is None:
-        raise CannotCreateResourceException("error creating process")
+        raise CannotCreateResourceError("error creating process")
     return created
 
 
 async def set_process_deployment_status(
     session: AsyncSession,
-    db_process: Process,
+    process_id: int,
     deployment_status: ProcessDeploymentStatus,
-) -> Process:
+    *,
+    from_values: Collection[ProcessDeploymentStatusValue] | None = None,
+    expected_definition_hash: str | None = None,
+) -> Process | None:
+    """Set a process' deployment status, optionally only if it matches conditions.
+
+    The conditions and the update are a single conditional ``UPDATE`` statement,
+    so that concurrent callers cannot both succeed in making the same transition -
+    e.g. two workers starting to deploy the same process.
+
+    A process without any recorded deployment status is considered to be
+    ``failed``, as in ``Process.to_potto()``.
+
+    Returns None when the process does not exist or does not match the conditions.
+    """
     status_dict = dataclasses.asdict(deployment_status)
     if status_dict["changed_at"] is not None:
         status_dict["changed_at"] = status_dict["changed_at"].isoformat()
-    db_process.deployment_status = status_dict
-    session.add(db_process)
+    column = Process.deployment_status
+    statement = update(Process).where(
+        Process.id == process_id  # ty: ignore[invalid-argument-type]
+    )
+    if from_values is not None:
+        statement = statement.where(
+            func.coalesce(
+                column["value"].astext,  # ty: ignore[not-subscriptable]
+                ProcessDeploymentStatusValue.FAILED.value,
+            ).in_([value.value for value in from_values])
+        )
+    if expected_definition_hash is not None:
+        statement = statement.where(
+            column["definition_hash"].astext  # ty: ignore[not-subscriptable]
+            == expected_definition_hash
+        )
+    statement = statement.values(deployment_status=status_dict).returning(Process.id)  # ty: ignore[no-matching-overload]
+    updated_id = (await session.exec(statement)).scalar_one_or_none()
     await session.commit()
-    await session.refresh(db_process)
-    if (updated := await get_process(session, cast(int, db_process.id))) is None:
-        raise CannotUpdateResourceException(f"error updating process {db_process.id}")
+    if updated_id is None:
+        return None
+    # the update bypasses the ORM, so any instance of this process already
+    # loaded in the session is now stale
+    session.expire_all()
+    if (updated := await get_process(session, process_id)) is None:
+        raise CannotUpdateResourceError(f"error updating process {process_id}")
     return updated
 
 
@@ -184,7 +226,7 @@ async def update_process(
     await session.commit()
     await session.refresh(db_process)
     if (updated := await get_process(session, cast(int, db_process.id))) is None:
-        raise CannotUpdateResourceException(f"error updating process {db_process.id}")
+        raise CannotUpdateResourceError(f"error updating process {db_process.id}")
     return updated
 
 
@@ -196,4 +238,4 @@ async def delete_process(
         await session.delete(instance)
         await session.commit()
     else:
-        raise ResourceNotFoundException(f"Process with id {process_id} does not exist.")
+        raise ResourceNotFoundError(f"Process with id {process_id} does not exist.")

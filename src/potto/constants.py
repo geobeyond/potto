@@ -86,6 +86,7 @@ FEATURE_COLLECTION_ITEM_TYPE: typing.Final[str] = "feature"
 PYGEOAPI_F_JSON: typing.Final[str] = "json"
 
 PROCESS_INTERNAL_TOPIC_PREFIX: typing.Final[str] = "processes"
+JOB_INTERNAL_TOPIC_PREFIX: typing.Final[str] = "jobs"
 EXTERNAL_PUBLIC_TOPIC_PREFIX: typing.Final[str] = "public"
 EXTERNAL_PRIVATE_TOPIC_PREFIX: typing.Final[str] = "users/{user_id}"
 PROCESS_EXTERNAL_PRIVATE_TOPIC_PREFIX: typing.Final[str] = "users/{user_id}/processes"
