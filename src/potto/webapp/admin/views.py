@@ -12,6 +12,7 @@ from ...exceptions import (
     PottoCannotEditUserException,
     PottoCannotSetAdminScopeException,
     PottoCannotSetScopesException,
+    ProcessExecutionUnitRejectedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,5 +36,7 @@ class _PottoAdminModelView(BaseModelView):
             raise FormValidationError({"username": str(exc)})
         if isinstance(exc, PottoCannotEditUserException):
             raise FormValidationError({"username": str(exc)})
+        if isinstance(exc, ProcessExecutionUnitRejectedError):
+            raise FormValidationError({"execution_unit": str(exc)})
         logger.exception(f"An error occurred: {exc}")
         raise exc

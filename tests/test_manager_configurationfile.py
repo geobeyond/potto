@@ -259,6 +259,7 @@ class TestProcesses:
             "detail": None,
             "definition_hash": None,
             "changed_at": None,
+            "deployed_reference": None,
         }
 
 

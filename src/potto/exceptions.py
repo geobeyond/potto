@@ -39,6 +39,10 @@ class ProcessDeploymentStatusConflictError(PottoException):
 class ProcessExecutionUnitNotSupportedError(PottoException): ...
 
 
+class ProcessExecutionUnitRejectedError(PottoException):
+    """The job manager would not be able to deploy a process' execution unit."""
+
+
 class PottoCannotSetAdminScopeException(PottoException): ...
 
 

@@ -91,13 +91,16 @@ class ProcessManagerProtocol(Protocol):
         user: "Principal",
         detail: str | None = None,
         *,
+        deployed_reference: str | None = None,
         from_values: "Collection[ProcessDeploymentStatusValue] | None" = None,
         expected_definition_hash: str | None = None,
     ) -> "Process":
         """update a process' deployment status.
 
         The deployment status is recorded together with ``process``'s definition
-        hash, i.e. the hash of the definition that is being deployed.
+        hash, i.e. the hash of the definition that is being deployed, and with
+        ``deployed_reference``, i.e. what the job manager produced when deploying
+        it.
 
         The update can be made conditional on the process' current deployment
         status, via ``from_values`` (its current value must be one of these) and

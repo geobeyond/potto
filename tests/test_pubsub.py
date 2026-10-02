@@ -2,8 +2,10 @@ import asyncio
 import contextlib
 import dataclasses
 import datetime as dt
+import itertools
 import socket
 import types
+from unittest import mock
 from collections.abc import AsyncIterator
 
 import jwt
@@ -29,6 +31,7 @@ from potto import config
 from potto.eventhandlers.main import create_worker_app_from_settings
 from potto.exceptions import MissingConfigurationError
 from potto.constants import EXTERNAL_BROKER_INTERNAL_LISTENER_NAME
+from potto.eventhandlers import processes as process_handlers
 from potto.eventhandlers.processes import bridge_internal_event_to_public
 from potto.pubsub import tokens
 from potto.pubsub.asyncapi import build_asyncapi_document
@@ -56,6 +59,11 @@ from potto.schemas.auth import (
 from potto.pubsub.topics import (
     private_process_topic,
     public_process_topic,
+)
+from potto.schemas.processes import (
+    Process,
+    ProcessDeploymentStatus,
+    ProcessDeploymentStatusValue,
 )
 from potto.schemas.events import (
     AnyInternalProcessEvent,
@@ -395,6 +403,23 @@ def _event(
     )
 
 
+def _snapshot(identifier: str = "proc1") -> Process:
+    """A snapshot of a deleted process, as carried by its deletion event."""
+    created_at = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    return Process(
+        identifier=identifier,
+        created_at=created_at,
+        updated_at=created_at,
+        title="Deleted process",
+        owner=_user("owner"),
+        is_public=False,
+        version="1.0.0",
+        deployment_status=ProcessDeploymentStatus(
+            value=ProcessDeploymentStatusValue.FAILED
+        ),
+    )
+
+
 def _deletion_event(
     audience: ResourceAudience, identifier: str = "proc1"
 ) -> InternalProcessDeletionEvent:
@@ -404,6 +429,7 @@ def _deletion_event(
         timestamp=dt.datetime.now(dt.timezone.utc),
         correlation_id="corr",
         audience=audience,
+        process=_snapshot(identifier),
     )
 
 
@@ -524,7 +550,11 @@ async def test_bridge_does_not_publish(event, processes):
             {"event_type": "updated"}, InternalProcessEvent, id="non-deletion"
         ),
         pytest.param(
-            {"event_type": "deleted", "audience": {"is_public": True}},
+            {
+                "event_type": "deleted",
+                "audience": {"is_public": True},
+                "process": _snapshot(),
+            },
             InternalProcessDeletionEvent,
             id="deletion",
         ),
@@ -838,6 +868,78 @@ def test_webapp_requires_pubsub_settings(settings):
     settings.external_mqtt_broker.token_signing_key = None
     with pytest.raises(MissingConfigurationError, match="TOKEN_SIGNING_KEY"):
         create_app_from_settings(settings)
+
+
+def _filters_overlap(first: str, second: str) -> bool:
+    """Whether some topic would match both MQTT topic filters."""
+    first_levels, second_levels = first.split("/"), second.split("/")
+    for a, b in itertools.zip_longest(first_levels, second_levels):
+        if a == "#" or b == "#":
+            return True
+        if a is None or b is None:
+            return False
+        if a != b and "+" not in (a, b):
+            return False
+    return True
+
+
+def _without_share(topic: str) -> str:
+    return topic.split("/", 2)[2] if topic.startswith("$share/") else topic
+
+
+def test_worker_subscriptions_do_not_overlap():
+    # faststream does not deliver a message to more than one subscriber of the same
+    # broker connection when their topics overlap, even if they belong to
+    # different shared subscription groups - one of them would silently get nothing
+    settings = config.PottoSettings(
+        external_mqtt_broker=config.ExternalMqttBrokerSettings(
+            publisher_password=SecretStr("publisher-password")
+        )
+    )
+    create_worker_app_from_settings(settings)
+    topics = [
+        _without_share(subscriber.topic)
+        for subscriber in settings.get_internal_broker(role="worker").subscribers
+    ]
+    assert topics
+    for first, second in itertools.combinations(topics, 2):
+        assert not _filters_overlap(first, second), (first, second)
+
+
+@pytest.mark.parametrize(
+    "first, second, expected",
+    [
+        ("processes/+/+", "processes/+/+", True),
+        ("processes/+/+", "processes/p1/created", True),
+        ("processes/#", "processes/+/+", True),
+        ("processes/+/+", "jobs/+/created", False),
+        ("jobs/+/created", "jobs/+/deleted", False),
+        ("processes/+", "processes/+/+", False),
+    ],
+)
+def test_filters_overlap(first, second, expected):
+    assert _filters_overlap(first, second) is expected
+
+
+@pytest.mark.asyncio
+async def test_process_event_handler_runs_both_steps_independently():
+    event = _event(InternalProcessEventType.UPDATED)
+    settings, publishers = object(), object()
+    with (
+        mock.patch.object(
+            process_handlers,
+            "internal_handle_process_event",
+            side_effect=RuntimeError("reconciling failed"),
+        ) as reconcile,
+        mock.patch.object(
+            process_handlers, "bridge_internal_event_to_public"
+        ) as bridge,
+    ):
+        await process_handlers.handle_internal_process_event(
+            event, settings, publishers
+        )
+    reconcile.assert_awaited_once_with(event, settings)
+    bridge.assert_awaited_once_with(event, settings, publishers)
 
 
 def test_worker_requires_publisher_password():

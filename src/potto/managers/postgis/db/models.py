@@ -259,6 +259,7 @@ class Process(SQLModel, table=True):
                         is not None
                         else None
                     ),
+                    deployed_reference=self.deployment_status.get("deployed_reference"),
                 )
                 if self.deployment_status
                 else process_schemas.ProcessDeploymentStatus(

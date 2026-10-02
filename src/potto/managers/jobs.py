@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     )
     from ..schemas.base import OgcApiException
     from ..schemas.processes import (
+        ExecutionUnitInput,
         Process,
         ProcessDeploymentStatus,
     )
@@ -58,13 +59,32 @@ class JobManagerProtocol(Protocol):
         Raise DeploymentFailedException when the deployment cannot be done or fails.
         """
 
-    async def undeploy_process(self, process: "Process") -> "ProcessDeploymentStatus":
-        """Undeploy a process.
+    async def undeploy_process(self, process: "Process") -> None:
+        """Undeploy a process, releasing whatever its deployment produced.
 
-        This is a potential long-running task and should thus be called
-        from a background worker.
+        Processes are undeployed when they are deleted, so this is called by
+        potto's background worker after the process no longer exists, with a
+        snapshot of the process as it was just before its deletion.
 
-        Raise DeploymentFailedException when the deployment cannot be done or fails.
+        This is a potential long-running task. It must be idempotent, as it may
+        be called more than once for the same process, including for processes
+        that were never successfully deployed.
+
+        Raise DeploymentFailedException when the undeployment fails.
+        """
+
+    async def validate_execution_unit(
+        self, execution_unit: "ExecutionUnitInput"
+    ) -> None:
+        """Check whether this manager would accept an execution unit for deployment.
+
+        This is called before a process is created or updated, so that problems
+        surface immediately rather than as a failed deployment later on. It must be
+        cheap and must not contact the execution environment, as it runs as part
+        of handling API requests.
+
+        Raise ProcessExecutionUnitRejectedError, with the reason, when the
+        execution unit would not be accepted.
         """
 
     async def get_job(

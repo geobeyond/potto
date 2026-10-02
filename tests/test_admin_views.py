@@ -12,9 +12,12 @@ tests/test_manager_configurationfile.py.
 import types
 from typing import cast
 
+from unittest import mock
+
 import pytest
 from starlette.requests import Request
 from starlette_admin import RequestAction
+from starlette_admin.exceptions import FormValidationError
 
 from potto.managers.postgis.admin.collections import CollectionView
 from potto.managers.postgis.admin.metadata import ServerMetadataModelView
@@ -72,6 +75,33 @@ class TestCollectionView:
 
 
 class TestProcessView:
+    @pytest.mark.asyncio
+    async def test_create_rejects_disallowed_image(self, settings, admin_user):
+        view = ProcessView()
+        request = fake_request(settings, admin_user, action=RequestAction.CREATE)
+        data = {
+            "identifier": "admin-oci-process",
+            "title": "An OCI process",
+            "is_public": False,
+            "version": "1.0.0",
+            "execution_unit": {
+                "type_": "oci",
+                "image": "docker.io/library/alpine:3.20",
+            },
+        }
+        with mock.patch.object(
+            settings.get_job_manager().config.oci, "allowed_registries", ["ghcr.io"]
+        ):
+            with pytest.raises(FormValidationError) as excinfo:
+                await view.create(request, data)
+        assert "docker.io" in excinfo.value.errors["execution_unit"]
+        assert (
+            await settings.get_process_manager().get_process(
+                "admin-oci-process", admin_user
+            )
+            is None
+        )
+
     @pytest.mark.asyncio
     async def test_find_all_and_find_by_pk(self, settings, admin_user, obs_process):
         view = ProcessView()

@@ -129,6 +129,7 @@ async def set_process_deployment_status(
     value: ProcessDeploymentStatusValue,
     detail: str | None = None,
     *,
+    deployed_reference: str | None = None,
     from_values: Collection[ProcessDeploymentStatusValue] | None = None,
     expected_definition_hash: str | None = None,
 ) -> ProcessSchema:
@@ -152,6 +153,7 @@ async def set_process_deployment_status(
                 detail=detail,
                 definition_hash=process.get_deployment_hash(),
                 changed_at=dt.datetime.now(dt.timezone.utc),
+                deployed_reference=deployed_reference,
             ),
             from_values=from_values,
             expected_definition_hash=expected_definition_hash,

@@ -290,6 +290,9 @@ class Potto:
         Upon successful process creation, this also publishes a ``ProcessEvent``
         to the ``processes/{identifier}/created`` topic.
         """
+        await self._settings.get_job_manager().validate_execution_unit(
+            to_create.execution_unit
+        )
         process_manager = self._settings.get_process_manager()
         created = await process_manager.create_process(to_create, user)
         await self.publish_internal_process_event(
@@ -321,6 +324,9 @@ class Potto:
             raise potto_exceptions.CannotUpdateResourceError(
                 f"process {process_id} not found"
             )
+        await self._settings.get_job_manager().validate_execution_unit(
+            to_update.execution_unit
+        )
         updated = await process_manager.update_process(process, to_update, user)
         await self.publish_internal_process_event(
             events.InternalProcessEvent(
@@ -365,6 +371,7 @@ class Potto:
                 timestamp=dt.datetime.now(dt.timezone.utc),
                 correlation_id=correlation_id or create_correlation_id(),
                 audience=audience,
+                process=process,
             )
         )
 
@@ -410,9 +417,11 @@ class Potto:
             ) from err
 
         job_manager = self._settings.get_job_manager()
+        deployed_reference: str | None = None
         try:
             deployment_status = await job_manager.deploy_process(claimed)
             outcome, detail = deployment_status.value, deployment_status.detail
+            deployed_reference = deployment_status.deployed_reference
         except Exception as err:
             # the deployment must not be left in progress forever
             logger.exception(f"failed to deploy process {process_id}")
@@ -427,6 +436,7 @@ class Potto:
                 value=outcome,
                 user=user,
                 detail=detail,
+                deployed_reference=deployed_reference,
                 from_values={status_value.IN_PROGRESS},
                 expected_definition_hash=claimed.deployment_status.definition_hash,
             )
@@ -434,6 +444,18 @@ class Potto:
             logger.info(
                 f"deployment status of process {process_id} changed while it was "
                 f"being deployed, not recording the outcome of its deployment"
+            )
+            return claimed
+        except potto_exceptions.ResourceNotFoundError:
+            # the process was deleted while it was being deployed. Its deletion
+            # event may well have been handled already, so this deployment needs
+            # to be released here, as nothing else would
+            logger.info(
+                f"process {process_id} was deleted while it was being deployed, "
+                f"undeploying it"
+            )
+            await self.undeploy_process(
+                claimed, user=user, correlation_id=correlation_id
             )
             return claimed
 
@@ -456,18 +478,27 @@ class Potto:
 
     async def undeploy_process(
         self,
-        process_id: str,
+        process: process_schemas.Process,
         *,
         user: Principal,
         correlation_id: str | None = None,
-    ) -> process_schemas.Process:
-        """Undeploy a process.
+    ) -> None:
+        """Undeploy a process that has been deleted.
 
-        Upon successful undeployment, this also publishes a ``ProcessEvent`` to
-        the ``processes/{identifier}/undeployed`` topic.
+        ``process`` is a snapshot of the process as it was just before its
+        deletion. This is a potentially long-running task and should thus be
+        called from a background worker.
+
+        Unlike other process operations, this publishes no event - the process no
+        longer exists, and any process event would trigger reconciling it again.
         """
-
-        raise NotImplementedError
+        try:
+            await self._settings.get_job_manager().undeploy_process(process)
+        except Exception:
+            logger.exception(
+                f"failed to undeploy process {process.identifier} "
+                f"(correlation id {correlation_id})"
+            )
 
     async def publish_internal_process_event(
         self,
